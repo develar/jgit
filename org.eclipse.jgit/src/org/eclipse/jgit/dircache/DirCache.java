@@ -123,7 +123,7 @@ public class DirCache {
 		return cmp(aPath, aLen, b.path, b.path.length);
 	}
 
-	static int cmp(final byte[] aPath, final int aLen, final byte[] bPath,
+    public static int cmp(final byte[] aPath, final int aLen, final byte[] bPath,
 			final int bLen) {
 		for (int cPos = 0; cPos < aLen && cPos < bLen; cPos++) {
 			final int cmp = (aPath[cPos] & 0xff) - (bPath[cPos] & 0xff);
@@ -805,7 +805,7 @@ public class DirCache {
 		return nextIdx;
 	}
 
-	int nextEntry(final byte[] p, final int pLen, int nextIdx) {
+	public int nextEntry(final byte[] p, final int pLen, int nextIdx) {
 		while (nextIdx < entryCnt) {
 			final DirCacheEntry next = sortedEntries[nextIdx];
 			if (!DirCacheTree.peq(p, next.path, pLen))
