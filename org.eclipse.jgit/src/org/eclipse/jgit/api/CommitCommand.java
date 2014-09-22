@@ -136,7 +136,7 @@ public class CommitCommand extends GitCommand<RevCommit> {
 	/**
 	 * @param repo
 	 */
-	protected CommitCommand(Repository repo) {
+    public CommitCommand(Repository repo) {
 		super(repo);
 	}
 
