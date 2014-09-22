@@ -176,7 +176,7 @@ public class CheckoutCommand extends GitCommand<Ref> {
 	/**
 	 * @param repo
 	 */
-	protected CheckoutCommand(Repository repo) {
+    public CheckoutCommand(Repository repo) {
 		super(repo);
 		this.paths = new LinkedList<String>();
 	}
