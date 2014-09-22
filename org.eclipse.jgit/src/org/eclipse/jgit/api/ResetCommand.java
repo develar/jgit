@@ -82,7 +82,7 @@ import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
  */
 public class ResetCommand extends GitCommand<Ref> {
 
-	/**
+    /**
 	 * Kind of reset
 	 */
 	public enum ResetType {
@@ -123,7 +123,9 @@ public class ResetCommand extends GitCommand<Ref> {
 
 	private Collection<String> filepaths = new LinkedList<String>();
 
-	/**
+    private DirCacheCheckout dirCacheCheckout;
+
+    /**
 	 *
 	 * @param repo
 	 */
@@ -293,7 +295,14 @@ public class ResetCommand extends GitCommand<Ref> {
 		return this;
 	}
 
-	private String getRefOrHEAD() {
+    /**
+     * @return {@link org.eclipse.jgit.dircache.DirCacheCheckout} if working directory was changed
+     */
+    public DirCacheCheckout getDirCacheCheckout() {
+        return dirCacheCheckout;
+    }
+
+    private String getRefOrHEAD() {
 		if (ref != null)
 			return ref;
 		else
@@ -386,13 +395,13 @@ public class ResetCommand extends GitCommand<Ref> {
 			GitAPIException {
 		DirCache dc = repo.lockDirCache();
 		try {
-			DirCacheCheckout checkout = new DirCacheCheckout(repo, dc,
-					commitTree);
-			checkout.setFailOnConflict(false);
+            dirCacheCheckout = new DirCacheCheckout(repo, dc,
+                    commitTree);
+			dirCacheCheckout.setFailOnConflict(false);
 			try {
-				checkout.checkout();
+				dirCacheCheckout.checkout();
 			} catch (org.eclipse.jgit.errors.CheckoutConflictException cce) {
-				throw new CheckoutConflictException(checkout.getConflicts(),
+				throw new CheckoutConflictException(dirCacheCheckout.getConflicts(),
 						cce);
 			}
 		} finally {
