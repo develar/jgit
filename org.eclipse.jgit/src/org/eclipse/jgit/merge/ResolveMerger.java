@@ -932,6 +932,10 @@ public class ResolveMerger extends ThreeWayMerger {
 		return toBeCheckedOut;
 	}
 
+    public List<String> getToBeDeleted() {
+		return toBeDeleted;
+	}
+
 	/**
 	 * @return the mergeResults
 	 */
