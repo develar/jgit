@@ -55,6 +55,12 @@ import org.eclipse.jgit.transport.URIish;
 public class TransportException extends IOException {
 	private static final long serialVersionUID = 1L;
 
+	public enum Status {
+		NOT_PERMITTED, NOT_AUTHORIZED, CANCELLED, CANNOT_RESOLVE_REPO
+	}
+
+	private Status status;
+
 	/**
 	 * Constructs an TransportException with the specified detail message
 	 * prefixed with provided URI.
@@ -66,6 +72,12 @@ public class TransportException extends IOException {
 	 */
 	public TransportException(final URIish uri, final String s) {
 		super(uri.setPass(null) + ": " + s); //$NON-NLS-1$
+	}
+
+	public TransportException(final URIish uri, final String s, Status status) {
+		super(uri.setPass(null) + ": " + s); //$NON-NLS-1$
+
+		this.status = status;
 	}
 
 	/**
@@ -105,5 +117,9 @@ public class TransportException extends IOException {
 	public TransportException(final String s, final Throwable cause) {
 		super(s);
 		initCause(cause);
+	}
+
+	public Status getStatus() {
+		return status;
 	}
 }

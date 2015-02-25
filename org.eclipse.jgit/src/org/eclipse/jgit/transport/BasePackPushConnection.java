@@ -174,7 +174,7 @@ public abstract class BasePackPushConnection extends BasePackConnection implemen
 		} catch (TransportException e) {
 			// Fall through.
 		}
-		return new TransportException(uri, JGitText.get().pushNotPermitted);
+		return new TransportException(uri, JGitText.get().pushNotPermitted, TransportException.Status.NOT_PERMITTED);
 	}
 
 	/**
@@ -262,7 +262,7 @@ public abstract class BasePackPushConnection extends BasePackConnection implemen
 		}
 
 		if (monitor.isCancelled())
-			throw new TransportException(uri, JGitText.get().pushCancelled);
+			throw new TransportException(uri, JGitText.get().pushCancelled, TransportException.Status.CANCELLED);
 		pckOut.end();
 		outNeedsEnd = false;
 	}

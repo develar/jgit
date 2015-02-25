@@ -496,14 +496,13 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 					if (3 < authAttempts
 							|| !authMethod.authorize(uri, credentialsProvider)) {
 						throw new TransportException(uri,
-								JGitText.get().notAuthorized);
+								JGitText.get().notAuthorized, TransportException.Status.NOT_AUTHORIZED);
 					}
 					authAttempts++;
 					continue;
 
 				case HttpConnection.HTTP_FORBIDDEN:
-					throw new TransportException(uri, MessageFormat.format(
-							JGitText.get().serviceNotPermitted, service));
+					throw new TransportException(uri, MessageFormat.format(JGitText.get().serviceNotPermitted, service), TransportException.Status.NOT_PERMITTED);
 
 				default:
 					String err = status + " " + conn.getResponseMessage(); //$NON-NLS-1$

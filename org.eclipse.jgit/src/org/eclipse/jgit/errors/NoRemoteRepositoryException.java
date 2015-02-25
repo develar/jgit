@@ -60,6 +60,6 @@ public class NoRemoteRepositoryException extends TransportException {
 	 *            message
 	 */
 	public NoRemoteRepositoryException(final URIish uri, final String s) {
-		super(uri, s);
+		super(uri, s, Status.CANNOT_RESOLVE_REPO);
 	}
 }

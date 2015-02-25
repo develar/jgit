@@ -135,7 +135,7 @@ class TransportBundleFile extends Transport implements TransportBundle {
 		try {
 			src = new FileInputStream(bundle);
 		} catch (FileNotFoundException err) {
-			throw new TransportException(uri, JGitText.get().notFound);
+			throw new TransportException(uri, JGitText.get().notFound, TransportException.Status.CANNOT_RESOLVE_REPO);
 		}
 		return new BundleFetchConnection(this, src);
 	}
