@@ -45,23 +45,6 @@
 
 package org.eclipse.jgit.dircache;
 
-import java.io.BufferedInputStream;
-import java.io.EOFException;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
-import java.security.DigestOutputStream;
-import java.security.MessageDigest;
-import java.text.MessageFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
-
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.errors.IndexReadException;
 import org.eclipse.jgit.errors.LockFailedException;
@@ -81,12 +64,19 @@ import org.eclipse.jgit.treewalk.FileTreeIterator;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.TreeWalk.OperationType;
 import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
-import org.eclipse.jgit.util.FS;
-import org.eclipse.jgit.util.IO;
-import org.eclipse.jgit.util.MutableInteger;
-import org.eclipse.jgit.util.NB;
-import org.eclipse.jgit.util.TemporaryBuffer;
+import org.eclipse.jgit.util.*;
 import org.eclipse.jgit.util.io.SafeBufferedOutputStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.*;
+import java.security.DigestOutputStream;
+import java.security.MessageDigest;
+import java.text.MessageFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
 
 /**
  * Support for the Git dircache (aka index file).
@@ -102,7 +92,10 @@ import org.eclipse.jgit.util.io.SafeBufferedOutputStream;
  * resolutions to be easily performed.
  */
 public class DirCache {
-	private static final byte[] SIG_DIRC = { 'D', 'I', 'R', 'C' };
+  private final static Logger LOG = LoggerFactory
+    .getLogger(DirCache.class);
+
+  private static final byte[] SIG_DIRC = { 'D', 'I', 'R', 'C' };
 
 	private static final int EXT_TREE = 0x54524545 /* 'TREE' */;
 
@@ -507,8 +500,16 @@ public class DirCache {
 		sortedEntries = new DirCacheEntry[entryCnt];
 
 		final MutableInteger infoAt = new MutableInteger();
-		for (int i = 0; i < entryCnt; i++)
-			sortedEntries[i] = new DirCacheEntry(infos, infoAt, in, md, smudge_s, smudge_ns);
+		for (int i = 0; i < entryCnt; i++) {
+		  try {
+		    sortedEntries[i] = new DirCacheEntry(infos, infoAt, in, md, smudge_s, smudge_ns);
+		  }
+		  catch (CorruptObjectException e) {
+		    LOG.error("Invalid entry", e);
+		    i--;
+		    entryCnt--;
+		  }
+		}
 
 		// After the file entries are index extensions, and then a footer.
 		//

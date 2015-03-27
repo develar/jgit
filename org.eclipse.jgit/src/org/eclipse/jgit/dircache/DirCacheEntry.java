@@ -46,16 +46,6 @@
 
 package org.eclipse.jgit.dircache;
 
-import java.io.ByteArrayOutputStream;
-import java.io.EOFException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.ByteBuffer;
-import java.security.MessageDigest;
-import java.text.MessageFormat;
-import java.util.Arrays;
-
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.AnyObjectId;
@@ -65,6 +55,13 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.util.IO;
 import org.eclipse.jgit.util.MutableInteger;
 import org.eclipse.jgit.util.NB;
+import org.eclipse.jgit.util.SystemReader;
+
+import java.io.*;
+import java.nio.ByteBuffer;
+import java.security.MessageDigest;
+import java.text.MessageFormat;
+import java.util.Arrays;
 import org.eclipse.jgit.util.SystemReader;
 
 /**
@@ -201,7 +198,7 @@ public class DirCacheEntry {
 			throw p;
 		}
 
-		// Index records are padded out to the next 8 byte alignment
+	  // Index records are padded out to the next 8 byte alignment
 		// for historical reasons related to how C Git read the files.
 		//
 		final int actLen = len + pathLen;
@@ -212,8 +209,14 @@ public class DirCacheEntry {
 			md.update(nullpad, 0, padLen);
 		}
 
-		if (mightBeRacilyClean(smudge_s, smudge_ns))
-			smudgeRacilyClean();
+		if (mightBeRacilyClean(smudge_s, smudge_ns)) {
+		  smudgeRacilyClean();
+		}
+
+	  // throw after we read data from input
+	  if (corruptObjectException != null) {
+	    throw corruptObjectException;
+	  }
 	}
 
 	/**
