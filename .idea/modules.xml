@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/org.eclipse.jgit/org.eclipse.jgit.iml" filepath="$PROJECT_DIR$/org.eclipse.jgit/org.eclipse.jgit.iml" />
+      <module fileurl="file://$PROJECT_DIR$/org.eclipse.jgit-parent.iml" filepath="$PROJECT_DIR$/org.eclipse.jgit-parent.iml" />
+      <module fileurl="file://$PROJECT_DIR$/org.eclipse.jgit.ant/org.eclipse.jgit.ant.iml" filepath="$PROJECT_DIR$/org.eclipse.jgit.ant/org.eclipse.jgit.ant.iml" />
+      <module fileurl="file://$PROJECT_DIR$/org.eclipse.jgit.ant.test/org.eclipse.jgit.ant.test.iml" filepath="$PROJECT_DIR$/org.eclipse.jgit.ant.test/org.eclipse.jgit.ant.test.iml" />
+      <module fileurl="file://$PROJECT_DIR$/org.eclipse.jgit.archive/org.eclipse.jgit.archive.iml" filepath="$PROJECT_DIR$/org.eclipse.jgit.archive/org.eclipse.jgit.archive.iml" />
+      <module fileurl="file://$PROJECT_DIR$/org.eclipse.jgit.http.apache/org.eclipse.jgit.http.apache.iml" filepath="$PROJECT_DIR$/org.eclipse.jgit.http.apache/org.eclipse.jgit.http.apache.iml" />
+      <module fileurl="file://$PROJECT_DIR$/org.eclipse.jgit.http.server/org.eclipse.jgit.http.server.iml" filepath="$PROJECT_DIR$/org.eclipse.jgit.http.server/org.eclipse.jgit.http.server.iml" />
+      <module fileurl="file://$PROJECT_DIR$/org.eclipse.jgit.http.test/org.eclipse.jgit.http.test.iml" filepath="$PROJECT_DIR$/org.eclipse.jgit.http.test/org.eclipse.jgit.http.test.iml" />
+      <module fileurl="file://$PROJECT_DIR$/org.eclipse.jgit.junit/org.eclipse.jgit.junit.iml" filepath="$PROJECT_DIR$/org.eclipse.jgit.junit/org.eclipse.jgit.junit.iml" />
+      <module fileurl="file://$PROJECT_DIR$/org.eclipse.jgit.junit.http/org.eclipse.jgit.junit.http.iml" filepath="$PROJECT_DIR$/org.eclipse.jgit.junit.http/org.eclipse.jgit.junit.http.iml" />
+      <module fileurl="file://$PROJECT_DIR$/org.eclipse.jgit.pgm/org.eclipse.jgit.pgm.iml" filepath="$PROJECT_DIR$/org.eclipse.jgit.pgm/org.eclipse.jgit.pgm.iml" />
+      <module fileurl="file://$PROJECT_DIR$/org.eclipse.jgit.pgm.test/org.eclipse.jgit.pgm.test.iml" filepath="$PROJECT_DIR$/org.eclipse.jgit.pgm.test/org.eclipse.jgit.pgm.test.iml" />
+      <module fileurl="file://$PROJECT_DIR$/org.eclipse.jgit.test/org.eclipse.jgit.test.iml" filepath="$PROJECT_DIR$/org.eclipse.jgit.test/org.eclipse.jgit.test.iml" />
+      <module fileurl="file://$PROJECT_DIR$/org.eclipse.jgit.ui/org.eclipse.jgit.ui.iml" filepath="$PROJECT_DIR$/org.eclipse.jgit.ui/org.eclipse.jgit.ui.iml" />
+    </modules>
+  </component>
+</project>

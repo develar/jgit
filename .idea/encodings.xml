@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="Encoding">
+    <file url="file://$PROJECT_DIR$" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/org.eclipse.jgit" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/org.eclipse.jgit.ant" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/org.eclipse.jgit.ant.test" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/org.eclipse.jgit.archive" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/org.eclipse.jgit.console" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/org.eclipse.jgit.http.apache" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/org.eclipse.jgit.http.server" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/org.eclipse.jgit.http.test" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/org.eclipse.jgit.java7" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/org.eclipse.jgit.java7.test" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/org.eclipse.jgit.junit" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/org.eclipse.jgit.junit.http" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/org.eclipse.jgit.pgm" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/org.eclipse.jgit.pgm.test" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/org.eclipse.jgit.test" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/org.eclipse.jgit.ui" charset="UTF-8" />
+  </component>
+</project>
