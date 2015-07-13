@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component name="ArtifactManager">
+  <artifact name="sources">
+    <output-path>$PROJECT_DIR$/target</output-path>
+    <root id="root">
+      <element id="archive" name="jgit-sources.jar">
+        <element id="dir-copy" path="$PROJECT_DIR$/org.eclipse.jgit/src" />
+      </element>
+    </root>
+  </artifact>
+</component>
