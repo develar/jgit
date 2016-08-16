@@ -48,6 +48,11 @@
 
 package org.eclipse.jgit.lib;
 
+import static java.util.concurrent.TimeUnit.DAYS;
+import static java.util.concurrent.TimeUnit.HOURS;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -56,25 +61,40 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.text.MessageFormat;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import org.eclipse.jgit.api.MergeCommand.FastForwardMode;
 import org.eclipse.jgit.errors.ConfigInvalidException;
+import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.junit.MockSystemReader;
 import org.eclipse.jgit.merge.MergeConfig;
+import org.eclipse.jgit.storage.file.FileBasedConfig;
 import org.eclipse.jgit.util.FS;
 import org.eclipse.jgit.util.SystemReader;
 import org.junit.After;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
+import org.junit.rules.TemporaryFolder;
 
 /**
  * Test reading of git config
  */
 public class ConfigTest {
+
+	@Rule
+	public ExpectedException expectedEx = ExpectedException.none();
+
+	@Rule
+	public TemporaryFolder tmp = new TemporaryFolder();
 
 	@After
 	public void tearDown() {
@@ -739,6 +759,102 @@ public class ConfigTest {
 				c.getStringList("a", null, "x"));
 	}
 
+	@Test
+	public void testReadMultipleValuesForName() throws ConfigInvalidException {
+		Config c = parse("[foo]\nbar=false\nbar=true\n");
+		assertTrue(c.getBoolean("foo", "bar", false));
+	}
+
+	@Test
+	public void testIncludeInvalidName() throws ConfigInvalidException {
+		expectedEx.expect(ConfigInvalidException.class);
+		expectedEx.expectMessage(JGitText.get().invalidLineInConfigFile);
+		parse("[include]\nbar\n");
+	}
+
+	@Test
+	public void testIncludeNoValue() throws ConfigInvalidException {
+		expectedEx.expect(ConfigInvalidException.class);
+		expectedEx.expectMessage(JGitText.get().invalidLineInConfigFile);
+		parse("[include]\npath\n");
+	}
+
+	@Test
+	public void testIncludeEmptyValue() throws ConfigInvalidException {
+		expectedEx.expect(ConfigInvalidException.class);
+		expectedEx.expectMessage(JGitText.get().invalidLineInConfigFile);
+		parse("[include]\npath=\n");
+	}
+
+	@Test
+	public void testIncludeValuePathNotFound() throws ConfigInvalidException {
+		// we do not expect an exception, included path not found are ignored
+		String notFound = "/not/found";
+		Config parsed = parse("[include]\npath=" + notFound + "\n");
+		assertEquals(1, parsed.getSections().size());
+		assertEquals(notFound, parsed.getString("include", null, "path"));
+	}
+
+	@Test
+	public void testIncludeValuePathWithTilde() throws ConfigInvalidException {
+		// we do not expect an exception, included path not supported are
+		// ignored
+		String notSupported = "~/someFile";
+		Config parsed = parse("[include]\npath=" + notSupported + "\n");
+		assertEquals(1, parsed.getSections().size());
+		assertEquals(notSupported, parsed.getString("include", null, "path"));
+	}
+
+	@Test
+	public void testIncludeValuePathRelative() throws ConfigInvalidException {
+		// we do not expect an exception, included path not supported are
+		// ignored
+		String notSupported = "someRelativeFile";
+		Config parsed = parse("[include]\npath=" + notSupported + "\n");
+		assertEquals(1, parsed.getSections().size());
+		assertEquals(notSupported, parsed.getString("include", null, "path"));
+	}
+
+	@Test
+	public void testIncludeTooManyRecursions() throws IOException {
+		File config = tmp.newFile("config");
+		String include = "[include]\npath=" + config.toPath() + "\n";
+		Files.write(config.toPath(), include.getBytes());
+		FileBasedConfig fbConfig = new FileBasedConfig(null, config,
+				FS.DETECTED);
+		try {
+			fbConfig.load();
+			fail();
+		} catch (ConfigInvalidException cie) {
+			assertEquals(JGitText.get().tooManyIncludeRecursions,
+					cie.getCause().getMessage());
+		}
+	}
+
+	@Test
+	public void testInclude() throws IOException, ConfigInvalidException {
+		File config = tmp.newFile("config");
+		File more = tmp.newFile("config.more");
+		File other = tmp.newFile("config.other");
+
+		String fooBar = "[foo]\nbar=true\n";
+		String includeMore = "[include]\npath=" + more.toPath() + "\n";
+		String includeOther = "path=" + other.toPath() + "\n";
+		String fooPlus = fooBar + includeMore + includeOther;
+		Files.write(config.toPath(), fooPlus.getBytes());
+
+		String fooMore = "[foo]\nmore=bar\n";
+		Files.write(more.toPath(), fooMore.getBytes());
+
+		String otherMore = "[other]\nmore=bar\n";
+		Files.write(other.toPath(), otherMore.getBytes());
+
+		Config parsed = parse("[include]\npath=" + config.toPath() + "\n");
+		assertTrue(parsed.getBoolean("foo", "bar", false));
+		assertEquals("bar", parsed.getString("foo", null, "more"));
+		assertEquals("bar", parsed.getString("other", null, "more"));
+	}
+
 	private static void assertReadLong(long exp) throws ConfigInvalidException {
 		assertReadLong(exp, String.valueOf(exp));
 	}
@@ -759,5 +875,94 @@ public class ConfigTest {
 		final Config c = new Config(baseConfig);
 		c.fromText(content);
 		return c;
+	}
+
+	@Test
+	public void testTimeUnit() throws ConfigInvalidException {
+		assertEquals(0, parseTime("0", MILLISECONDS));
+		assertEquals(2, parseTime("2ms", MILLISECONDS));
+		assertEquals(200, parseTime("200 milliseconds", MILLISECONDS));
+
+		assertEquals(0, parseTime("0s", SECONDS));
+		assertEquals(2, parseTime("2s", SECONDS));
+		assertEquals(231, parseTime("231sec", SECONDS));
+		assertEquals(1, parseTime("1second", SECONDS));
+		assertEquals(300, parseTime("300 seconds", SECONDS));
+
+		assertEquals(2, parseTime("2m", MINUTES));
+		assertEquals(2, parseTime("2min", MINUTES));
+		assertEquals(1, parseTime("1 minute", MINUTES));
+		assertEquals(10, parseTime("10 minutes", MINUTES));
+
+		assertEquals(5, parseTime("5h", HOURS));
+		assertEquals(5, parseTime("5hr", HOURS));
+		assertEquals(1, parseTime("1hour", HOURS));
+		assertEquals(48, parseTime("48hours", HOURS));
+
+		assertEquals(5, parseTime("5 h", HOURS));
+		assertEquals(5, parseTime("5 hr", HOURS));
+		assertEquals(1, parseTime("1 hour", HOURS));
+		assertEquals(48, parseTime("48 hours", HOURS));
+		assertEquals(48, parseTime("48 \t \r hours", HOURS));
+
+		assertEquals(4, parseTime("4d", DAYS));
+		assertEquals(1, parseTime("1day", DAYS));
+		assertEquals(14, parseTime("14days", DAYS));
+
+		assertEquals(7, parseTime("1w", DAYS));
+		assertEquals(7, parseTime("1week", DAYS));
+		assertEquals(14, parseTime("2w", DAYS));
+		assertEquals(14, parseTime("2weeks", DAYS));
+
+		assertEquals(30, parseTime("1mon", DAYS));
+		assertEquals(30, parseTime("1month", DAYS));
+		assertEquals(60, parseTime("2mon", DAYS));
+		assertEquals(60, parseTime("2months", DAYS));
+
+		assertEquals(365, parseTime("1y", DAYS));
+		assertEquals(365, parseTime("1year", DAYS));
+		assertEquals(365 * 2, parseTime("2years", DAYS));
+	}
+
+	private long parseTime(String value, TimeUnit unit)
+			throws ConfigInvalidException {
+		Config c = parse("[a]\na=" + value + "\n");
+		return c.getTimeUnit("a", null, "a", 0, unit);
+	}
+
+	@Test
+	public void testTimeUnitDefaultValue() throws ConfigInvalidException {
+		// value not present
+		assertEquals(20, parse("[a]\na=0\n").getTimeUnit("a", null, "b", 20,
+				MILLISECONDS));
+		// value is empty
+		assertEquals(20, parse("[a]\na=\" \"\n").getTimeUnit("a", null, "a", 20,
+				MILLISECONDS));
+
+		// value is not numeric
+		assertEquals(20, parse("[a]\na=test\n").getTimeUnit("a", null, "a", 20,
+				MILLISECONDS));
+	}
+
+	@Test
+	public void testTimeUnitInvalid() throws ConfigInvalidException {
+		expectedEx.expect(IllegalArgumentException.class);
+		expectedEx
+				.expectMessage("Invalid time unit value: a.a=1 monttthhh");
+		parseTime("1 monttthhh", DAYS);
+	}
+
+	@Test
+	public void testTimeUnitInvalidWithSection() throws ConfigInvalidException {
+		Config c = parse("[a \"b\"]\na=1 monttthhh\n");
+		expectedEx.expect(IllegalArgumentException.class);
+		expectedEx.expectMessage("Invalid time unit value: a.b.a=1 monttthhh");
+		c.getTimeUnit("a", "b", "a", 0, DAYS);
+	}
+
+	@Test
+	public void testTimeUnitNegative() throws ConfigInvalidException {
+		expectedEx.expect(IllegalArgumentException.class);
+		parseTime("-1", MILLISECONDS);
 	}
 }

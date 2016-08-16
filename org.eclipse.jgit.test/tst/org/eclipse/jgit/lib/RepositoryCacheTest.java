@@ -173,4 +173,103 @@ public class RepositoryCacheTest extends RepositoryTestCase {
 		assertEquals(0, RepositoryCache.getRegisteredKeys().size());
 	}
 
+	@Test
+	public void testRepositoryUsageCount() throws Exception {
+		FileKey loc = FileKey.exact(db.getDirectory(), db.getFS());
+		Repository d2 = RepositoryCache.open(loc);
+		assertEquals(1, d2.useCnt.get());
+		RepositoryCache.open(FileKey.exact(loc.getFile(), db.getFS()));
+		assertEquals(2, d2.useCnt.get());
+		d2.close();
+		assertEquals(1, d2.useCnt.get());
+		d2.close();
+		assertEquals(0, d2.useCnt.get());
+	}
+
+	@Test
+	public void testRepositoryUsageCountWithRegisteredRepository() {
+		assertEquals(1, ((Repository) db).useCnt.get());
+		RepositoryCache.register(db);
+		assertEquals(1, ((Repository) db).useCnt.get());
+		db.close();
+		assertEquals(0, ((Repository) db).useCnt.get());
+	}
+
+	@Test
+	public void testRepositoryNotUnregisteringWhenClosing() throws Exception {
+		FileKey loc = FileKey.exact(db.getDirectory(), db.getFS());
+		Repository d2 = RepositoryCache.open(loc);
+		assertEquals(1, d2.useCnt.get());
+		assertThat(RepositoryCache.getRegisteredKeys(),
+				hasItem(FileKey.exact(db.getDirectory(), db.getFS())));
+		assertEquals(1, RepositoryCache.getRegisteredKeys().size());
+		d2.close();
+		assertEquals(0, d2.useCnt.get());
+		assertEquals(1, RepositoryCache.getRegisteredKeys().size());
+		assertTrue(RepositoryCache.isCached(d2));
+	}
+
+	@Test
+	public void testRepositoryUnregisteringWhenExpired() throws Exception {
+		Repository repoA = createBareRepository();
+		Repository repoB = createBareRepository();
+		Repository repoC = createBareRepository();
+		RepositoryCache.register(repoA);
+		RepositoryCache.register(repoB);
+		RepositoryCache.register(repoC);
+
+		assertEquals(3, RepositoryCache.getRegisteredKeys().size());
+		assertTrue(RepositoryCache.isCached(repoA));
+		assertTrue(RepositoryCache.isCached(repoB));
+		assertTrue(RepositoryCache.isCached(repoC));
+
+		// fake that repoA was closed more than 1 hour ago (default expiration
+		// time)
+		repoA.close();
+		repoA.closedAt.set(System.currentTimeMillis() - 65 * 60 * 1000);
+		// close repoB but this one will not be expired
+		repoB.close();
+
+		assertEquals(3, RepositoryCache.getRegisteredKeys().size());
+		assertTrue(RepositoryCache.isCached(repoA));
+		assertTrue(RepositoryCache.isCached(repoB));
+		assertTrue(RepositoryCache.isCached(repoC));
+
+		RepositoryCache.clearExpired();
+
+		assertEquals(2, RepositoryCache.getRegisteredKeys().size());
+		assertFalse(RepositoryCache.isCached(repoA));
+		assertTrue(RepositoryCache.isCached(repoB));
+		assertTrue(RepositoryCache.isCached(repoC));
+	}
+
+	@Test
+	public void testReconfigure() throws InterruptedException {
+		RepositoryCache.register(db);
+		assertTrue(RepositoryCache.isCached(db));
+		db.close();
+		assertTrue(RepositoryCache.isCached(db));
+
+		// Actually, we would only need to validate that
+		// WorkQueue.getExecutor().scheduleWithFixedDelay is called with proper
+		// values but since we do not have a mock library, we test
+		// reconfiguration from a black box perspective. I.e. reconfigure
+		// expireAfter and cleanupDelay to 1 ms and wait until the Repository
+		// is evicted to prove that reconfiguration worked.
+		RepositoryCacheConfig config = new RepositoryCacheConfig();
+		config.setExpireAfter(1);
+		config.setCleanupDelay(1);
+		config.install();
+
+		// Instead of using a fixed waiting time, start with small and increase:
+		// sleep 1, 2, 4, 8, 16, ..., 1024 ms
+		// This wait will time out after 2048 ms
+		for (int i = 0; i <= 10; i++) {
+			Thread.sleep(1 << i);
+			if (!RepositoryCache.isCached(db)) {
+				return;
+			}
+		}
+		fail("Repository should have been evicted from cache");
+	}
 }

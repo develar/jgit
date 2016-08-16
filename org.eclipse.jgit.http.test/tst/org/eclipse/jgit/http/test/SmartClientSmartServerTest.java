@@ -56,6 +56,7 @@ import static org.junit.Assert.fail;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -81,14 +82,18 @@ import org.eclipse.jgit.errors.RepositoryNotFoundException;
 import org.eclipse.jgit.errors.TransportException;
 import org.eclipse.jgit.http.server.GitServlet;
 import org.eclipse.jgit.internal.JGitText;
+import org.eclipse.jgit.internal.storage.dfs.DfsRepositoryDescription;
 import org.eclipse.jgit.junit.TestRepository;
 import org.eclipse.jgit.junit.TestRng;
 import org.eclipse.jgit.junit.http.AccessEvent;
+import org.eclipse.jgit.junit.http.AppServer;
 import org.eclipse.jgit.junit.http.HttpTestCase;
 import org.eclipse.jgit.lib.ConfigConstants;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.NullProgressMonitor;
 import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.ObjectIdRef;
+import org.eclipse.jgit.lib.ObjectInserter;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.ReflogEntry;
 import org.eclipse.jgit.lib.ReflogReader;
@@ -152,18 +157,7 @@ public class SmartClientSmartServerTest extends HttpTestCase {
 
 		ServletContextHandler app = server.addContext("/git");
 		GitServlet gs = new GitServlet();
-		gs.setRepositoryResolver(new RepositoryResolver<HttpServletRequest>() {
-			public Repository open(HttpServletRequest req, String name)
-					throws RepositoryNotFoundException,
-					ServiceNotEnabledException {
-				if (!name.equals(srcName))
-					throw new RepositoryNotFoundException(name);
-
-				final Repository db = src.getRepository();
-				db.incrementOpen();
-				return db;
-			}
-		});
+		gs.setRepositoryResolver(new TestRepoResolver(src, srcName));
 		app.addServlet(new ServletHolder(gs), "/*");
 
 		ServletContextHandler broken = server.addContext("/bad");
@@ -487,6 +481,70 @@ public class SmartClientSmartServerTest extends HttpTestCase {
 	}
 
 	@Test
+	public void testInvalidWant() throws Exception {
+		@SuppressWarnings("resource")
+		ObjectId id = new ObjectInserter.Formatter().idFor(Constants.OBJ_BLOB,
+				"testInvalidWant".getBytes(StandardCharsets.UTF_8));
+
+		Repository dst = createBareRepository();
+		try (Transport t = Transport.open(dst, remoteURI);
+				FetchConnection c = t.openFetch()) {
+			Ref want = new ObjectIdRef.Unpeeled(Ref.Storage.NETWORK, id.name(),
+					id);
+			c.fetch(NullProgressMonitor.INSTANCE, Collections.singleton(want),
+					Collections.<ObjectId> emptySet());
+			fail("Server accepted want " + id.name());
+		} catch (TransportException err) {
+			assertEquals("want " + id.name() + " not valid", err.getMessage());
+		}
+	}
+
+	@Test
+	public void testFetch_RefsUnreadableOnUpload() throws Exception {
+		AppServer noRefServer = new AppServer();
+		try {
+			final String repoName = "refs-unreadable";
+			RefsUnreadableInMemoryRepository badRefsRepo = new RefsUnreadableInMemoryRepository(
+					new DfsRepositoryDescription(repoName));
+			final TestRepository<Repository> repo = new TestRepository<Repository>(
+					badRefsRepo);
+
+			ServletContextHandler app = noRefServer.addContext("/git");
+			GitServlet gs = new GitServlet();
+			gs.setRepositoryResolver(new TestRepoResolver(repo, repoName));
+			app.addServlet(new ServletHolder(gs), "/*");
+			noRefServer.setUp();
+
+			RevBlob A2_txt = repo.blob("A2");
+			RevCommit A2 = repo.commit().add("A2_txt", A2_txt).create();
+			RevCommit B2 = repo.commit().parent(A2).add("A2_txt", "C2")
+					.add("B2", "B2").create();
+			repo.update(master, B2);
+
+			URIish badRefsURI = new URIish(noRefServer.getURI()
+					.resolve(app.getContextPath() + "/" + repoName).toString());
+
+			Repository dst = createBareRepository();
+			try (Transport t = Transport.open(dst, badRefsURI);
+					FetchConnection c = t.openFetch()) {
+				// We start failing here to exercise the post-advertisement
+				// upload pack handler.
+				badRefsRepo.startFailing();
+				// Need to flush caches because ref advertisement populated them.
+				badRefsRepo.getRefDatabase().refresh();
+				c.fetch(NullProgressMonitor.INSTANCE,
+						Collections.singleton(c.getRef(master)),
+						Collections.<ObjectId> emptySet());
+				fail("Successfully served ref with value " + c.getRef(master));
+			} catch (TransportException err) {
+				assertEquals("internal server error", err.getMessage());
+			}
+		} finally {
+			noRefServer.tearDown();
+		}
+	}
+
+	@Test
 	public void testPush_NotAuthorized() throws Exception {
 		final TestRepository src = createTestRepository();
 		final RevBlob Q_txt = src.blob("new text");
@@ -654,5 +712,29 @@ public class SmartClientSmartServerTest extends HttpTestCase {
 		final StoredConfig cfg = remoteRepository.getConfig();
 		cfg.setBoolean("http", null, "receivepack", true);
 		cfg.save();
+	}
+
+	private final class TestRepoResolver
+			implements RepositoryResolver<HttpServletRequest> {
+
+		private final TestRepository<Repository> repo;
+
+		private final String repoName;
+
+		private TestRepoResolver(TestRepository<Repository> repo,
+				String repoName) {
+			this.repo = repo;
+			this.repoName = repoName;
+		}
+
+		public Repository open(HttpServletRequest req, String name)
+				throws RepositoryNotFoundException, ServiceNotEnabledException {
+			if (!name.equals(repoName))
+				throw new RepositoryNotFoundException(name);
+
+			Repository db = repo.getRepository();
+			db.incrementOpen();
+			return db;
+		}
 	}
 }

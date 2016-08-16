@@ -65,6 +65,7 @@ import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.NoFilepatternException;
 import org.eclipse.jgit.dircache.DirCache;
 import org.eclipse.jgit.dircache.DirCacheCheckout;
+import org.eclipse.jgit.dircache.DirCacheCheckout.CheckoutMetadata;
 import org.eclipse.jgit.dircache.DirCacheEditor;
 import org.eclipse.jgit.dircache.DirCacheEditor.PathEdit;
 import org.eclipse.jgit.dircache.DirCacheEntry;
@@ -113,7 +114,7 @@ public class DirCacheCheckoutTest extends RepositoryTestCase {
 		return dco.getRemoved();
 	}
 
-	private Map<String, String> getUpdated() {
+	private Map<String, CheckoutMetadata> getUpdated() {
 		return dco.getUpdated();
 	}
 
@@ -797,6 +798,7 @@ public class DirCacheCheckoutTest extends RepositoryTestCase {
 			fail("didn't get the expected exception");
 		} catch (CheckoutConflictException e) {
 			assertConflict("foo");
+			assertEquals("foo", e.getConflictingFiles()[0]);
 			assertWorkDir(mkmap("foo", "bar", "other", "other"));
 			assertIndex(mk("other"));
 		}
@@ -884,6 +886,7 @@ public class DirCacheCheckoutTest extends RepositoryTestCase {
 			assertWorkDir(mkmap("a", "a", "b/c", "b/c", "d", "d", "e/f",
 					"e/f", "e/g", "e/g3"));
 			assertConflict("e/g");
+			assertEquals("e/g", e.getConflictingFiles()[0]);
 		}
 	}
 

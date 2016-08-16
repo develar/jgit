@@ -77,8 +77,8 @@ import org.eclipse.jgit.ignore.IgnoreNode;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.CoreConfig;
-import org.eclipse.jgit.lib.CoreConfig.AutoCRLF;
 import org.eclipse.jgit.lib.CoreConfig.CheckStat;
+import org.eclipse.jgit.lib.CoreConfig.EolStreamType;
 import org.eclipse.jgit.lib.CoreConfig.SymLinks;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
@@ -86,12 +86,15 @@ import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.submodule.SubmoduleWalk;
+import org.eclipse.jgit.treewalk.TreeWalk.OperationType;
 import org.eclipse.jgit.util.FS;
 import org.eclipse.jgit.util.FS.ExecutionResult;
+import org.eclipse.jgit.util.Holder;
 import org.eclipse.jgit.util.IO;
 import org.eclipse.jgit.util.Paths;
 import org.eclipse.jgit.util.RawParseUtils;
-import org.eclipse.jgit.util.io.EolCanonicalizingInputStream;
+import org.eclipse.jgit.util.io.AutoLFInputStream;
+import org.eclipse.jgit.util.io.EolStreamTypeUtil;
 
 /**
  * Walks a working directory tree as part of a {@link TreeWalk}.
@@ -140,7 +143,17 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	/** If there is a .gitignore file present, the parsed rules from it. */
 	private IgnoreNode ignoreNode;
 
-	private String cleanFilterCommand;
+	/**
+	 * cached clean filter command. Use a Ref in order to distinguish between
+	 * the ref not cached yet and the value null
+	 */
+	private Holder<String> cleanFilterCommandHolder;
+
+	/**
+	 * cached eol stream type. Use a Ref in order to distinguish between the ref
+	 * not cached yet and the value null
+	 */
+	private Holder<EolStreamType> eolStreamTypeHolder;
 
 	/** Repository that is the root level being iterated over */
 	protected Repository repository;
@@ -252,7 +265,7 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 			// the cached index information for the path.
 			//
 			DirCacheIterator i = state.walk.getTree(state.dirCacheTree,
-					DirCacheIterator.class);
+							DirCacheIterator.class);
 			if (i != null) {
 				DirCacheEntry ent = i.getDirCacheEntry();
 				if (ent != null && compareMetadata(ent) == MetadataDiff.EQUAL) {
@@ -275,6 +288,11 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 			return contentId = idSubmodule(entries[ptr]);
 		}
 		return zeroid;
+	}
+
+	@Override
+	public boolean isWorkTree() {
+		return true;
 	}
 
 	/**
@@ -344,7 +362,8 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 				state.initializeDigestAndReadBuffer();
 
 				final long len = e.getLength();
-				InputStream filteredIs = possiblyFilteredInputStream(e, is, len);
+				InputStream filteredIs = possiblyFilteredInputStream(e, is, len,
+						OperationType.CHECKIN_OP);
 				return computeHash(filteredIs, canonLen);
 			} finally {
 				safeClose(is);
@@ -357,8 +376,15 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 
 	private InputStream possiblyFilteredInputStream(final Entry e,
 			final InputStream is, final long len) throws IOException {
-		boolean mightNeedCleaning = mightNeedCleaning();
-		if (!mightNeedCleaning) {
+		return possiblyFilteredInputStream(e, is, len, null);
+
+	}
+
+	private InputStream possiblyFilteredInputStream(final Entry e,
+			final InputStream is, final long len, OperationType opType)
+			throws IOException {
+		if (getCleanFilterCommand() == null
+				&& getEolStreamType(opType) == EolStreamType.DIRECT) {
 			canonLen = len;
 			return is;
 		}
@@ -368,7 +394,7 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 			byte[] raw = rawbuf.array();
 			int n = rawbuf.limit();
 			if (!isBinary(raw, n)) {
-				rawbuf = filterClean(raw, n);
+				rawbuf = filterClean(raw, n, opType);
 				raw = rawbuf.array();
 				n = rawbuf.limit();
 			}
@@ -376,19 +402,19 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 			return new ByteArrayInputStream(raw, 0, n);
 		}
 
-		// TODO: fix autocrlf causing mightneedcleaning
-		if (!mightNeedCleaning && isBinary(e)) {
-			canonLen = len;
-			return is;
-		}
+		if (getCleanFilterCommand() == null && isBinary(e)) {
+				canonLen = len;
+				return is;
+			}
 
-		final InputStream lenIs = filterClean(e.openInputStream());
+		final InputStream lenIs = filterClean(e.openInputStream(),
+				opType);
 		try {
 			canonLen = computeLength(lenIs);
 		} finally {
 			safeClose(lenIs);
 		}
-		return filterClean(is);
+		return filterClean(is, opType);
 	}
 
 	private static void safeClose(final InputStream in) {
@@ -398,20 +424,6 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 			// Suppress any error related to closing an input
 			// stream. We don't care, we should not have any
 			// outstanding data to flush or anything like that.
-		}
-	}
-
-	private boolean mightNeedCleaning() throws IOException {
-		switch (getOptions().getAutoCRLF()) {
-		case FALSE:
-		default:
-			if (getCleanFilterCommand() != null)
-				return true;
-			return false;
-
-		case TRUE:
-		case INPUT:
-			return true;
 		}
 	}
 
@@ -428,17 +440,23 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 		}
 	}
 
-	private ByteBuffer filterClean(byte[] src, int n) throws IOException {
+	private ByteBuffer filterClean(byte[] src, int n, OperationType opType)
+			throws IOException {
 		InputStream in = new ByteArrayInputStream(src);
 		try {
-			return IO.readWholeStream(filterClean(in), n);
+			return IO.readWholeStream(filterClean(in, opType), n);
 		} finally {
 			safeClose(in);
 		}
 	}
 
 	private InputStream filterClean(InputStream in) throws IOException {
-		in = handleAutoCRLF(in);
+		return filterClean(in, null);
+	}
+
+	private InputStream filterClean(InputStream in, OperationType opType)
+			throws IOException {
+		in = handleAutoCRLF(in, opType);
 		String filterCommand = getCleanFilterCommand();
 		if (filterCommand != null) {
 			FS fs = repository.getFS();
@@ -467,12 +485,9 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 		return in;
 	}
 
-	private InputStream handleAutoCRLF(InputStream in) {
-		AutoCRLF autoCRLF = getOptions().getAutoCRLF();
-		if (autoCRLF == AutoCRLF.TRUE || autoCRLF == AutoCRLF.INPUT) {
-			in = new EolCanonicalizingInputStream(in, true);
-		}
-		return in;
+	private InputStream handleAutoCRLF(InputStream in, OperationType opType)
+			throws IOException {
+		return EolStreamTypeUtil.wrapInputStream(in, getEolStreamType(opType));
 	}
 
 	/**
@@ -531,7 +546,8 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 		System.arraycopy(e.encodedName, 0, path, pathOffset, nameLen);
 		pathLen = pathOffset + nameLen;
 		canonLen = -1;
-		cleanFilterCommand = null;
+		cleanFilterCommandHolder = null;
+		eolStreamTypeHolder = null;
 	}
 
 	/**
@@ -594,10 +610,11 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	 */
 	public InputStream openEntryStream() throws IOException {
 		InputStream rawis = current().openInputStream();
-		if (mightNeedCleaning())
-			return filterClean(rawis);
-		else
+		if (getCleanFilterCommand() == null
+				&& getEolStreamType() == EolStreamType.DIRECT)
 			return rawis;
+		else
+			return filterClean(rawis);
 	}
 
 	/**
@@ -921,17 +938,31 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	 */
 	public FileMode getIndexFileMode(final DirCacheIterator indexIter) {
 		final FileMode wtMode = getEntryFileMode();
-		if (indexIter == null)
+		if (indexIter == null) {
 			return wtMode;
-		if (getOptions().isFileMode())
-			return wtMode;
+		}
 		final FileMode iMode = indexIter.getEntryFileMode();
-		if (FileMode.REGULAR_FILE == wtMode
-				&& FileMode.EXECUTABLE_FILE == iMode)
+		if (getOptions().isFileMode() && iMode != FileMode.GITLINK && iMode != FileMode.TREE) {
+			return wtMode;
+		}
+		if (!getOptions().isFileMode()) {
+			if (FileMode.REGULAR_FILE == wtMode
+					&& FileMode.EXECUTABLE_FILE == iMode) {
+				return iMode;
+			}
+			if (FileMode.EXECUTABLE_FILE == wtMode
+					&& FileMode.REGULAR_FILE == iMode) {
+				return iMode;
+			}
+		}
+		if (FileMode.GITLINK == iMode
+				&& FileMode.TREE == wtMode) {
 			return iMode;
-		if (FileMode.EXECUTABLE_FILE == wtMode
-				&& FileMode.REGULAR_FILE == iMode)
+		}
+		if (FileMode.TREE == iMode
+				&& FileMode.GITLINK == wtMode) {
 			return iMode;
+		}
 		return wtMode;
 	}
 
@@ -971,10 +1002,11 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 			// Content differs: that's a real change, perhaps
 			if (reader == null) // deprecated use, do no further checks
 				return true;
-			switch (getOptions().getAutoCRLF()) {
-			case INPUT:
-			case TRUE:
-				InputStream dcIn = null;
+
+			switch (getEolStreamType()) {
+			case DIRECT:
+				return true;
+			default:
 				try {
 					ObjectLoader loader = reader.open(entry.getObjectId());
 					if (loader == null)
@@ -982,37 +1014,26 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 
 					// We need to compute the length, but only if it is not
 					// a binary stream.
-					dcIn = new EolCanonicalizingInputStream(
-							loader.openStream(), true, true /* abort if binary */);
 					long dcInLen;
-					try {
+					try (InputStream dcIn = new AutoLFInputStream(
+							loader.openStream(), true,
+							true /* abort if binary */)) {
 						dcInLen = computeLength(dcIn);
-					} catch (EolCanonicalizingInputStream.IsBinaryException e) {
+					} catch (AutoLFInputStream.IsBinaryException e) {
 						return true;
-					} finally {
-						dcIn.close();
 					}
 
-					dcIn = new EolCanonicalizingInputStream(
-							loader.openStream(), true);
-					byte[] autoCrLfHash = computeHash(dcIn, dcInLen);
-					boolean changed = getEntryObjectId().compareTo(
-							autoCrLfHash, 0) != 0;
-					return changed;
+					try (InputStream dcIn = new AutoLFInputStream(
+							loader.openStream(), true)) {
+						byte[] autoCrLfHash = computeHash(dcIn, dcInLen);
+						boolean changed = getEntryObjectId()
+								.compareTo(autoCrLfHash, 0) != 0;
+						return changed;
+					}
 				} catch (IOException e) {
 					return true;
-				} finally {
-					if (dcIn != null)
-						try {
-							dcIn.close();
-						} catch (IOException e) {
-							// empty
-						}
 				}
-			case FALSE:
-				break;
 			}
-			return true;
 		}
 	}
 
@@ -1308,10 +1329,61 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	 * @since 4.2
 	 */
 	public String getCleanFilterCommand() throws IOException {
-		if (cleanFilterCommand == null && state.walk != null) {
-			cleanFilterCommand = state.walk
-					.getFilterCommand(Constants.ATTR_FILTER_TYPE_CLEAN);
+		if (cleanFilterCommandHolder == null) {
+			String cmd = null;
+			if (state.walk != null) {
+				cmd = state.walk
+						.getFilterCommand(Constants.ATTR_FILTER_TYPE_CLEAN);
+			}
+			cleanFilterCommandHolder = new Holder<String>(cmd);
 		}
-		return cleanFilterCommand;
+		return cleanFilterCommandHolder.get();
+	}
+
+	/**
+	 * @return the eol stream type for the current entry or <code>null</code> if
+	 *         it cannot be determined. When state or state.walk is null or the
+	 *         {@link TreeWalk} is not based on a {@link Repository} then null
+	 *         is returned.
+	 * @throws IOException
+	 * @since 4.3
+	 */
+	public EolStreamType getEolStreamType() throws IOException {
+		return getEolStreamType(null);
+	}
+
+	/**
+	 * @param opType
+	 *            The operationtype (checkin/checkout) which should be used
+	 * @return the eol stream type for the current entry or <code>null</code> if
+	 *         it cannot be determined. When state or state.walk is null or the
+	 *         {@link TreeWalk} is not based on a {@link Repository} then null
+	 *         is returned.
+	 * @throws IOException
+	 */
+	private EolStreamType getEolStreamType(OperationType opType)
+			throws IOException {
+		if (eolStreamTypeHolder == null) {
+			EolStreamType type=null;
+			if (state.walk != null) {
+				if (opType != null) {
+					type = state.walk.getEolStreamType(opType);
+				} else {
+					type=state.walk.getEolStreamType();
+				}
+			} else {
+				switch (getOptions().getAutoCRLF()) {
+				case FALSE:
+					type = EolStreamType.DIRECT;
+					break;
+				case TRUE:
+				case INPUT:
+					type = EolStreamType.AUTO_LF;
+					break;
+				}
+			}
+			eolStreamTypeHolder = new Holder<EolStreamType>(type);
+		}
+		return eolStreamTypeHolder.get();
 	}
 }

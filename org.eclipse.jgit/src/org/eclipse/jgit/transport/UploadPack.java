@@ -82,6 +82,7 @@ import org.eclipse.jgit.lib.NullProgressMonitor;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ProgressMonitor;
 import org.eclipse.jgit.lib.Ref;
+import org.eclipse.jgit.lib.RefDatabase;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.AsyncRevObjectQueue;
 import org.eclipse.jgit.revwalk.DepthWalk;
@@ -704,22 +705,22 @@ public class UploadPack {
 		return statistics;
 	}
 
-	private Map<String, Ref> getAdvertisedOrDefaultRefs() {
+	private Map<String, Ref> getAdvertisedOrDefaultRefs() throws IOException {
 		if (refs == null)
-			setAdvertisedRefs(null);
+			setAdvertisedRefs(db.getRefDatabase().getRefs(RefDatabase.ALL));
 		return refs;
 	}
 
 	private void service() throws IOException {
-		if (biDirectionalPipe)
-			sendAdvertisedRefs(new PacketLineOutRefAdvertiser(pckOut));
-		else if (requestValidator instanceof AnyRequestValidator)
-			advertised = Collections.emptySet();
-		else
-			advertised = refIdSet(getAdvertisedOrDefaultRefs().values());
-
 		boolean sendPack;
 		try {
+			if (biDirectionalPipe)
+				sendAdvertisedRefs(new PacketLineOutRefAdvertiser(pckOut));
+			else if (requestValidator instanceof AnyRequestValidator)
+				advertised = Collections.emptySet();
+			else
+				advertised = refIdSet(getAdvertisedOrDefaultRefs().values());
+
 			recvWants();
 			if (wantIds.isEmpty()) {
 				preUploadHook.onBeginNegotiateRound(this, wantIds, 0);
@@ -742,10 +743,6 @@ public class UploadPack {
 			if (!clientShallowCommits.isEmpty())
 				walk.assumeShallow(clientShallowCommits);
 			sendPack = negotiate();
-		} catch (PackProtocolException err) {
-			reportErrorDuringNegotiate(err.getMessage());
-			throw err;
-
 		} catch (ServiceMayNotContinueException err) {
 			if (!err.isOutput() && err.getMessage() != null) {
 				try {
@@ -756,15 +753,20 @@ public class UploadPack {
 				}
 			}
 			throw err;
-
-		} catch (IOException err) {
-			reportErrorDuringNegotiate(JGitText.get().internalServerError);
-			throw err;
-		} catch (RuntimeException err) {
-			reportErrorDuringNegotiate(JGitText.get().internalServerError);
-			throw err;
-		} catch (Error err) {
-			reportErrorDuringNegotiate(JGitText.get().internalServerError);
+		} catch (IOException | RuntimeException | Error err) {
+			boolean output = false;
+			try {
+				String msg = err instanceof PackProtocolException
+						? err.getMessage()
+						: JGitText.get().internalServerError;
+				pckOut.writeString("ERR " + msg + "\n"); //$NON-NLS-1$ //$NON-NLS-2$
+				output = true;
+			} catch (Throwable err2) {
+				// Ignore this secondary failure, leave output false.
+			}
+			if (output) {
+				throw new UploadPackInternalServerErrorException(err);
+			}
 			throw err;
 		}
 
@@ -779,14 +781,6 @@ public class UploadPack {
 				ids.add(ref.getObjectId());
 		}
 		return ids;
-	}
-
-	private void reportErrorDuringNegotiate(String msg) {
-		try {
-			pckOut.writeString("ERR " + msg + "\n"); //$NON-NLS-1$ //$NON-NLS-2$
-		} catch (Throwable err) {
-			// Ignore this secondary failure.
-		}
 	}
 
 	private void processShallow() throws IOException {
@@ -1186,9 +1180,7 @@ public class UploadPack {
 			}
 			wantIds.clear();
 		} catch (MissingObjectException notFound) {
-			ObjectId id = notFound.getObjectId();
-			throw new PackProtocolException(MessageFormat.format(
-					JGitText.get().wantNotValid, id.name()), notFound);
+			throw new WantNotValidException(notFound.getObjectId(), notFound);
 		} finally {
 			q.release();
 		}
@@ -1213,8 +1205,7 @@ public class UploadPack {
 			if (!up.isBiDirectionalPipe())
 				new ReachableCommitRequestValidator().checkWants(up, wants);
 			else if (!wants.isEmpty())
-				throw new PackProtocolException(MessageFormat.format(
-						JGitText.get().wantNotValid, wants.iterator().next().name()));
+				throw new WantNotValidException(wants.iterator().next());
 		}
 	}
 
@@ -1247,8 +1238,7 @@ public class UploadPack {
 					refIdSet(up.getRepository().getRefDatabase().getRefs(ALL).values());
 				for (ObjectId obj : wants) {
 					if (!refIds.contains(obj))
-						throw new PackProtocolException(MessageFormat.format(
-								JGitText.get().wantNotValid, obj.name()));
+						throw new WantNotValidException(obj);
 				}
 			}
 		}
@@ -1294,14 +1284,11 @@ public class UploadPack {
 			RevObject obj;
 			while ((obj = q.next()) != null) {
 				if (!(obj instanceof RevCommit))
-					throw new PackProtocolException(MessageFormat.format(
-						JGitText.get().wantNotValid, obj.name()));
+					throw new WantNotValidException(obj);
 				walk.markStart((RevCommit) obj);
 			}
 		} catch (MissingObjectException notFound) {
-			ObjectId id = notFound.getObjectId();
-			throw new PackProtocolException(MessageFormat.format(
-					JGitText.get().wantNotValid, id.name()), notFound);
+			throw new WantNotValidException(notFound.getObjectId(), notFound);
 		} finally {
 			q.release();
 		}
@@ -1315,9 +1302,7 @@ public class UploadPack {
 
 		RevCommit bad = walk.next();
 		if (bad != null) {
-			throw new PackProtocolException(MessageFormat.format(
-					JGitText.get().wantNotValid,
-					bad.name()));
+			throw new WantNotValidException(bad);
 		}
 		walk.reset();
 	}

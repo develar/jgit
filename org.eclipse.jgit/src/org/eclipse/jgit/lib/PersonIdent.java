@@ -111,6 +111,44 @@ public class PersonIdent implements Serializable {
 		r.append(offsetMins);
 	}
 
+	/**
+	 * Sanitize the given string for use in an identity and append to output.
+	 * <p>
+	 * Trims whitespace from both ends and special characters {@code \n < >} that
+	 * interfere with parsing; appends all other characters to the output.
+	 * Analogous to the C git function {@code strbuf_addstr_without_crud}.
+	 *
+	 * @param r
+	 *            string builder to append to.
+	 * @param str
+	 *            input string.
+	 * @since 4.4
+	 */
+	public static void appendSanitized(StringBuilder r, String str) {
+		// Trim any whitespace less than \u0020 as in String#trim().
+		int i = 0;
+		while (i < str.length() && str.charAt(i) <= ' ') {
+			i++;
+		}
+		int end = str.length();
+		while (end > i && str.charAt(end - 1) <= ' ') {
+			end--;
+		}
+
+		for (; i < end; i++) {
+			char c = str.charAt(i);
+			switch (c) {
+				case '\n':
+				case '<':
+				case '>':
+					continue;
+				default:
+					r.append(c);
+					break;
+			}
+		}
+	}
+
 	private final String name;
 
 	private final String emailAddress;
@@ -217,7 +255,12 @@ public class PersonIdent implements Serializable {
 	}
 
 	/**
-	 * Construct a {@link PersonIdent}
+	 * Construct a {@link PersonIdent}.
+	 * <p>
+	 * Whitespace in the name and email is preserved for the lifetime of this
+	 * object, but are trimmed by {@link #toExternalString()}. This means that
+	 * parsing the result of {@link #toExternalString()} may not return an
+	 * equivalent instance.
 	 *
 	 * @param aName
 	 * @param aEmailAddress
@@ -276,6 +319,9 @@ public class PersonIdent implements Serializable {
 		return tzOffset;
 	}
 
+	/**
+	 * Hashcode is based only on the email address and timestamp.
+	 */
 	public int hashCode() {
 		int hc = getEmailAddress().hashCode();
 		hc *= 31;
@@ -300,9 +346,9 @@ public class PersonIdent implements Serializable {
 	 */
 	public String toExternalString() {
 		final StringBuilder r = new StringBuilder();
-		r.append(getName().trim());
+		appendSanitized(r, getName());
 		r.append(" <"); //$NON-NLS-1$
-		r.append(getEmailAddress().trim());
+		appendSanitized(r, getEmailAddress());
 		r.append("> "); //$NON-NLS-1$
 		r.append(when / 1000);
 		r.append(' ');
@@ -328,3 +374,4 @@ public class PersonIdent implements Serializable {
 		return r.toString();
 	}
 }
+

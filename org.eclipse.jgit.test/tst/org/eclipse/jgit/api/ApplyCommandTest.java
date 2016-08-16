@@ -44,6 +44,7 @@ package org.eclipse.jgit.api;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.ByteArrayOutputStream;
@@ -147,6 +148,43 @@ public class ApplyCommandTest extends RepositoryTestCase {
 	}
 
 	@Test
+	public void testModifyW() throws Exception {
+		ApplyResult result = init("W");
+		assertEquals(1, result.getUpdatedFiles().size());
+		assertEquals(new File(db.getWorkTree(), "W"),
+				result.getUpdatedFiles().get(0));
+		checkFile(new File(db.getWorkTree(), "W"),
+				b.getString(0, b.size(), false));
+	}
+
+	@Test
+	public void testAddM1() throws Exception {
+		ApplyResult result = init("M1", false, true);
+		assertEquals(1, result.getUpdatedFiles().size());
+		assertTrue(result.getUpdatedFiles().get(0).canExecute());
+		checkFile(new File(db.getWorkTree(), "M1"),
+				b.getString(0, b.size(), false));
+	}
+
+	@Test
+	public void testModifyM2() throws Exception {
+		ApplyResult result = init("M2", true, true);
+		assertEquals(1, result.getUpdatedFiles().size());
+		assertTrue(result.getUpdatedFiles().get(0).canExecute());
+		checkFile(new File(db.getWorkTree(), "M2"),
+				b.getString(0, b.size(), false));
+	}
+
+	@Test
+	public void testModifyM3() throws Exception {
+		ApplyResult result = init("M3", true, true);
+		assertEquals(1, result.getUpdatedFiles().size());
+		assertFalse(result.getUpdatedFiles().get(0).canExecute());
+		checkFile(new File(db.getWorkTree(), "M3"),
+				b.getString(0, b.size(), false));
+	}
+
+	@Test
 	public void testModifyX() throws Exception {
 		ApplyResult result = init("X");
 		assertEquals(1, result.getUpdatedFiles().size());
@@ -184,6 +222,55 @@ public class ApplyCommandTest extends RepositoryTestCase {
 				.getUpdatedFiles().get(0));
 		checkFile(new File(db.getWorkTree(), "NL1"),
 				b.getString(0, b.size(), false));
+	}
+
+	@Test
+	public void testNonASCII() throws Exception {
+		ApplyResult result = init("NonASCII");
+		assertEquals(1, result.getUpdatedFiles().size());
+		assertEquals(new File(db.getWorkTree(), "NonASCII"),
+				result.getUpdatedFiles().get(0));
+		checkFile(new File(db.getWorkTree(), "NonASCII"),
+				b.getString(0, b.size(), false));
+	}
+
+	@Test
+	public void testNonASCII2() throws Exception {
+		ApplyResult result = init("NonASCII2");
+		assertEquals(1, result.getUpdatedFiles().size());
+		assertEquals(new File(db.getWorkTree(), "NonASCII2"),
+				result.getUpdatedFiles().get(0));
+		checkFile(new File(db.getWorkTree(), "NonASCII2"),
+				b.getString(0, b.size(), false));
+	}
+
+	@Test
+	public void testNonASCIIAdd() throws Exception {
+		ApplyResult result = init("NonASCIIAdd");
+		assertEquals(1, result.getUpdatedFiles().size());
+		assertEquals(new File(db.getWorkTree(), "NonASCIIAdd"),
+				result.getUpdatedFiles().get(0));
+		checkFile(new File(db.getWorkTree(), "NonASCIIAdd"),
+				b.getString(0, b.size(), false));
+	}
+
+	@Test
+	public void testNonASCIIAdd2() throws Exception {
+		ApplyResult result = init("NonASCIIAdd2", false, true);
+		assertEquals(1, result.getUpdatedFiles().size());
+		assertEquals(new File(db.getWorkTree(), "NonASCIIAdd2"),
+				result.getUpdatedFiles().get(0));
+		checkFile(new File(db.getWorkTree(), "NonASCIIAdd2"),
+				b.getString(0, b.size(), false));
+	}
+
+	@Test
+	public void testNonASCIIDel() throws Exception {
+		ApplyResult result = init("NonASCIIDel", true, false);
+		assertEquals(1, result.getUpdatedFiles().size());
+		assertEquals(new File(db.getWorkTree(), "NonASCIIDel"),
+				result.getUpdatedFiles().get(0));
+		assertFalse(new File(db.getWorkTree(), "NonASCIIDel").exists());
 	}
 
 	private static byte[] readFile(final String patchFile) throws IOException {

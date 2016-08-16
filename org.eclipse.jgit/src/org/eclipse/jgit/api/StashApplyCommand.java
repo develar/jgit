@@ -54,11 +54,13 @@ import org.eclipse.jgit.api.errors.WrongRepositoryStateException;
 import org.eclipse.jgit.dircache.DirCache;
 import org.eclipse.jgit.dircache.DirCacheBuilder;
 import org.eclipse.jgit.dircache.DirCacheCheckout;
+import org.eclipse.jgit.dircache.DirCacheCheckout.CheckoutMetadata;
 import org.eclipse.jgit.dircache.DirCacheEntry;
 import org.eclipse.jgit.dircache.DirCacheIterator;
 import org.eclipse.jgit.errors.CheckoutConflictException;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.CoreConfig.EolStreamType;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Repository;
@@ -221,8 +223,13 @@ public class StashApplyCommand extends GitCommand<ObjectId> {
 					ResolveMerger untrackedMerger = (ResolveMerger) strategy
 							.newMerger(repo, true);
 					untrackedMerger.setCommitNames(new String[] {
-							"stashed HEAD", "HEAD", "untracked files" }); //$NON-NLS-1$//$NON-NLS-2$//$NON-NLS-3$
-					untrackedMerger.setBase(stashHeadCommit);
+							"null", "HEAD", "untracked files" }); //$NON-NLS-1$//$NON-NLS-2$//$NON-NLS-3$
+					// There is no common base for HEAD & untracked files
+					// because the commit for untracked files has no parent. If
+					// we use stashHeadCommit as common base (as in the other
+					// merges) we potentially report conflicts for files
+					// which are not even member of untracked files commit
+					untrackedMerger.setBase(null);
 					boolean ok = untrackedMerger.merge(headCommit,
 							untrackedCommit);
 					if (ok)
@@ -336,6 +343,7 @@ public class StashApplyCommand extends GitCommand<ObjectId> {
 					// Not in commit, don't create untracked
 					continue;
 
+				final EolStreamType eolStreamType = walk.getEolStreamType();
 				final DirCacheEntry entry = new DirCacheEntry(walk.getRawPath());
 				entry.setFileMode(cIter.getEntryFileMode());
 				entry.setObjectIdFromRaw(cIter.idBuffer(), cIter.idOffset());
@@ -350,14 +358,17 @@ public class StashApplyCommand extends GitCommand<ObjectId> {
 					}
 				}
 
-				checkoutPath(entry, reader);
+				checkoutPath(entry, reader,
+						new CheckoutMetadata(eolStreamType, null));
 			}
 		}
 	}
 
-	private void checkoutPath(DirCacheEntry entry, ObjectReader reader) {
+	private void checkoutPath(DirCacheEntry entry, ObjectReader reader,
+			CheckoutMetadata checkoutMetadata) {
 		try {
-			DirCacheCheckout.checkoutEntry(repo, entry, reader, true);
+			DirCacheCheckout.checkoutEntry(repo, entry, reader, true,
+					checkoutMetadata);
 		} catch (IOException e) {
 			throw new JGitInternalException(MessageFormat.format(
 					JGitText.get().checkoutConflictWithFile,

@@ -51,12 +51,18 @@
 
 package org.eclipse.jgit.lib;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.eclipse.jgit.errors.ConfigInvalidException;
 import org.eclipse.jgit.events.ConfigChangedEvent;
@@ -64,6 +70,8 @@ import org.eclipse.jgit.events.ConfigChangedListener;
 import org.eclipse.jgit.events.ListenerHandle;
 import org.eclipse.jgit.events.ListenerList;
 import org.eclipse.jgit.internal.JGitText;
+import org.eclipse.jgit.util.IO;
+import org.eclipse.jgit.util.RawParseUtils;
 import org.eclipse.jgit.util.StringUtils;
 
 
@@ -75,6 +83,7 @@ public class Config {
 	private static final long KiB = 1024;
 	private static final long MiB = 1024 * KiB;
 	private static final long GiB = 1024 * MiB;
+	private static final int MAX_DEPTH = 10;
 
 	/** the change listeners */
 	private final ListenerList listeners = new ListenerList();
@@ -485,6 +494,123 @@ public class Config {
 	}
 
 	/**
+	 * Parse a numerical time unit, such as "1 minute", from the configuration.
+	 *
+	 * @param section
+	 *            section the key is in.
+	 * @param subsection
+	 *            subsection the key is in, or null if not in a subsection.
+	 * @param name
+	 *            the key name.
+	 * @param defaultValue
+	 *            default value to return if no value was present.
+	 * @param wantUnit
+	 *            the units of {@code defaultValue} and the return value, as
+	 *            well as the units to assume if the value does not contain an
+	 *            indication of the units.
+	 * @return the value, or {@code defaultValue} if not set, expressed in
+	 *         {@code units}.
+	 * @since 4.4
+	 */
+	public long getTimeUnit(String section, String subsection, String name,
+			long defaultValue, TimeUnit wantUnit) {
+		String valueString = getString(section, subsection, name);
+
+		if (valueString == null) {
+			return defaultValue;
+		}
+
+		String s = valueString.trim();
+		if (s.length() == 0) {
+			return defaultValue;
+		}
+
+		if (s.startsWith("-")/* negative */) { //$NON-NLS-1$
+			throw notTimeUnit(section, subsection, name, valueString);
+		}
+
+		Matcher m = Pattern.compile("^(0|[1-9][0-9]*)\\s*(.*)$") //$NON-NLS-1$
+				.matcher(valueString);
+		if (!m.matches()) {
+			return defaultValue;
+		}
+
+		String digits = m.group(1);
+		String unitName = m.group(2).trim();
+
+		TimeUnit inputUnit;
+		int inputMul;
+
+		if (unitName.isEmpty()) {
+			inputUnit = wantUnit;
+			inputMul = 1;
+
+		} else if (match(unitName, "ms", "milliseconds")) { //$NON-NLS-1$ //$NON-NLS-2$
+			inputUnit = TimeUnit.MILLISECONDS;
+			inputMul = 1;
+
+		} else if (match(unitName, "s", "sec", "second", "seconds")) { //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
+			inputUnit = TimeUnit.SECONDS;
+			inputMul = 1;
+
+		} else if (match(unitName, "m", "min", "minute", "minutes")) { //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
+			inputUnit = TimeUnit.MINUTES;
+			inputMul = 1;
+
+		} else if (match(unitName, "h", "hr", "hour", "hours")) { //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
+			inputUnit = TimeUnit.HOURS;
+			inputMul = 1;
+
+		} else if (match(unitName, "d", "day", "days")) { //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+			inputUnit = TimeUnit.DAYS;
+			inputMul = 1;
+
+		} else if (match(unitName, "w", "week", "weeks")) { //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+			inputUnit = TimeUnit.DAYS;
+			inputMul = 7;
+
+		} else if (match(unitName, "mon", "month", "months")) { //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+			inputUnit = TimeUnit.DAYS;
+			inputMul = 30;
+
+		} else if (match(unitName, "y", "year", "years")) { //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+			inputUnit = TimeUnit.DAYS;
+			inputMul = 365;
+
+		} else {
+			throw notTimeUnit(section, subsection, name, valueString);
+		}
+
+		try {
+			return wantUnit.convert(Long.parseLong(digits) * inputMul,
+					inputUnit);
+		} catch (NumberFormatException nfe) {
+			throw notTimeUnit(section, subsection, unitName, valueString);
+		}
+	}
+
+	private static boolean match(final String a, final String... cases) {
+		for (final String b : cases) {
+			if (b != null && b.equalsIgnoreCase(a)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private IllegalArgumentException notTimeUnit(String section,
+			String subsection, String name, String valueString) {
+		if (subsection != null) {
+			return new IllegalArgumentException(
+					MessageFormat.format(JGitText.get().invalidTimeUnitValue3,
+							section, subsection, name, valueString));
+		}
+		return new IllegalArgumentException(
+				MessageFormat.format(JGitText.get().invalidTimeUnitValue2,
+						section, name, valueString));
+	}
+
+	/**
 	 * @param section
 	 *            section to search for.
 	 * @return set of all subsections of specified section within this
@@ -633,12 +759,13 @@ public class Config {
 	private String getRawString(final String section, final String subsection,
 			final String name) {
 		String[] lst = getRawStringList(section, subsection, name);
-		if (lst != null)
-			return lst[0];
-		else if (baseConfig != null)
+		if (lst != null) {
+			return lst[lst.length - 1];
+		} else if (baseConfig != null) {
 			return baseConfig.getRawString(section, subsection, name);
-		else
+		} else {
 			return null;
+		}
 	}
 
 	private String[] getRawStringList(String section, String subsection,
@@ -855,7 +982,8 @@ public class Config {
 	 *
 	 * <pre>
 	 * [section &quot;subsection&quot;]
-	 *         name = value
+	 *         name = value1
+	 *         name = value2
 	 * </pre>
 	 *
 	 * @param section
@@ -1025,6 +1153,15 @@ public class Config {
 	 *             made to {@code this}.
 	 */
 	public void fromText(final String text) throws ConfigInvalidException {
+		state.set(newState(fromTextRecurse(text, 1)));
+	}
+
+	private List<ConfigLine> fromTextRecurse(final String text, int depth)
+			throws ConfigInvalidException {
+		if (depth > MAX_DEPTH) {
+			throw new ConfigInvalidException(
+					JGitText.get().tooManyIncludeRecursions);
+		}
 		final List<ConfigLine> newEntries = new ArrayList<ConfigLine>();
 		final StringReader in = new StringReader(text);
 		ConfigLine last = null;
@@ -1083,11 +1220,44 @@ public class Config {
 				} else
 					e.value = readValue(in, false, -1);
 
+				if (e.section.equals("include")) { //$NON-NLS-1$
+					addIncludedConfig(newEntries, e, depth);
+				}
 			} else
 				throw new ConfigInvalidException(JGitText.get().invalidLineInConfigFile);
 		}
 
-		state.set(newState(newEntries));
+		return newEntries;
+	}
+
+	private void addIncludedConfig(final List<ConfigLine> newEntries,
+			ConfigLine line, int depth) throws ConfigInvalidException {
+		if (!line.name.equals("path") || //$NON-NLS-1$
+				line.value == null || line.value.equals(MAGIC_EMPTY_VALUE)) {
+			throw new ConfigInvalidException(
+					JGitText.get().invalidLineInConfigFile);
+		}
+		File path = new File(line.value);
+		try {
+			byte[] bytes = IO.readFully(path);
+			String decoded;
+			if (isUtf8(bytes)) {
+				decoded = RawParseUtils.decode(RawParseUtils.UTF8_CHARSET,
+						bytes, 3, bytes.length);
+			} else {
+				decoded = RawParseUtils.decode(bytes);
+			}
+			newEntries.addAll(fromTextRecurse(decoded, depth + 1));
+		} catch (FileNotFoundException fnfe) {
+			if (path.exists()) {
+				throw new ConfigInvalidException(MessageFormat
+						.format(JGitText.get().cannotReadFile, path), fnfe);
+			}
+		} catch (IOException ioe) {
+			throw new ConfigInvalidException(
+					MessageFormat.format(JGitText.get().cannotReadFile, path),
+					ioe);
+		}
 	}
 
 	private ConfigSnapshot newState() {
@@ -1105,6 +1275,19 @@ public class Config {
 	 */
 	protected void clear() {
 		state.set(newState());
+	}
+
+	/**
+	 * Check if bytes should be treated as UTF-8 or not.
+	 *
+	 * @param bytes
+	 *            the bytes to check encoding for.
+	 * @return true if bytes should be treated as UTF-8, false otherwise.
+	 * @since 4.4
+	 */
+	protected boolean isUtf8(final byte[] bytes) {
+		return bytes.length >= 3 && bytes[0] == (byte) 0xEF
+				&& bytes[1] == (byte) 0xBB && bytes[2] == (byte) 0xBF;
 	}
 
 	private static String readSectionName(final StringReader in)

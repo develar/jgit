@@ -58,6 +58,7 @@ import org.eclipse.jgit.api.errors.PatchFormatException;
 import org.eclipse.jgit.diff.DiffEntry.ChangeType;
 import org.eclipse.jgit.diff.RawText;
 import org.eclipse.jgit.internal.JGitText;
+import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.patch.FileHeader;
 import org.eclipse.jgit.patch.HunkHeader;
@@ -201,10 +202,12 @@ public class ApplyCommand extends GitCommand<ApplyResult> {
 			oldLines.add(rt.getString(i));
 		List<String> newLines = new ArrayList<String>(oldLines);
 		for (HunkHeader hh : fh.getHunks()) {
-			StringBuilder hunk = new StringBuilder();
-			for (int j = hh.getStartOffset(); j < hh.getEndOffset(); j++)
-				hunk.append((char) hh.getBuffer()[j]);
-			RawText hrt = new RawText(hunk.toString().getBytes());
+
+			byte[] b = new byte[hh.getEndOffset() - hh.getStartOffset()];
+			System.arraycopy(hh.getBuffer(), hh.getStartOffset(), b, 0,
+					b.length);
+			RawText hrt = new RawText(b);
+
 			List<String> hunkLines = new ArrayList<String>(hrt.size());
 			for (int i = 0; i < hrt.size(); i++)
 				hunkLines.add(hrt.getString(i));
@@ -221,12 +224,16 @@ public class ApplyCommand extends GitCommand<ApplyResult> {
 					pos++;
 					break;
 				case '-':
-					if (!newLines.get(hh.getNewStartLine() - 1 + pos).equals(
-							hunkLine.substring(1))) {
-						throw new PatchApplyException(MessageFormat.format(
-								JGitText.get().patchApplyException, hh));
+					if (hh.getNewStartLine() == 0) {
+						newLines.clear();
+					} else {
+						if (!newLines.get(hh.getNewStartLine() - 1 + pos)
+								.equals(hunkLine.substring(1))) {
+							throw new PatchApplyException(MessageFormat.format(
+									JGitText.get().patchApplyException, hh));
+						}
+						newLines.remove(hh.getNewStartLine() - 1 + pos);
 					}
-					newLines.remove(hh.getNewStartLine() - 1 + pos);
 					break;
 				case '+':
 					newLines.add(hh.getNewStartLine() - 1 + pos,
@@ -248,10 +255,14 @@ public class ApplyCommand extends GitCommand<ApplyResult> {
 			// still there!
 			sb.append(l).append('\n');
 		}
-		sb.deleteCharAt(sb.length() - 1);
+		if (sb.length() > 0) {
+			sb.deleteCharAt(sb.length() - 1);
+		}
 		FileWriter fw = new FileWriter(f);
 		fw.write(sb.toString());
 		fw.close();
+
+		getRepository().getFS().setExecute(f, fh.getNewMode() == FileMode.EXECUTABLE_FILE);
 	}
 
 	private static boolean isChanged(List<String> ol, List<String> nl) {

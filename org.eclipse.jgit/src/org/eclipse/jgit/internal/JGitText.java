@@ -80,6 +80,7 @@ public class JGitText extends TranslationBundle {
 	/***/ public String atLeastOnePatternIsRequired;
 	/***/ public String atLeastTwoFiltersNeeded;
 	/***/ public String atomicPushNotSupported;
+	/***/ public String atomicRefUpdatesNotSupported;
 	/***/ public String authenticationNotSupported;
 	/***/ public String badBase64InputCharacterAt;
 	/***/ public String badEntryDelimiter;
@@ -244,6 +245,7 @@ public class JGitText extends TranslationBundle {
 	/***/ public String corruptObjectTruncatedInObjectId;
 	/***/ public String corruptObjectZeroId;
 	/***/ public String corruptPack;
+	/***/ public String corruptUseCnt;
 	/***/ public String couldNotCheckOutBecauseOfConflicts;
 	/***/ public String couldNotDeleteLockFileShouldNotHappen;
 	/***/ public String couldNotDeleteTemporaryIndexFileShouldNotHappen;
@@ -372,6 +374,8 @@ public class JGitText extends TranslationBundle {
 	/***/ public String indexSignatureIsInvalid;
 	/***/ public String indexWriteException;
 	/***/ public String initFailedBareRepoDifferentDirs;
+	/***/ public String initFailedDirIsNoDirectory;
+	/***/ public String initFailedGitDirIsNoDirectory;
 	/***/ public String initFailedNonBareRepoSameDirs;
 	/***/ public String inMemoryBufferLimitExceeded;
 	/***/ public String inputDidntMatchLength;
@@ -415,6 +419,8 @@ public class JGitText extends TranslationBundle {
 	/***/ public String invalidStageForPath;
 	/***/ public String invalidTagOption;
 	/***/ public String invalidTimeout;
+	/***/ public String invalidTimeUnitValue2;
+	/***/ public String invalidTimeUnitValue3;
 	/***/ public String invalidURL;
 	/***/ public String invalidWildcards;
 	/***/ public String invalidRefSpec;
@@ -651,6 +657,7 @@ public class JGitText extends TranslationBundle {
 	/***/ public String transactionAborted;
 	/***/ public String theFactoryMustNotBeNull;
 	/***/ public String timerAlreadyTerminated;
+	/***/ public String tooManyIncludeRecursions;
 	/***/ public String topologicalSortRequired;
 	/***/ public String transportExceptionBadRef;
 	/***/ public String transportExceptionEmptyRef;

@@ -112,23 +112,18 @@ import org.eclipse.jgit.util.io.SafeBufferedOutputStream;
  *            type of Repository the test data is stored on.
  */
 public class TestRepository<R extends Repository> {
-	private static final PersonIdent defaultAuthor;
 
-	private static final PersonIdent defaultCommitter;
+	public static final String AUTHOR = "J. Author";
 
-	static {
-		final MockSystemReader m = new MockSystemReader();
-		final long now = m.getCurrentTime();
-		final int tz = m.getTimezone(now);
+	public static final String AUTHOR_EMAIL = "jauthor@example.com";
 
-		final String an = "J. Author";
-		final String ae = "jauthor@example.com";
-		defaultAuthor = new PersonIdent(an, ae, now, tz);
+	public static final String COMMITTER = "J. Committer";
 
-		final String cn = "J. Committer";
-		final String ce = "jcommitter@example.com";
-		defaultCommitter = new PersonIdent(cn, ce, now, tz);
-	}
+	public static final String COMMITTER_EMAIL = "jcommitter@example.com";
+
+	private final PersonIdent defaultAuthor;
+
+	private final PersonIdent defaultCommitter;
 
 	private final R db;
 
@@ -184,6 +179,10 @@ public class TestRepository<R extends Repository> {
 		this.pool = rw;
 		this.inserter = db.newObjectInserter();
 		this.mockSystemReader = reader;
+		long now = mockSystemReader.getCurrentTime();
+		int tz = mockSystemReader.getTimezone(now);
+		defaultAuthor = new PersonIdent(AUTHOR, AUTHOR_EMAIL, now, tz);
+		defaultCommitter = new PersonIdent(COMMITTER, COMMITTER_EMAIL, now, tz);
 	}
 
 	/** @return the repository this helper class operates against. */
@@ -210,17 +209,6 @@ public class TestRepository<R extends Repository> {
 	 */
 	public Date getDate() {
 		return new Date(mockSystemReader.getCurrentTime());
-	}
-
-	/**
-	 * @return current date.
-	 *
-	 * @deprecated Use {@link #getDate()} instead.
-	 */
-	@Deprecated
-	public Date getClock() {
-		// Remove once Gitiles and Gerrit are using the updated JGit.
-		return getDate();
 	}
 
 	/** @return timezone used for default identities. */
@@ -502,7 +490,7 @@ public class TestRepository<R extends Repository> {
 	 */
 	public CommitBuilder amendRef(String ref) throws Exception {
 		String name = normalizeRef(ref);
-		Ref r = db.getRef(name);
+		Ref r = db.exactRef(name);
 		if (r == null)
 			throw new IOException("Not a ref: " + ref);
 		return amend(pool.parseCommit(r.getObjectId()), branch(name).commit());
@@ -584,6 +572,31 @@ public class TestRepository<R extends Repository> {
 
 		default:
 			throw new IOException("Cannot write " + ref + " " + u.getResult());
+		}
+	}
+
+	/**
+	 * Delete a reference.
+	 *
+	 * @param ref
+	 *	      the name of the reference to delete. This is normalized
+	 *	      in the same way as {@link #update(String, AnyObjectId)}.
+	 * @throws Exception
+	 * @since 4.4
+	 */
+	public void delete(String ref) throws Exception {
+		ref = normalizeRef(ref);
+		RefUpdate u = db.updateRef(ref);
+		switch (u.delete()) {
+		case FAST_FORWARD:
+		case FORCED:
+		case NEW:
+		case NO_CHANGE:
+			updateServerInfo();
+			return;
+
+		default:
+			throw new IOException("Cannot delete " + ref + " " + u.getResult());
 		}
 	}
 
@@ -679,7 +692,7 @@ public class TestRepository<R extends Repository> {
 		RevCommit parent = commit.getParent(0);
 		pool.parseHeaders(parent);
 
-		Ref headRef = db.getRef(Constants.HEAD);
+		Ref headRef = db.exactRef(Constants.HEAD);
 		if (headRef == null)
 			throw new IOException("Missing HEAD");
 		RevCommit head = pool.parseCommit(headRef.getObjectId());
@@ -960,6 +973,15 @@ public class TestRepository<R extends Repository> {
 		public RevCommit update(RevCommit to) throws Exception {
 			return TestRepository.this.update(ref, to);
 		}
+
+		/**
+		 * Delete this branch.
+		 * @throws Exception
+		 * @since 4.4
+		 */
+		public void delete() throws Exception {
+			TestRepository.this.delete(ref);
+		}
 	}
 
 	/** Helper to generate a commit. */
@@ -992,7 +1014,7 @@ public class TestRepository<R extends Repository> {
 		CommitBuilder(BranchBuilder b) throws Exception {
 			branch = b;
 
-			Ref ref = db.getRef(branch.ref);
+			Ref ref = db.exactRef(branch.ref);
 			if (ref != null && ref.getObjectId() != null)
 				parent(pool.parseCommit(ref.getObjectId()));
 		}
