@@ -50,18 +50,20 @@ import static org.junit.Assume.assumeTrue;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.Set;
 
+import org.eclipse.jgit.errors.CommandFailedException;
 import org.eclipse.jgit.junit.RepositoryTestCase;
 import org.junit.After;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 
-public class FSJava7Test {
+public class FSTest {
 	private File trash;
 
 	@Before
@@ -164,4 +166,15 @@ public class FSJava7Test {
 				.readAttributes().permissions();
 	}
 
+	@Test(expected = CommandFailedException.class)
+	public void testReadPipePosixCommandFailure()
+			throws CommandFailedException {
+		FS fs = FS.DETECTED.newInstance();
+		assumeTrue(fs instanceof FS_POSIX);
+
+		String r = FS.readPipe(fs.userHome(),
+				new String[] { "bash", "--login", "-c", "foobar" },
+				Charset.defaultCharset().name());
+		System.out.println(r);
+	}
 }

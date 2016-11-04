@@ -189,9 +189,10 @@ public class GC {
 	 * @param oldPacks
 	 * @param newPacks
 	 * @throws ParseException
+	 * @throws IOException
 	 */
 	private void deleteOldPacks(Collection<PackFile> oldPacks,
-			Collection<PackFile> newPacks) throws ParseException {
+			Collection<PackFile> newPacks) throws ParseException, IOException {
 		long packExpireDate = getPackExpireDate();
 		oldPackLoop: for (PackFile oldPack : oldPacks) {
 			String oldName = oldPack.getPackName();
@@ -202,7 +203,8 @@ public class GC {
 					continue oldPackLoop;
 
 			if (!oldPack.shouldBeKept()
-					&& oldPack.getPackFile().lastModified() < packExpireDate) {
+					&& repo.getFS().lastModified(
+							oldPack.getPackFile()) < packExpireDate) {
 				oldPack.close();
 				prunePack(oldName);
 			}
@@ -338,7 +340,7 @@ public class GC {
 						String fName = f.getName();
 						if (fName.length() != Constants.OBJECT_ID_STRING_LENGTH - 2)
 							continue;
-						if (f.lastModified() >= expireDate)
+						if (repo.getFS().lastModified(f) >= expireDate)
 							continue;
 						try {
 							ObjectId id = ObjectId.fromString(d + fName);
@@ -889,7 +891,7 @@ public class GC {
 	 * A class holding statistical data for a FileRepository regarding how many
 	 * objects are stored as loose or packed objects
 	 */
-	public class RepoStatistics {
+	public static class RepoStatistics {
 		/**
 		 * The number of objects stored in pack files. If the same object is
 		 * stored in multiple pack files then it is counted as often as it

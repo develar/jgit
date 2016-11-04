@@ -43,8 +43,13 @@
 package org.eclipse.jgit.lfs.server;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static javax.servlet.http.HttpServletResponse.SC_OK;
-import static javax.servlet.http.HttpServletResponse.SC_SERVICE_UNAVAILABLE;
+import static org.apache.http.HttpStatus.SC_FORBIDDEN;
+import static org.apache.http.HttpStatus.SC_INTERNAL_SERVER_ERROR;
+import static org.apache.http.HttpStatus.SC_INSUFFICIENT_STORAGE;
+import static org.apache.http.HttpStatus.SC_NOT_FOUND;
+import static org.apache.http.HttpStatus.SC_OK;
+import static org.apache.http.HttpStatus.SC_SERVICE_UNAVAILABLE;
+import static org.apache.http.HttpStatus.SC_UNPROCESSABLE_ENTITY;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -60,6 +65,15 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.eclipse.jgit.lfs.errors.LfsBandwidthLimitExceeded;
+import org.eclipse.jgit.lfs.errors.LfsException;
+import org.eclipse.jgit.lfs.errors.LfsInsufficientStorage;
+import org.eclipse.jgit.lfs.errors.LfsRateLimitExceeded;
+import org.eclipse.jgit.lfs.errors.LfsRepositoryNotFound;
+import org.eclipse.jgit.lfs.errors.LfsRepositoryReadOnly;
+import org.eclipse.jgit.lfs.errors.LfsUnavailable;
+import org.eclipse.jgit.lfs.errors.LfsValidationError;
+
 import com.google.gson.FieldNamingPolicy;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -67,7 +81,7 @@ import com.google.gson.GsonBuilder;
 /**
  * LFS protocol handler implementing the LFS batch API [1]
  *
- * [1] https://github.com/github/git-lfs/blob/master/docs/api/http-v1-batch.md
+ * [1] https://github.com/github/git-lfs/blob/master/docs/api/v1/http-v1-batch.md
  *
  * @since 4.3
  */
@@ -75,52 +89,143 @@ public abstract class LfsProtocolServlet extends HttpServlet {
 
 	private static final long serialVersionUID = 1L;
 
-	private static final String CONTENTTYPE_VND_GIT_LFS_JSON = "application/vnd.git-lfs+json"; //$NON-NLS-1$
+	private static final String CONTENTTYPE_VND_GIT_LFS_JSON =
+			"application/vnd.git-lfs+json; charset=utf-8"; //$NON-NLS-1$
+
+	private static final int SC_RATE_LIMIT_EXCEEDED = 429;
+
+	private static final int SC_BANDWIDTH_LIMIT_EXCEEDED = 509;
 
 	private Gson gson = createGson();
 
 	/**
-	 * Get the large file repository
+	 * Get the large file repository for the given request and path.
 	 *
-	 * @return the large file repository storing large files
+	 * @param request
+	 *            the request
+	 * @param path
+	 *            the path
+	 *
+	 * @return the large file repository storing large files.
+	 * @throws LfsException
+	 *             implementations should throw more specific exceptions to
+	 *             signal which type of error occurred:
+	 *             <dl>
+	 *             <dt>{@link LfsValidationError}</dt>
+	 *             <dd>when there is a validation error with one or more of the
+	 *             objects in the request</dd>
+	 *             <dt>{@link LfsRepositoryNotFound}</dt>
+	 *             <dd>when the repository does not exist for the user</dd>
+	 *             <dt>{@link LfsRepositoryReadOnly}</dt>
+	 *             <dd>when the user has read, but not write access. Only
+	 *             applicable when the operation in the request is "upload"</dd>
+	 *             <dt>{@link LfsRateLimitExceeded}</dt>
+	 *             <dd>when the user has hit a rate limit with the server</dd>
+	 *             <dt>{@link LfsBandwidthLimitExceeded}</dt>
+	 *             <dd>when the bandwidth limit for the user or repository has
+	 *             been exceeded</dd>
+	 *             <dt>{@link LfsInsufficientStorage}</dt>
+	 *             <dd>when there is insufficient storage on the server</dd>
+	 *             <dt>{@link LfsUnavailable}</dt>
+	 *             <dd>when LFS is not available</dd>
+	 *             <dt>{@link LfsException}</dt>
+	 *             <dd>when an unexpected internal server error occurred</dd>
+	 *             </dl>
+	 * @since 4.5
 	 */
-	protected abstract LargeFileRepository getLargeFileRepository();
+	protected abstract LargeFileRepository getLargeFileRepository(
+			LfsRequest request, String path) throws LfsException;
+
+	/**
+	 * LFS request.
+	 *
+	 * @since 4.5
+	 */
+	protected static class LfsRequest {
+		private String operation;
+
+		private List<LfsObject> objects;
+
+		/**
+		 * Get the LFS operation.
+		 *
+		 * @return the operation
+		 */
+		public String getOperation() {
+			return operation;
+		}
+
+		/**
+		 * Get the LFS objects.
+		 *
+		 * @return the objects
+		 */
+		public List<LfsObject> getObjects() {
+			return objects;
+		}
+	}
 
 	@Override
 	protected void doPost(HttpServletRequest req, HttpServletResponse res)
 			throws ServletException, IOException {
-		res.setStatus(SC_OK);
-		res.setContentType(CONTENTTYPE_VND_GIT_LFS_JSON);
-
 		Writer w = new BufferedWriter(
 				new OutputStreamWriter(res.getOutputStream(), UTF_8));
 
-		Reader r = new BufferedReader(new InputStreamReader(req.getInputStream(), UTF_8));
+		Reader r = new BufferedReader(
+				new InputStreamReader(req.getInputStream(), UTF_8));
 		LfsRequest request = gson.fromJson(r, LfsRequest.class);
+		String path = req.getPathInfo();
 
-		LargeFileRepository repo = getLargeFileRepository();
-		if (repo == null) {
-			res.setStatus(SC_SERVICE_UNAVAILABLE);
-			return;
+		res.setContentType(CONTENTTYPE_VND_GIT_LFS_JSON);
+		LargeFileRepository repo = null;
+		try {
+			repo = getLargeFileRepository(request, path);
+			if (repo == null) {
+				throw new LfsException("unexpected error"); //$NON-NLS-1$
+			}
+			res.setStatus(SC_OK);
+			TransferHandler handler = TransferHandler
+					.forOperation(request.operation, repo, request.objects);
+			gson.toJson(handler.process(), w);
+		} catch (LfsValidationError e) {
+			sendError(res, w, SC_UNPROCESSABLE_ENTITY, e.getMessage());
+		} catch (LfsRepositoryNotFound e) {
+			sendError(res, w, SC_NOT_FOUND, e.getMessage());
+		} catch (LfsRepositoryReadOnly e) {
+			sendError(res, w, SC_FORBIDDEN, e.getMessage());
+		} catch (LfsRateLimitExceeded e) {
+			sendError(res, w, SC_RATE_LIMIT_EXCEEDED, e.getMessage());
+		} catch (LfsBandwidthLimitExceeded e) {
+			sendError(res, w, SC_BANDWIDTH_LIMIT_EXCEEDED, e.getMessage());
+		} catch (LfsInsufficientStorage e) {
+			sendError(res, w, SC_INSUFFICIENT_STORAGE, e.getMessage());
+		} catch (LfsUnavailable e) {
+			sendError(res, w, SC_SERVICE_UNAVAILABLE, e.getMessage());
+		} catch (LfsException e) {
+			sendError(res, w, SC_INTERNAL_SERVER_ERROR, e.getMessage());
+		} finally {
+			w.flush();
 		}
-
-		TransferHandler handler = TransferHandler
-				.forOperation(request.operation, repo, request.objects);
-		gson.toJson(handler.process(), w);
-		w.flush();
 	}
 
-	private static class LfsRequest {
-		String operation;
+	static class Error {
+		String message;
 
-		List<LfsObject> objects;
+		Error(String m) {
+			this.message = m;
+		}
 	}
 
-	private static Gson createGson() {
-		GsonBuilder gb = new GsonBuilder()
-				.setFieldNamingPolicy(
-						FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES)
-				.setPrettyPrinting().disableHtmlEscaping();
-		return gb.create();
+	private void sendError(HttpServletResponse rsp, Writer writer, int status,
+			String message) {
+		rsp.setStatus(status);
+		gson.toJson(new Error(message), writer);
+	}
+
+	private Gson createGson() {
+		return new GsonBuilder()
+				.setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES)
+				.disableHtmlEscaping()
+				.create();
 	}
 }

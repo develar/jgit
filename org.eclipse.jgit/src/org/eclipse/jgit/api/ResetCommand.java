@@ -123,9 +123,11 @@ public class ResetCommand extends GitCommand<Ref> {
 
 	private Collection<String> filepaths = new LinkedList<String>();
 
-    private DirCacheCheckout dirCacheCheckout;
+        private boolean isReflogDisabled;
 
-    /**
+        private DirCacheCheckout dirCacheCheckout;
+
+        /**
 	 *
 	 * @param repo
 	 */
@@ -183,8 +185,12 @@ public class ResetCommand extends GitCommand<Ref> {
 				ru.setNewObjectId(commitId);
 
 				String refName = Repository.shortenRefName(getRefOrHEAD());
-				String message = refName + ": updating " + Constants.HEAD; //$NON-NLS-1$
-				ru.setRefLogMessage(message, false);
+				if (isReflogDisabled) {
+					ru.disableRefLog();
+				} else {
+					String message = refName + ": updating " + Constants.HEAD; //$NON-NLS-1$
+					ru.setRefLogMessage(message, false);
+				}
 				if (ru.forceUpdate() == RefUpdate.Result.LOCK_FAILURE)
 					throw new JGitInternalException(MessageFormat.format(
 							JGitText.get().cannotLock, ru.getName()));
@@ -291,14 +297,34 @@ public class ResetCommand extends GitCommand<Ref> {
 		return this;
 	}
 
-    /**
-     * @return {@link org.eclipse.jgit.dircache.DirCacheCheckout} if working directory was changed
-     */
-    public DirCacheCheckout getDirCacheCheckout() {
-        return dirCacheCheckout;
-    }
+        /**
+          * @return {@link org.eclipse.jgit.dircache.DirCacheCheckout} if working directory was changed
+         */
+          public DirCacheCheckout getDirCacheCheckout() {
+          return dirCacheCheckout;
+          }
 
-    private String getRefOrHEAD() {
+	/**
+	 * @param disable
+	 *            if {@code true} disables writing a reflog entry for this reset
+	 *            command
+	 * @return this instance
+	 * @since 4.5
+	 */
+	public ResetCommand disableRefLog(boolean disable) {
+		this.isReflogDisabled = disable;
+		return this;
+	}
+
+	/**
+	 * @return {@code true} if writing reflog is disabled for this reset command
+	 * @since 4.5
+	 */
+	public boolean isReflogDisabled() {
+		return this.isReflogDisabled;
+	}
+
+	private String getRefOrHEAD() {
 		if (ref != null)
 			return ref;
 		else

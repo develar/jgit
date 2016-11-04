@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015, Matthias Sohn <matthias.sohnk@sap.com>
+ * Copyright (C) 2015, Matthias Sohn <matthias.sohn@sap.com>
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -42,6 +42,7 @@
  */
 package org.eclipse.jgit.lfs.server.fs;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.Assert.assertEquals;
 
 import java.io.BufferedInputStream;
@@ -79,6 +80,7 @@ import org.eclipse.jgit.lfs.lib.Constants;
 import org.eclipse.jgit.lfs.lib.LongObjectId;
 import org.eclipse.jgit.lfs.test.LongObjectIdTestUtils;
 import org.eclipse.jgit.util.FileUtils;
+import org.eclipse.jgit.util.IO;
 import org.junit.After;
 import org.junit.Before;
 
@@ -186,8 +188,23 @@ public abstract class LfsServerTest {
 		StatusLine statusLine = response.getStatusLine();
 		int status = statusLine.getStatusCode();
 		if (statusLine.getStatusCode() >= 400) {
-			throw new RuntimeException("Status: " + status + " "
-					+ statusLine.getReasonPhrase());
+			String error;
+			try {
+				ByteBuffer buf = IO.readWholeStream(new BufferedInputStream(
+						response.getEntity().getContent()), 1024);
+				if (buf.hasArray()) {
+					error = new String(buf.array(),
+							buf.arrayOffset() + buf.position(), buf.remaining(),
+							UTF_8);
+				} else {
+					final byte[] b = new byte[buf.remaining()];
+					buf.duplicate().get(b);
+					error = new String(b, UTF_8);
+				}
+			} catch (IOException e) {
+				error = statusLine.getReasonPhrase();
+			}
+			throw new RuntimeException("Status: " + status + " " + error);
 		}
 		assertEquals(200, status);
 	}

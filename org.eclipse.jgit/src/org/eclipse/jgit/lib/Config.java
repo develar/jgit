@@ -510,7 +510,7 @@ public class Config {
 	 *            indication of the units.
 	 * @return the value, or {@code defaultValue} if not set, expressed in
 	 *         {@code units}.
-	 * @since 4.4
+	 * @since 4.5
 	 */
 	public long getTimeUnit(String section, String subsection, String name,
 			long defaultValue, TimeUnit wantUnit) {
@@ -835,11 +835,11 @@ public class Config {
 		final String s;
 
 		if (value >= GiB && (value % GiB) == 0)
-			s = String.valueOf(value / GiB) + " g"; //$NON-NLS-1$
+			s = String.valueOf(value / GiB) + "g"; //$NON-NLS-1$
 		else if (value >= MiB && (value % MiB) == 0)
-			s = String.valueOf(value / MiB) + " m"; //$NON-NLS-1$
+			s = String.valueOf(value / MiB) + "m"; //$NON-NLS-1$
 		else if (value >= KiB && (value % KiB) == 0)
-			s = String.valueOf(value / KiB) + " k"; //$NON-NLS-1$
+			s = String.valueOf(value / KiB) + "k"; //$NON-NLS-1$
 		else
 			s = String.valueOf(value);
 

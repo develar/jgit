@@ -49,6 +49,9 @@ import java.io.IOException;
 import java.io.OutputStream;
 
 import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.util.RawParseUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Write Git style pkt-line formatting to an output stream.
@@ -61,6 +64,8 @@ import org.eclipse.jgit.lib.Constants;
  * against the underlying OutputStream.
  */
 public class PacketLineOut {
+	private static final Logger log = LoggerFactory.getLogger(PacketLineOut.class);
+
 	private final OutputStream out;
 
 	private final byte[] lenbuffer;
@@ -113,10 +118,32 @@ public class PacketLineOut {
 	 *             the packet could not be written, the stream is corrupted as
 	 *             the packet may have been only partially written.
 	 */
-	public void writePacket(final byte[] packet) throws IOException {
-		formatLength(packet.length + 4);
+	public void writePacket(byte[] packet) throws IOException {
+		writePacket(packet, 0, packet.length);
+	}
+
+	/**
+	 * Write a binary packet to the stream.
+	 *
+	 * @param buf
+	 *            the packet to write
+	 * @param pos
+	 *            first index within {@code buf}.
+	 * @param len
+	 *            number of bytes to write.
+	 * @throws IOException
+	 *             the packet could not be written, the stream is corrupted as
+	 *             the packet may have been only partially written.
+	 * @since 4.5
+	 */
+	public void writePacket(byte[] buf, int pos, int len) throws IOException {
+		formatLength(len + 4);
 		out.write(lenbuffer, 0, 4);
-		out.write(packet);
+		out.write(buf, pos, len);
+		if (log.isDebugEnabled()) {
+			String s = RawParseUtils.decode(Constants.CHARSET, buf, pos, len);
+			log.debug("git> " + s); //$NON-NLS-1$
+		}
 	}
 
 	/**
@@ -135,6 +162,7 @@ public class PacketLineOut {
 	public void end() throws IOException {
 		formatLength(0);
 		out.write(lenbuffer, 0, 4);
+		log.debug("git> 0000"); //$NON-NLS-1$
 		if (flushOnEnd)
 			flush();
 	}
