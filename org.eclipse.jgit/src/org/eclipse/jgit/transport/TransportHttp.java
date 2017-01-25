@@ -45,57 +45,14 @@
 
 package org.eclipse.jgit.transport;
 
-import static org.eclipse.jgit.util.HttpSupport.ENCODING_GZIP;
-import static org.eclipse.jgit.util.HttpSupport.HDR_ACCEPT;
-import static org.eclipse.jgit.util.HttpSupport.HDR_ACCEPT_ENCODING;
-import static org.eclipse.jgit.util.HttpSupport.HDR_CONTENT_ENCODING;
-import static org.eclipse.jgit.util.HttpSupport.HDR_CONTENT_TYPE;
-import static org.eclipse.jgit.util.HttpSupport.HDR_PRAGMA;
-import static org.eclipse.jgit.util.HttpSupport.HDR_USER_AGENT;
-import static org.eclipse.jgit.util.HttpSupport.HDR_WWW_AUTHENTICATE;
-import static org.eclipse.jgit.util.HttpSupport.METHOD_GET;
-import static org.eclipse.jgit.util.HttpSupport.METHOD_POST;
-
-import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.net.MalformedURLException;
-import java.net.Proxy;
-import java.net.ProxySelector;
-import java.net.URL;
-import java.text.MessageFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
-
 import org.eclipse.jgit.errors.NoRemoteRepositoryException;
 import org.eclipse.jgit.errors.NotSupportedException;
 import org.eclipse.jgit.errors.PackProtocolException;
 import org.eclipse.jgit.errors.TransportException;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.internal.storage.file.RefDirectory;
-import org.eclipse.jgit.lib.Config;
+import org.eclipse.jgit.lib.*;
 import org.eclipse.jgit.lib.Config.SectionParser;
-import org.eclipse.jgit.lib.Constants;
-import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.lib.ObjectIdRef;
-import org.eclipse.jgit.lib.ProgressMonitor;
-import org.eclipse.jgit.lib.Ref;
-import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.lib.SymbolicRef;
 import org.eclipse.jgit.transport.HttpAuthMethod.Type;
 import org.eclipse.jgit.transport.http.HttpConnection;
 import org.eclipse.jgit.util.HttpSupport;
@@ -104,6 +61,15 @@ import org.eclipse.jgit.util.RawParseUtils;
 import org.eclipse.jgit.util.TemporaryBuffer;
 import org.eclipse.jgit.util.io.DisabledOutputStream;
 import org.eclipse.jgit.util.io.UnionInputStream;
+
+import java.io.*;
+import java.net.*;
+import java.text.MessageFormat;
+import java.util.*;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
+
+import static org.eclipse.jgit.util.HttpSupport.*;
 
 /**
  * Transport over HTTP and FTP protocols.
@@ -502,7 +468,7 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 
 				default:
 					String err = status + " " + conn.getResponseMessage(); //$NON-NLS-1$
-					throw new TransportException(uri, err);
+					throw new TransportException(uri, err, status == HttpURLConnection.HTTP_BAD_GATEWAY ? TransportException.Status.BAD_GATEWAY : null);
 				}
 			} catch (NotSupportedException e) {
 				throw e;

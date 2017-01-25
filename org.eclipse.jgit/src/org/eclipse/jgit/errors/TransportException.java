@@ -45,9 +45,9 @@
 
 package org.eclipse.jgit.errors;
 
-import java.io.IOException;
-
 import org.eclipse.jgit.transport.URIish;
+
+import java.io.IOException;
 
 /**
  * Indicates a protocol error has occurred while fetching/pushing objects.
@@ -56,7 +56,7 @@ public class TransportException extends IOException {
 	private static final long serialVersionUID = 1L;
 
 	public enum Status {
-		NOT_PERMITTED, NOT_AUTHORIZED, CANCELLED, CANNOT_RESOLVE_REPO
+		NOT_PERMITTED, NOT_AUTHORIZED, CANCELLED, CANNOT_RESOLVE_REPO, BAD_GATEWAY
 	}
 
 	private Status status;
