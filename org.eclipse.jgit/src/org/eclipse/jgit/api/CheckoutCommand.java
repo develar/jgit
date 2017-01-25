@@ -318,7 +318,9 @@ public class CheckoutCommand extends GitCommand<Ref> {
 
 			if (!dco.getToBeDeleted().isEmpty()) {
 				status = new CheckoutResult(Status.NONDELETED,
-						dco.getToBeDeleted());
+						dco.getToBeDeleted(),
+						new ArrayList<String>(dco.getUpdated().keySet()),
+						dco.getRemoved());
 			} else
 				status = new CheckoutResult(new ArrayList<String>(dco
 						.getUpdated().keySet()), dco.getRemoved());
@@ -361,6 +363,26 @@ public class CheckoutCommand extends GitCommand<Ref> {
 	public CheckoutCommand addPath(String path) {
 		checkCallable();
 		this.paths.add(path);
+		return this;
+	}
+
+	/**
+	 * Add multiple slash-separated paths to the list of paths to check out. To
+	 * check out all paths, use {@link #setAllPaths(boolean)}.
+	 * <p>
+	 * If this option is set, neither the {@link #setCreateBranch(boolean)} nor
+	 * {@link #setName(String)} option is considered. In other words, these
+	 * options are exclusive.
+	 *
+	 * @param p
+	 *            paths to update in the working tree and index (with
+	 *            <code>/</code> as separator)
+	 * @return {@code this}
+	 * @since 4.6
+	 */
+	public CheckoutCommand addPaths(List<String> p) {
+		checkCallable();
+		this.paths.addAll(p);
 		return this;
 	}
 

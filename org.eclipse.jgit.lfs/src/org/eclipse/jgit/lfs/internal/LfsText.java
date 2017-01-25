@@ -58,6 +58,8 @@ public class LfsText extends TranslationBundle {
 	}
 
 	// @formatter:off
+	/***/ public String corruptLongObject;
+	/***/ public String inconsistentMediafileLength;
 	/***/ public String incorrectLONG_OBJECT_ID_LENGTH;
 	/***/ public String invalidLongId;
 	/***/ public String invalidLongIdLength;

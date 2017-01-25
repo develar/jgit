@@ -51,7 +51,7 @@
   <groupId>org.eclipse.jgit</groupId>
   <artifactId>org.eclipse.jgit-parent</artifactId>
   <packaging>pom</packaging>
-  <version>4.5.1-SNAPSHOT</version>
+  <version>4.6.1-SNAPSHOT</version>
 
   <name>JGit - Parent</name>
   <url>${jgit-url}</url>
@@ -190,12 +190,10 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <maven.build.timestamp.format>yyyyMMddHHmm</maven.build.timestamp.format>
     <bundle-manifest>${project.build.directory}/META-INF/MANIFEST.MF</bundle-manifest>
-    <!-- set JDK_HOME to JAVA_HOME path of JDK7 installation in order to compile against JDK 7 class library -->
-    <JDK_HOME>${JAVA_HOME}</JDK_HOME>
 
     <jgit-last-release-version>4.2.0.201601211800-r</jgit-last-release-version>
     <jsch-version>0.1.53</jsch-version>
-    <javaewah-version>0.7.9</javaewah-version>
+    <javaewah-version>1.1.6</javaewah-version>
     <junit-version>4.12</junit-version>
     <test-fork-count>1C</test-fork-count>
     <args4j-version>2.0.15</args4j-version>
@@ -207,8 +205,8 @@
     <httpclient-version>4.3.6</httpclient-version>
     <slf4j-version>1.7.2</slf4j-version>
     <log4j-version>1.2.15</log4j-version>
-    <maven-javadoc-plugin-version>2.10.3</maven-javadoc-plugin-version>
-    <tycho-extras-version>0.25.0</tycho-extras-version>
+    <maven-javadoc-plugin-version>2.10.4</maven-javadoc-plugin-version>
+    <tycho-extras-version>0.26.0</tycho-extras-version>
     <gson-version>2.2.4</gson-version>
 
     <!-- Properties to enable jacoco code coverage analysis -->
@@ -241,7 +239,7 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-jar-plugin</artifactId>
-          <version>2.6</version>
+          <version>3.0.2</version>
           <configuration>
             <archive>
               <manifestEntries>
@@ -260,15 +258,59 @@
 
         <plugin>
           <artifactId>maven-compiler-plugin</artifactId>
-          <version>3.5.1</version>
+          <version>3.6.0</version>
           <configuration>
             <encoding>UTF-8</encoding>
-            <source>1.7</source>
-            <target>1.7</target>
-            <compilerArguments>
-              <bootclasspath>${JDK_HOME}${file.separator}jre${file.separator}lib${file.separator}rt.jar${path.separator}${JDK_HOME}${file.separator}jre${file.separator}lib${file.separator}jsse.jar${path.separator}${JDK_HOME}${file.separator}jre${file.separator}lib${file.separator}jce.jar</bootclasspath>
-            </compilerArguments>
+            <source>1.8</source>
+            <target>1.8</target>
           </configuration>
+          <executions>
+            <execution>
+              <id>default-compile</id>
+              <phase>compile</phase>
+              <goals>
+                <goal>compile</goal>
+              </goals>
+              <configuration>
+                <includes>
+                  <include>org/eclipse/jgit/transport/InsecureCipherFactory.java</include>
+                </includes>
+              </configuration>
+            </execution>
+            <execution>
+              <id>compile-with-errorprone</id>
+              <phase>compile</phase>
+              <goals>
+                <goal>compile</goal>
+              </goals>
+              <configuration>
+                <compilerId>javac-with-errorprone</compilerId>
+                <forceJavacCompilerUse>true</forceJavacCompilerUse>
+                <excludes>
+                  <exclude>org/eclipse/jgit/transport/InsecureCipherFactory.java</exclude>
+                </excludes>
+              </configuration>
+            </execution>
+          </executions>
+          <dependencies>
+            <dependency>
+              <groupId>org.codehaus.plexus</groupId>
+              <artifactId>plexus-compiler-javac</artifactId>
+              <version>2.8.1</version>
+            </dependency>
+            <dependency>
+              <groupId>org.codehaus.plexus</groupId>
+              <artifactId>plexus-compiler-javac-errorprone</artifactId>
+              <version>2.8.1</version>
+            </dependency>
+            <!-- override plexus-compiler-javac-errorprone's dependency on
+                 Error Prone with the latest version -->
+            <dependency>
+              <groupId>com.google.errorprone</groupId>
+              <artifactId>error_prone_core</artifactId>
+              <version>2.0.15</version>
+            </dependency>
+          </dependencies>
         </plugin>
 
         <plugin>
@@ -291,13 +333,13 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-dependency-plugin</artifactId>
-          <version>2.10</version>
+          <version>3.0.0</version>
         </plugin>
 
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-source-plugin</artifactId>
-          <version>3.0.0</version>
+          <version>3.0.1</version>
         </plugin>
 
         <plugin>
@@ -319,13 +361,13 @@
         <plugin>
           <groupId>org.codehaus.mojo</groupId>
           <artifactId>build-helper-maven-plugin</artifactId>
-          <version>1.10</version>
+          <version>1.12</version>
         </plugin>
 
         <plugin>
           <groupId>org.codehaus.mojo</groupId>
           <artifactId>findbugs-maven-plugin</artifactId>
-          <version>3.0.3</version>
+          <version>3.0.4</version>
           <configuration>
             <findbugsXmlOutput>true</findbugsXmlOutput>
             <failOnError>false</failOnError>
@@ -342,11 +384,11 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-pmd-plugin</artifactId>
-          <version>3.6</version>
+          <version>3.7</version>
           <configuration>
             <sourceEncoding>utf-8</sourceEncoding>
             <minimumTokens>100</minimumTokens>
-            <targetJdk>1.7</targetJdk>
+            <targetJdk>1.8</targetJdk>
             <format>xml</format>
             <failOnViolation>false</failOnViolation>
           </configuration>
@@ -377,12 +419,12 @@
         <plugin>
           <groupId>org.jacoco</groupId>
           <artifactId>jacoco-maven-plugin</artifactId>
-          <version>0.7.6.201602180812</version>
+          <version>0.7.8</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-site-plugin</artifactId>
-          <version>3.5.1</version>
+          <version>3.6</version>
           <dependencies>
             <dependency><!-- add support for ssh/scp -->
               <groupId>org.apache.maven.wagon</groupId>
@@ -459,7 +501,7 @@
           <quiet>true</quiet>
           <excludePackageNames>org.eclipse.jgit.http.test</excludePackageNames>
           <links>
-            <link>http://docs.oracle.com/javase/7/docs/api</link>
+            <link>http://docs.oracle.com/javase/8/docs/api</link>
           </links>
         </configuration>
         <executions>
@@ -667,12 +709,6 @@
   </distributionManagement>
 
   <profiles>
-    <profile>
-      <id>jgit.java7</id>
-      <activation>
-        <jdk>[1.7,)</jdk>
-      </activation>
-    </profile>
     <profile>
       <id>jgit.java8</id>
       <activation>

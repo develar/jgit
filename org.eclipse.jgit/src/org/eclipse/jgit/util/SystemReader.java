@@ -56,10 +56,12 @@ import java.text.SimpleDateFormat;
 import java.util.Locale;
 import java.util.TimeZone;
 
-import org.eclipse.jgit.storage.file.FileBasedConfig;
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.lib.Config;
 import org.eclipse.jgit.lib.ObjectChecker;
+import org.eclipse.jgit.storage.file.FileBasedConfig;
+import org.eclipse.jgit.util.time.MonotonicClock;
+import org.eclipse.jgit.util.time.MonotonicSystemClock;
 
 /**
  * Interface to read values from the system.
@@ -229,6 +231,14 @@ public abstract class SystemReader {
 	 * @return the current system time
 	 */
 	public abstract long getCurrentTime();
+
+	/**
+	 * @return clock instance preferred by this system.
+	 * @since 4.6
+	 */
+	public MonotonicClock getClock() {
+		return new MonotonicSystemClock();
+	}
 
 	/**
 	 * @param when TODO

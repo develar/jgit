@@ -65,7 +65,6 @@ import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.errors.StopWalkException;
 import org.eclipse.jgit.internal.JGitText;
-import org.eclipse.jgit.revwalk.RevTree;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.submodule.SubmoduleWalk;
 import org.eclipse.jgit.submodule.SubmoduleWalk.IgnoreSubmoduleMode;
@@ -73,8 +72,8 @@ import org.eclipse.jgit.treewalk.AbstractTreeIterator;
 import org.eclipse.jgit.treewalk.EmptyTreeIterator;
 import org.eclipse.jgit.treewalk.FileTreeIterator;
 import org.eclipse.jgit.treewalk.TreeWalk;
-import org.eclipse.jgit.treewalk.WorkingTreeIterator;
 import org.eclipse.jgit.treewalk.TreeWalk.OperationType;
+import org.eclipse.jgit.treewalk.WorkingTreeIterator;
 import org.eclipse.jgit.treewalk.filter.AndTreeFilter;
 import org.eclipse.jgit.treewalk.filter.IndexDiffFilter;
 import org.eclipse.jgit.treewalk.filter.SkipWorkTreeFilter;
@@ -248,7 +247,7 @@ public class IndexDiff {
 
 	private final Repository repository;
 
-	private final RevTree tree;
+	private final AnyObjectId tree;
 
 	private TreeFilter filter = null;
 
@@ -311,10 +310,13 @@ public class IndexDiff {
 	public IndexDiff(Repository repository, ObjectId objectId,
 			WorkingTreeIterator workingTreeIterator) throws IOException {
 		this.repository = repository;
-		if (objectId != null)
-			tree = new RevWalk(repository).parseTree(objectId);
-		else
+		if (objectId != null) {
+			try (RevWalk rw = new RevWalk(repository)) {
+				tree = rw.parseTree(objectId);
+			}
+		} else {
 			tree = null;
+		}
 		this.initialWorkingTreeIterator = workingTreeIterator;
 	}
 

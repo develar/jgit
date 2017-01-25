@@ -45,14 +45,59 @@
 
 package org.eclipse.jgit.transport;
 
+import static org.eclipse.jgit.lib.Constants.HEAD;
+import static org.eclipse.jgit.util.HttpSupport.ENCODING_GZIP;
+import static org.eclipse.jgit.util.HttpSupport.ENCODING_X_GZIP;
+import static org.eclipse.jgit.util.HttpSupport.HDR_ACCEPT;
+import static org.eclipse.jgit.util.HttpSupport.HDR_ACCEPT_ENCODING;
+import static org.eclipse.jgit.util.HttpSupport.HDR_CONTENT_ENCODING;
+import static org.eclipse.jgit.util.HttpSupport.HDR_CONTENT_TYPE;
+import static org.eclipse.jgit.util.HttpSupport.HDR_PRAGMA;
+import static org.eclipse.jgit.util.HttpSupport.HDR_USER_AGENT;
+import static org.eclipse.jgit.util.HttpSupport.HDR_WWW_AUTHENTICATE;
+import static org.eclipse.jgit.util.HttpSupport.METHOD_GET;
+import static org.eclipse.jgit.util.HttpSupport.METHOD_POST;
+
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.MalformedURLException;
+import java.net.Proxy;
+import java.net.ProxySelector;
+import java.net.URL;
+import java.text.MessageFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
+
 import org.eclipse.jgit.errors.NoRemoteRepositoryException;
 import org.eclipse.jgit.errors.NotSupportedException;
 import org.eclipse.jgit.errors.PackProtocolException;
 import org.eclipse.jgit.errors.TransportException;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.internal.storage.file.RefDirectory;
-import org.eclipse.jgit.lib.*;
+import org.eclipse.jgit.lib.Config;
 import org.eclipse.jgit.lib.Config.SectionParser;
+import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.ObjectIdRef;
+import org.eclipse.jgit.lib.ProgressMonitor;
+import org.eclipse.jgit.lib.Ref;
+import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.lib.SymbolicRef;
 import org.eclipse.jgit.transport.HttpAuthMethod.Type;
 import org.eclipse.jgit.transport.http.HttpConnection;
 import org.eclipse.jgit.util.HttpSupport;
@@ -61,15 +106,6 @@ import org.eclipse.jgit.util.RawParseUtils;
 import org.eclipse.jgit.util.TemporaryBuffer;
 import org.eclipse.jgit.util.io.DisabledOutputStream;
 import org.eclipse.jgit.util.io.UnionInputStream;
-
-import java.io.*;
-import java.net.*;
-import java.text.MessageFormat;
-import java.util.*;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
-
-import static org.eclipse.jgit.util.HttpSupport.*;
 
 /**
  * Transport over HTTP and FTP protocols.
@@ -93,6 +129,25 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 	private static final String SVC_UPLOAD_PACK = "git-upload-pack"; //$NON-NLS-1$
 
 	private static final String SVC_RECEIVE_PACK = "git-receive-pack"; //$NON-NLS-1$
+
+	/**
+	 * Accept-Encoding header in the HTTP request
+	 * (https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html).
+	 *
+	 * @since 4.6
+	 */
+	public enum AcceptEncoding {
+		/**
+		 * Do not specify an Accept-Encoding header. In most servers this
+		 * results in the content being transmitted as-is.
+		 */
+		UNSPECIFIED,
+
+		/**
+		 * Accept gzip content encoding.
+		 */
+		GZIP
+	}
 
 	static final TransportProtocol PROTO_HTTP = new TransportProtocol() {
 		private final String[] schemeNames = { "http", "https" }; //$NON-NLS-1$ //$NON-NLS-2$
@@ -290,12 +345,15 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 			br.close();
 		}
 
-		if (!refs.containsKey(Constants.HEAD)) {
+		if (!refs.containsKey(HEAD)) {
 			// If HEAD was not published in the info/refs file (it usually
 			// is not there) download HEAD by itself as a loose file and do
 			// the resolution by hand.
 			//
-			HttpConnection conn = httpOpen(new URL(baseUrl, Constants.HEAD));
+			HttpConnection conn = httpOpen(
+					METHOD_GET,
+					new URL(baseUrl, HEAD),
+					AcceptEncoding.GZIP);
 			int status = HttpSupport.response(conn);
 			switch (status) {
 			case HttpConnection.HTTP_OK: {
@@ -307,11 +365,11 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 						Ref r = refs.get(target);
 						if (r == null)
 							r = new ObjectIdRef.Unpeeled(Ref.Storage.NEW, target, null);
-						r = new SymbolicRef(Constants.HEAD, r);
+						r = new SymbolicRef(HEAD, r);
 						refs.put(r.getName(), r);
 					} else if (line != null && ObjectId.isId(line)) {
 						Ref r = new ObjectIdRef.Unpeeled(Ref.Storage.NETWORK,
-								Constants.HEAD, ObjectId.fromString(line));
+								HEAD, ObjectId.fromString(line));
 						refs.put(r.getName(), r);
 					}
 				} finally {
@@ -421,7 +479,7 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 		Collection<Type> ignoreTypes = null;
 		for (;;) {
 			try {
-				final HttpConnection conn = httpOpen(u);
+				final HttpConnection conn = httpOpen(METHOD_GET, u, AcceptEncoding.GZIP);
 				if (useSmartHttp) {
 					String exp = "application/x-" + service + "-advertisement"; //$NON-NLS-1$ //$NON-NLS-2$
 					conn.setRequestProperty(HDR_ACCEPT, exp + ", */*"); //$NON-NLS-1$
@@ -494,21 +552,37 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 		}
 	}
 
-	final HttpConnection httpOpen(URL u) throws IOException {
-		return httpOpen(METHOD_GET, u);
+	/**
+	 * Open an HTTP connection, setting the accept-encoding request header to gzip.
+	 *
+	 * @param method HTTP request method
+	 * @param u url of the HTTP connection
+	 * @return the HTTP connection
+	 * @throws IOException
+	 * @since 3.3
+	 * @deprecated use {@link #httpOpen(String, URL, AcceptEncoding)} instead.
+	 */
+	@Deprecated
+	protected HttpConnection httpOpen(String method, URL u) throws IOException {
+		return httpOpen(method, u, AcceptEncoding.GZIP);
 	}
 
 	/**
 	 * Open an HTTP connection.
 	 *
-	 * @param method
-	 * @param u
-	 * @return the connection
+	 * @param method HTTP request method
+	 * @param u url of the HTTP connection
+	 * @param acceptEncoding accept-encoding header option
+	 * @return the HTTP connection
 	 * @throws IOException
-	 * @since 3.3
+	 * @since 4.6
 	 */
-	protected HttpConnection httpOpen(String method, URL u)
-			throws IOException {
+	protected HttpConnection httpOpen(String method, URL u,
+			AcceptEncoding acceptEncoding) throws IOException {
+		if (method == null || u == null || acceptEncoding == null) {
+			throw new NullPointerException();
+		}
+
 		final Proxy proxy = HttpSupport.proxyFor(proxySelector, u);
 		HttpConnection conn = connectionFactory.create(u, proxy);
 
@@ -518,7 +592,9 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 
 		conn.setRequestMethod(method);
 		conn.setUseCaches(false);
-		conn.setRequestProperty(HDR_ACCEPT_ENCODING, ENCODING_GZIP);
+		if (acceptEncoding == AcceptEncoding.GZIP) {
+			conn.setRequestProperty(HDR_ACCEPT_ENCODING, ENCODING_GZIP);
+		}
 		conn.setRequestProperty(HDR_PRAGMA, "no-cache"); //$NON-NLS-1$
 		if (UserAgent.get() != null) {
 			conn.setRequestProperty(HDR_USER_AGENT, UserAgent.get());
@@ -540,7 +616,7 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 	final InputStream openInputStream(HttpConnection conn)
 			throws IOException {
 		InputStream input = conn.getInputStream();
-		if (ENCODING_GZIP.equals(conn.getHeaderField(HDR_CONTENT_ENCODING)))
+		if (isGzipContent(conn))
 			input = new GZIPInputStream(input);
 		return input;
 	}
@@ -554,6 +630,11 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 		final String expType = "application/x-" + service + "-advertisement"; //$NON-NLS-1$ //$NON-NLS-2$
 		final String actType = c.getContentType();
 		return expType.equals(actType);
+	}
+
+	private boolean isGzipContent(final HttpConnection c) {
+		return ENCODING_GZIP.equals(c.getHeaderField(HDR_CONTENT_ENCODING))
+				|| ENCODING_X_GZIP.equals(c.getHeaderField(HDR_CONTENT_ENCODING));
 	}
 
 	private void readSmartHeaders(final InputStream in, final String service)
@@ -620,6 +701,14 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 		}
 
 		@Override
+		BufferedReader openReader(String path) throws IOException {
+			// Line oriented readable content is likely to compress well.
+			// Request gzip encoding.
+			InputStream is = open(path, AcceptEncoding.GZIP).in;
+			return new BufferedReader(new InputStreamReader(is, Constants.CHARSET));
+		}
+
+		@Override
 		Collection<String> getPackNames() throws IOException {
 			final Collection<String> packs = new ArrayList<String>();
 			try {
@@ -644,14 +733,25 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 
 		@Override
 		FileStream open(final String path) throws IOException {
+			return open(path, AcceptEncoding.UNSPECIFIED);
+		}
+
+		FileStream open(String path, AcceptEncoding acceptEncoding)
+				throws IOException {
 			final URL base = httpObjectsUrl;
 			final URL u = new URL(base, path);
-			final HttpConnection c = httpOpen(u);
+			final HttpConnection c = httpOpen(METHOD_GET, u, acceptEncoding);
 			switch (HttpSupport.response(c)) {
 			case HttpConnection.HTTP_OK:
 				final InputStream in = openInputStream(c);
-				final int len = c.getContentLength();
-				return new FileStream(in, len);
+				// If content is being gzipped and then transferred, the content
+				// length in the header is the zipped content length, not the
+				// actual content length.
+				if (!isGzipContent(c)) {
+					final int len = c.getContentLength();
+					return new FileStream(in, len);
+				}
+				return new FileStream(in);
 			case HttpConnection.HTTP_NOT_FOUND:
 				throw new FileNotFoundException(u.toString());
 			default:
@@ -797,7 +897,10 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 		}
 
 		void openStream() throws IOException {
-			conn = httpOpen(METHOD_POST, new URL(baseUrl, serviceName));
+			conn = httpOpen(
+					METHOD_POST,
+					new URL(baseUrl, serviceName),
+					AcceptEncoding.GZIP);
 			conn.setInstanceFollowRedirects(false);
 			conn.setDoOutput(true);
 			conn.setRequestProperty(HDR_CONTENT_TYPE, requestType);

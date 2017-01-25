@@ -45,6 +45,24 @@
 
 package org.eclipse.jgit.dircache;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.EOFException;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
+import java.security.DigestOutputStream;
+import java.security.MessageDigest;
+import java.text.MessageFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
+
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.errors.IndexReadException;
 import org.eclipse.jgit.errors.LockFailedException;
@@ -64,19 +82,11 @@ import org.eclipse.jgit.treewalk.FileTreeIterator;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.TreeWalk.OperationType;
 import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
-import org.eclipse.jgit.util.*;
-import org.eclipse.jgit.util.io.SafeBufferedOutputStream;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.*;
-import java.security.DigestOutputStream;
-import java.security.MessageDigest;
-import java.text.MessageFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
+import org.eclipse.jgit.util.FS;
+import org.eclipse.jgit.util.IO;
+import org.eclipse.jgit.util.MutableInteger;
+import org.eclipse.jgit.util.NB;
+import org.eclipse.jgit.util.TemporaryBuffer;
 
 /**
  * Support for the Git dircache (aka index file).
@@ -635,9 +645,9 @@ public class DirCache {
 	public void write() throws IOException {
 		final LockFile tmp = myLock;
 		requireLocked(tmp);
-		try {
-			writeTo(liveFile.getParentFile(),
-					new SafeBufferedOutputStream(tmp.getOutputStream()));
+		try (OutputStream o = tmp.getOutputStream();
+				OutputStream bo = new BufferedOutputStream(o)) {
+			writeTo(liveFile.getParentFile(), bo);
 		} catch (IOException err) {
 			tmp.unlock();
 			throw err;

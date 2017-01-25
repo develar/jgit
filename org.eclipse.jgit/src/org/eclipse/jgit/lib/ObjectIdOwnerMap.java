@@ -143,6 +143,7 @@ public class ObjectIdOwnerMap<V extends ObjectIdOwnerMap.Entry>
 	 *            object to find.
 	 * @return true if the mapping exists for this object; false otherwise.
 	 */
+	@Override
 	public boolean contains(final AnyObjectId toFind) {
 		return get(toFind) != null;
 	}
@@ -219,20 +220,20 @@ public class ObjectIdOwnerMap<V extends ObjectIdOwnerMap.Entry>
 		return size == 0;
 	}
 
+	@Override
 	public Iterator<V> iterator() {
 		return new Iterator<V>() {
 			private int found;
-
 			private int dirIdx;
-
 			private int tblIdx;
-
 			private V next;
 
+			@Override
 			public boolean hasNext() {
 				return found < size;
 			}
 
+			@Override
 			public V next() {
 				if (next != null)
 					return found(next);
@@ -261,6 +262,7 @@ public class ObjectIdOwnerMap<V extends ObjectIdOwnerMap.Entry>
 				return v;
 			}
 
+			@Override
 			public void remove() {
 				throw new UnsupportedOperationException();
 			}
@@ -341,7 +343,7 @@ public class ObjectIdOwnerMap<V extends ObjectIdOwnerMap.Entry>
 
 	/** Type of entry stored in the {@link ObjectIdOwnerMap}. */
 	public static abstract class Entry extends ObjectId {
-		Entry next;
+		transient Entry next;
 
 		/**
 		 * Initialize this entry with a specific ObjectId.

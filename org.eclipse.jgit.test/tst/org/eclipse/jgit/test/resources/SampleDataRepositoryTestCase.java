@@ -47,7 +47,9 @@
 package org.eclipse.jgit.test.resources;
 
 import java.io.File;
+import java.io.IOException;
 
+import org.eclipse.jgit.internal.storage.file.FileRepository;
 import org.eclipse.jgit.junit.JGitTestUtil;
 import org.eclipse.jgit.junit.RepositoryTestCase;
 
@@ -57,7 +59,17 @@ public abstract class SampleDataRepositoryTestCase extends RepositoryTestCase {
 	@Override
 	public void setUp() throws Exception {
 		super.setUp();
+		copyCGitTestPacks(db);
+	}
 
+	/**
+	 * Copy C Git generated pack files into given repository for testing
+	 *
+	 * @param repo
+	 *            test repository to receive packfile copies
+	 * @throws IOException
+	 */
+	public static void copyCGitTestPacks(FileRepository repo) throws IOException {
 		final String[] packs = {
 				"pack-34be9032ac282b11fa9babdc2b2a93ca996c9c2f",
 				"pack-df2982f284bbabb6bdb59ee3fcc6eb0983e20371",
@@ -67,13 +79,14 @@ public abstract class SampleDataRepositoryTestCase extends RepositoryTestCase {
 				"pack-e6d07037cbcf13376308a0a995d1fa48f8f76aaa",
 				"pack-3280af9c07ee18a87705ef50b0cc4cd20266cf12"
 		};
-		final File packDir = new File(db.getObjectDatabase().getDirectory(), "pack");
+		final File packDir = new File(repo.getObjectDatabase().getDirectory(),
+				"pack");
 		for (String n : packs) {
 			JGitTestUtil.copyTestResource(n + ".pack", new File(packDir, n + ".pack"));
 			JGitTestUtil.copyTestResource(n + ".idx", new File(packDir, n + ".idx"));
 		}
 
 		JGitTestUtil.copyTestResource("packed-refs",
-				new File(db.getDirectory(), "packed-refs"));
+				new File(repo.getDirectory(), "packed-refs"));
 	}
 }

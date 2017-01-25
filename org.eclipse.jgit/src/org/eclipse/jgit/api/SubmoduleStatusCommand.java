@@ -54,9 +54,9 @@ import org.eclipse.jgit.errors.ConfigInvalidException;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.submodule.SubmoduleWalk;
 import org.eclipse.jgit.submodule.SubmoduleStatus;
 import org.eclipse.jgit.submodule.SubmoduleStatusType;
+import org.eclipse.jgit.submodule.SubmoduleWalk;
 import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
 
 /**
@@ -94,8 +94,7 @@ public class SubmoduleStatusCommand extends
 	public Map<String, SubmoduleStatus> call() throws GitAPIException {
 		checkCallable();
 
-		try {
-			SubmoduleWalk generator = SubmoduleWalk.forIndex(repo);
+		try (SubmoduleWalk generator = SubmoduleWalk.forIndex(repo)) {
 			if (!paths.isEmpty())
 				generator.setFilter(PathFilterGroup.createFromStrings(paths));
 			Map<String, SubmoduleStatus> statuses = new HashMap<String, SubmoduleStatus>();

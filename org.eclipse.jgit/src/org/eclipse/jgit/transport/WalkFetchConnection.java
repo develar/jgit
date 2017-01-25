@@ -195,7 +195,7 @@ class WalkFetchConnection extends BaseFetchConnection {
 		local = wt.local;
 		objCheck = wt.getObjectChecker();
 		inserter = local.newObjectInserter();
-		reader = local.newObjectReader();
+		reader = inserter.newReader();
 
 		remotes = new ArrayList<WalkRemoteObjectDatabase>();
 		remotes.add(w);
@@ -239,6 +239,12 @@ class WalkFetchConnection extends BaseFetchConnection {
 			if (!(id instanceof RevObject) || !((RevObject) id).has(COMPLETE))
 				downloadObject(monitor, id);
 			process(id);
+		}
+
+		try {
+			inserter.flush();
+		} catch (IOException e) {
+			throw new TransportException(e.getMessage(), e);
 		}
 	}
 
@@ -652,7 +658,6 @@ class WalkFetchConnection extends BaseFetchConnection {
 					Constants.typeString(type),
 					Integer.valueOf(compressed.length)));
 		}
-		inserter.flush();
 	}
 
 	private Collection<WalkRemoteObjectDatabase> expandOneAlternate(
@@ -876,14 +881,17 @@ class WalkFetchConnection extends BaseFetchConnection {
 		void downloadPack(final ProgressMonitor monitor) throws IOException {
 			String name = "pack/" + packName; //$NON-NLS-1$
 			WalkRemoteObjectDatabase.FileStream s = connection.open(name);
-			PackParser parser = inserter.newPackParser(s.in);
-			parser.setAllowThin(false);
-			parser.setObjectChecker(objCheck);
-			parser.setLockMessage(lockMessage);
-			PackLock lock = parser.parse(monitor);
-			if (lock != null)
-				packLocks.add(lock);
-			inserter.flush();
+			try {
+				PackParser parser = inserter.newPackParser(s.in);
+				parser.setAllowThin(false);
+				parser.setObjectChecker(objCheck);
+				parser.setLockMessage(lockMessage);
+				PackLock lock = parser.parse(monitor);
+				if (lock != null)
+					packLocks.add(lock);
+			} finally {
+				s.in.close();
+			}
 		}
 	}
 }

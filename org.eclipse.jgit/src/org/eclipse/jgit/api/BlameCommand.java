@@ -61,9 +61,9 @@ import org.eclipse.jgit.diff.RawTextComparator;
 import org.eclipse.jgit.dircache.DirCache;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.CoreConfig.AutoCRLF;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.lib.CoreConfig.AutoCRLF;
 import org.eclipse.jgit.treewalk.WorkingTreeOptions;
 import org.eclipse.jgit.util.IO;
 import org.eclipse.jgit.util.io.AutoLFInputStream;
@@ -248,11 +248,12 @@ public class BlameCommand extends GitCommand<BlameResult> {
 			rawText = new RawText(inTree);
 			break;
 		case TRUE:
-			AutoLFInputStream in = new AutoLFInputStream(
-					new FileInputStream(inTree), true);
-			// Canonicalization should lead to same or shorter length
-			// (CRLF to LF), so the file size on disk is an upper size bound
-			rawText = new RawText(toByteArray(in, (int) inTree.length()));
+			try (AutoLFInputStream in = new AutoLFInputStream(
+					new FileInputStream(inTree), true)) {
+				// Canonicalization should lead to same or shorter length
+				// (CRLF to LF), so the file size on disk is an upper size bound
+				rawText = new RawText(toByteArray(in, (int) inTree.length()));
+			}
 			break;
 		default:
 			throw new IllegalArgumentException(

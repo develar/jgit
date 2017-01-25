@@ -47,7 +47,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InterruptedIOException;
 import java.io.OutputStream;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /** Thread to copy from an input stream to an output stream. */
 public class StreamCopyThread extends Thread {
@@ -59,7 +58,8 @@ public class StreamCopyThread extends Thread {
 
 	private volatile boolean done;
 
-	private final AtomicInteger flushCount = new AtomicInteger(0);
+	/** Lock held by flush to avoid interrupting a write. */
+	private final Object writeLock;
 
 	/**
 	 * Create a thread to copy data from an input stream to an output stream.
@@ -75,6 +75,7 @@ public class StreamCopyThread extends Thread {
 		setName(Thread.currentThread().getName() + "-StreamCopy"); //$NON-NLS-1$
 		src = i;
 		dst = o;
+		writeLock = new Object();
 	}
 
 	/**
@@ -84,9 +85,11 @@ public class StreamCopyThread extends Thread {
 	 * happen at some future point in time, when the thread wakes up to process
 	 * the request.
 	 */
+	@Deprecated
 	public void flush() {
-		flushCount.incrementAndGet();
-		interrupt();
+		synchronized (writeLock) {
+			interrupt();
+		}
 	}
 
 	/**
@@ -113,25 +116,23 @@ public class StreamCopyThread extends Thread {
 	public void run() {
 		try {
 			final byte[] buf = new byte[BUFFER_SIZE];
-			int flushCountBeforeRead = 0;
 			boolean readInterrupted = false;
 			for (;;) {
 				try {
 					if (readInterrupted) {
-						dst.flush();
-						readInterrupted = false;
-						if (!flushCount.compareAndSet(flushCountBeforeRead, 0)) {
-							// There was a flush() call since last blocked read.
-							// Set interrupt status, so next blocked read will throw
-							// an InterruptedIOException and we will flush again.
-							interrupt();
+						synchronized (writeLock) {
+							boolean interruptedAgain = Thread.interrupted();
+							dst.flush();
+							if (interruptedAgain) {
+								interrupt();
+							}
 						}
+						readInterrupted = false;
 					}
 
 					if (done)
 						break;
 
-					flushCountBeforeRead = flushCount.get();
 					final int n;
 					try {
 						n = src.read(buf);
@@ -142,20 +143,12 @@ public class StreamCopyThread extends Thread {
 					if (n < 0)
 						break;
 
-					boolean writeInterrupted = false;
-					for (;;) {
-						try {
-							dst.write(buf, 0, n);
-						} catch (InterruptedIOException wakey) {
-							writeInterrupted = true;
-							continue;
-						}
-
-						// set interrupt status, which will be checked
-						// when we block in src.read
-						if (writeInterrupted || flushCount.get() > 0)
+					synchronized (writeLock) {
+						boolean writeInterrupted = Thread.interrupted();
+						dst.write(buf, 0, n);
+						if (writeInterrupted) {
 							interrupt();
-						break;
+						}
 					}
 				} catch (IOException e) {
 					break;
