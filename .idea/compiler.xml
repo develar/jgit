@@ -15,6 +15,10 @@
         <module name="org.eclipse.jgit.http.test" />
         <module name="org.eclipse.jgit.junit" />
         <module name="org.eclipse.jgit.junit.http" />
+        <module name="org.eclipse.jgit.lfs" />
+        <module name="org.eclipse.jgit.lfs.server" />
+        <module name="org.eclipse.jgit.lfs.server.test" />
+        <module name="org.eclipse.jgit.lfs.test" />
         <module name="org.eclipse.jgit.pgm" />
         <module name="org.eclipse.jgit.pgm.test" />
         <module name="org.eclipse.jgit.test" />
@@ -22,20 +26,24 @@
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>
-      <module name="org.eclipse.jgit" target="1.7" />
-      <module name="org.eclipse.jgit-parent" target="1.7" />
-      <module name="org.eclipse.jgit.ant" target="1.7" />
-      <module name="org.eclipse.jgit.ant.test" target="1.7" />
-      <module name="org.eclipse.jgit.archive" target="1.7" />
-      <module name="org.eclipse.jgit.http.apache" target="1.7" />
-      <module name="org.eclipse.jgit.http.server" target="1.7" />
-      <module name="org.eclipse.jgit.http.test" target="1.7" />
-      <module name="org.eclipse.jgit.junit" target="1.7" />
-      <module name="org.eclipse.jgit.junit.http" target="1.7" />
-      <module name="org.eclipse.jgit.pgm" target="1.7" />
-      <module name="org.eclipse.jgit.pgm.test" target="1.7" />
-      <module name="org.eclipse.jgit.test" target="1.7" />
-      <module name="org.eclipse.jgit.ui" target="1.7" />
+      <module name="org.eclipse.jgit" target="1.8" />
+      <module name="org.eclipse.jgit-parent" target="1.8" />
+      <module name="org.eclipse.jgit.ant" target="1.8" />
+      <module name="org.eclipse.jgit.ant.test" target="1.8" />
+      <module name="org.eclipse.jgit.archive" target="1.8" />
+      <module name="org.eclipse.jgit.http.apache" target="1.8" />
+      <module name="org.eclipse.jgit.http.server" target="1.8" />
+      <module name="org.eclipse.jgit.http.test" target="1.8" />
+      <module name="org.eclipse.jgit.junit" target="1.8" />
+      <module name="org.eclipse.jgit.junit.http" target="1.8" />
+      <module name="org.eclipse.jgit.lfs" target="1.8" />
+      <module name="org.eclipse.jgit.lfs.server" target="1.8" />
+      <module name="org.eclipse.jgit.lfs.server.test" target="1.8" />
+      <module name="org.eclipse.jgit.lfs.test" target="1.8" />
+      <module name="org.eclipse.jgit.pgm" target="1.8" />
+      <module name="org.eclipse.jgit.pgm.test" target="1.8" />
+      <module name="org.eclipse.jgit.test" target="1.8" />
+      <module name="org.eclipse.jgit.ui" target="1.8" />
     </bytecodeTargetLevel>
   </component>
 </project>

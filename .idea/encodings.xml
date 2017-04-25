@@ -14,6 +14,10 @@
     <file url="file://$PROJECT_DIR$/org.eclipse.jgit.java7.test" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/org.eclipse.jgit.junit" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/org.eclipse.jgit.junit.http" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/org.eclipse.jgit.lfs" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/org.eclipse.jgit.lfs.server" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/org.eclipse.jgit.lfs.server.test" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/org.eclipse.jgit.lfs.test" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/org.eclipse.jgit.pgm" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/org.eclipse.jgit.pgm.test" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/org.eclipse.jgit.test" charset="UTF-8" />
