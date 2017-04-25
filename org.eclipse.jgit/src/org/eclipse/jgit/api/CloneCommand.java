@@ -127,6 +127,7 @@ public class CloneCommand extends TransportCommand<CloneCommand, Git> {
 	 * @throws org.eclipse.jgit.api.errors.TransportException
 	 * @throws GitAPIException
 	 */
+	@Override
 	public Git call() throws GitAPIException, InvalidRemoteException,
 			org.eclipse.jgit.api.errors.TransportException {
 		Repository repository = null;
@@ -151,23 +152,35 @@ public class CloneCommand extends TransportCommand<CloneCommand, Git> {
 		}
 	}
 
+	private static boolean isNonEmptyDirectory(File dir) {
+		if (dir != null && dir.exists()) {
+			File[] files = dir.listFiles();
+			return files != null && files.length != 0;
+		}
+		return false;
+	}
+
 	private Repository init(URIish u) throws GitAPIException {
 		InitCommand command = Git.init();
 		command.setBare(bare);
-		if (directory == null && gitDir == null)
+		if (directory == null && gitDir == null) {
 			directory = new File(u.getHumanishName(), Constants.DOT_GIT);
+		}
 		validateDirs(directory, gitDir, bare);
-		if (directory != null && directory.exists()
-				&& directory.listFiles().length != 0)
+		if (isNonEmptyDirectory(directory)) {
 			throw new JGitInternalException(MessageFormat.format(
 					JGitText.get().cloneNonEmptyDirectory, directory.getName()));
-		if (gitDir != null && gitDir.exists() && gitDir.listFiles().length != 0)
+		}
+		if (isNonEmptyDirectory(gitDir)) {
 			throw new JGitInternalException(MessageFormat.format(
 					JGitText.get().cloneNonEmptyDirectory, gitDir.getName()));
-		if (directory != null)
+		}
+		if (directory != null) {
 			command.setDirectory(directory);
-		if (gitDir != null)
+		}
+		if (gitDir != null) {
 			command.setGitDir(gitDir);
+		}
 		return command.call().getRepository();
 	}
 
@@ -207,7 +220,7 @@ public class CloneCommand extends TransportCommand<CloneCommand, Git> {
 		RefSpec wcrs = new RefSpec();
 		wcrs = wcrs.setForceUpdate(true);
 		wcrs = wcrs.setSourceDestination(Constants.R_HEADS + "*", dst); //$NON-NLS-1$
-		List<RefSpec> specs = new ArrayList<RefSpec>();
+		List<RefSpec> specs = new ArrayList<>();
 		if (cloneAllBranches)
 			specs.add(wcrs);
 		else if (branchesToClone != null

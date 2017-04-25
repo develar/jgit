@@ -66,7 +66,7 @@ class TransportBundleFile extends Transport implements TransportBundle {
 		private final String[] schemeNames = { "bundle", "file" }; //$NON-NLS-1$ //$NON-NLS-2$
 
 		private final Set<String> schemeSet = Collections
-				.unmodifiableSet(new LinkedHashSet<String>(Arrays
+				.unmodifiableSet(new LinkedHashSet<>(Arrays
 						.asList(schemeNames)));
 
 		@Override
@@ -74,6 +74,7 @@ class TransportBundleFile extends Transport implements TransportBundle {
 			return JGitText.get().transportProtoBundleFile;
 		}
 
+		@Override
 		public Set<String> getSchemes() {
 			return schemeSet;
 		}
@@ -106,6 +107,7 @@ class TransportBundleFile extends Transport implements TransportBundle {
 			return TransportLocal.PROTO_LOCAL.open(uri, local, remoteName);
 		}
 
+		@Override
 		public Transport open(URIish uri) throws NotSupportedException,
 				TransportException {
 			if ("bundle".equals(uri.getScheme())) { //$NON-NLS-1$

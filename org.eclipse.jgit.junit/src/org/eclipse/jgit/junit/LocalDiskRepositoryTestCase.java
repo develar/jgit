@@ -53,8 +53,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 
 import org.eclipse.jgit.dircache.DirCache;
@@ -106,7 +108,7 @@ public abstract class LocalDiskRepositoryTestCase {
 	 */
 	protected MockSystemReader mockSystemReader;
 
-	private final List<Repository> toClose = new ArrayList<Repository>();
+	private final Set<Repository> toClose = new HashSet<>();
 	private File tmp;
 
 	@Before
@@ -284,7 +286,7 @@ public abstract class LocalDiskRepositoryTestCase {
 			throws IllegalStateException, IOException {
 		DirCache dc = repo.readDirCache();
 		StringBuilder sb = new StringBuilder();
-		TreeSet<Long> timeStamps = new TreeSet<Long>();
+		TreeSet<Long> timeStamps = new TreeSet<>();
 
 		// iterate once over the dircache just to collect all time stamps
 		if (0 != (includedOptions & MOD_TIME)) {
@@ -357,12 +359,32 @@ public abstract class LocalDiskRepositoryTestCase {
 	 * @throws IOException
 	 *             the repository could not be created in the temporary area
 	 */
-	private FileRepository createRepository(boolean bare) throws IOException {
+	private FileRepository createRepository(boolean bare)
+			throws IOException {
+		return createRepository(bare, true /* auto close */);
+	}
+
+	/**
+	 * Creates a new empty repository.
+	 *
+	 * @param bare
+	 *            true to create a bare repository; false to make a repository
+	 *            within its working directory
+	 * @param autoClose
+	 *            auto close the repository in #tearDown
+	 * @return the newly created repository, opened for access
+	 * @throws IOException
+	 *             the repository could not be created in the temporary area
+	 */
+	public FileRepository createRepository(boolean bare, boolean autoClose)
+			throws IOException {
 		File gitdir = createUniqueTestGitDir(bare);
 		FileRepository db = new FileRepository(gitdir);
 		assertFalse(gitdir.exists());
 		db.create(bare);
-		toClose.add(db);
+		if (autoClose) {
+			addRepoToClose(db);
+		}
 		return db;
 	}
 
@@ -530,7 +552,7 @@ public abstract class LocalDiskRepositoryTestCase {
 	}
 
 	private static HashMap<String, String> cloneEnv() {
-		return new HashMap<String, String>(System.getenv());
+		return new HashMap<>(System.getenv());
 	}
 
 	private static final class CleanupThread extends Thread {
@@ -552,7 +574,7 @@ public abstract class LocalDiskRepositoryTestCase {
 			}
 		}
 
-		private final List<File> toDelete = new ArrayList<File>();
+		private final List<File> toDelete = new ArrayList<>();
 
 		@Override
 		public void run() {

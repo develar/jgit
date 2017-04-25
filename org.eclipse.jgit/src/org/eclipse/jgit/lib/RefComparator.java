@@ -60,6 +60,7 @@ public class RefComparator implements Comparator<Ref> {
 	/** Singleton instance of RefComparator */
 	public static final RefComparator INSTANCE = new RefComparator();
 
+	@Override
 	public int compare(final Ref o1, final Ref o2) {
 		return compareTo(o1, o2);
 	}
@@ -72,7 +73,7 @@ public class RefComparator implements Comparator<Ref> {
 	 * @return sorted collection of refs
 	 */
 	public static Collection<Ref> sort(final Collection<Ref> refs) {
-		final List<Ref> r = new ArrayList<Ref>(refs);
+		final List<Ref> r = new ArrayList<>(refs);
 		Collections.sort(r, INSTANCE);
 		return r;
 	}

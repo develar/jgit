@@ -78,7 +78,7 @@ final class DeltaTask implements Callable<Object> {
 		Block(int threads, PackConfig config, ObjectReader reader,
 				DeltaCache dc, ThreadSafeProgressMonitor pm,
 				ObjectToPack[] list, int begin, int end) {
-			this.tasks = new ArrayList<DeltaTask>(threads);
+			this.tasks = new ArrayList<>(threads);
 			this.threads = threads;
 			this.config = config;
 			this.templateReader = reader;
@@ -176,7 +176,7 @@ final class DeltaTask implements Callable<Object> {
 		}
 
 		private ArrayList<WeightedPath> computeTopPaths() {
-			ArrayList<WeightedPath> topPaths = new ArrayList<WeightedPath>(
+			ArrayList<WeightedPath> topPaths = new ArrayList<>(
 					threads);
 			int cp = beginIndex;
 			int ch = list[cp].getPathHash();
@@ -213,6 +213,7 @@ final class DeltaTask implements Callable<Object> {
 
 			// Sort by starting index to identify gaps later.
 			Collections.sort(topPaths, new Comparator<WeightedPath>() {
+				@Override
 				public int compare(WeightedPath a, WeightedPath b) {
 					return a.slice.beginIndex - b.slice.beginIndex;
 				}
@@ -244,6 +245,7 @@ final class DeltaTask implements Callable<Object> {
 			this.slice = s;
 		}
 
+		@Override
 		public int compareTo(WeightedPath o) {
 			int cmp = Long.signum(weight - o.weight);
 			if (cmp != 0) {
@@ -275,7 +277,7 @@ final class DeltaTask implements Callable<Object> {
 
 	DeltaTask(Block b) {
 		this.block = b;
-		this.slices = new LinkedList<Slice>();
+		this.slices = new LinkedList<>();
 	}
 
 	void add(Slice s) {
@@ -290,6 +292,7 @@ final class DeltaTask implements Callable<Object> {
 		slices.add(s);
 	}
 
+	@Override
 	public Object call() throws Exception {
 		or = block.templateReader.newReader();
 		try {

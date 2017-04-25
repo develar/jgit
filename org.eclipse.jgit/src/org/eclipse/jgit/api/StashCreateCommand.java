@@ -236,6 +236,7 @@ public class StashCreateCommand extends GitCommand<RevCommit> {
 	 * @return stashed commit or null if no changes to stash
 	 * @throws GitAPIException
 	 */
+	@Override
 	public RevCommit call() throws GitAPIException {
 		checkCallable();
 
@@ -261,9 +262,9 @@ public class StashCreateCommand extends GitCommand<RevCommit> {
 					return null;
 
 				MutableObjectId id = new MutableObjectId();
-				List<PathEdit> wtEdits = new ArrayList<PathEdit>();
-				List<String> wtDeletes = new ArrayList<String>();
-				List<DirCacheEntry> untracked = new ArrayList<DirCacheEntry>();
+				List<PathEdit> wtEdits = new ArrayList<>();
+				List<String> wtDeletes = new ArrayList<>();
+				List<DirCacheEntry> untracked = new ArrayList<>();
 				boolean hasChanges = false;
 				do {
 					AbstractTreeIterator headIter = treeWalk.getTree(0,
@@ -305,6 +306,7 @@ public class StashCreateCommand extends GitCommand<RevCommit> {
 							untracked.add(entry);
 						else
 							wtEdits.add(new PathEdit(entry) {
+								@Override
 								public void apply(DirCacheEntry ent) {
 									ent.copyMetaData(entry);
 								}

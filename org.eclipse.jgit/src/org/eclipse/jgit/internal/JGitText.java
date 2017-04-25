@@ -90,6 +90,7 @@ public class JGitText extends TranslationBundle {
 	/***/ public String badObjectType;
 	/***/ public String badRef;
 	/***/ public String badSectionEntry;
+	/***/ public String badShallowLine;
 	/***/ public String bareRepositoryNoWorkdirAndIndex;
 	/***/ public String base64InputNotProperlyPadded;
 	/***/ public String baseLengthIncorrect;
@@ -622,6 +623,7 @@ public class JGitText extends TranslationBundle {
 	/***/ public String sequenceTooLargeForDiffAlgorithm;
 	/***/ public String serviceNotEnabledNoName;
 	/***/ public String serviceNotPermitted;
+	/***/ public String sha1CollisionDetected1;
 	/***/ public String shallowCommitsAlreadyInitialized;
 	/***/ public String shallowPacksRequireDepthWalk;
 	/***/ public String shortCompressedStreamAt;
@@ -668,6 +670,7 @@ public class JGitText extends TranslationBundle {
 	/***/ public String theFactoryMustNotBeNull;
 	/***/ public String timeIsUncertain;
 	/***/ public String timerAlreadyTerminated;
+	/***/ public String tooManyCommands;
 	/***/ public String tooManyIncludeRecursions;
 	/***/ public String topologicalSortRequired;
 	/***/ public String transportExceptionBadRef;

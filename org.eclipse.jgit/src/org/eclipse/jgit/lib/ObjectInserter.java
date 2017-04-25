@@ -50,10 +50,10 @@ import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.security.MessageDigest;
 
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.transport.PackParser;
+import org.eclipse.jgit.util.sha1.SHA1;
 
 /**
  * Inserts objects into an existing {@code ObjectDatabase}.
@@ -107,41 +107,50 @@ public abstract class ObjectInserter implements AutoCloseable {
 			return delegate().buffer();
 		}
 
+		@Override
 		public ObjectId idFor(int type, byte[] data) {
 			return delegate().idFor(type, data);
 		}
 
+		@Override
 		public ObjectId idFor(int type, byte[] data, int off, int len) {
 			return delegate().idFor(type, data, off, len);
 		}
 
+		@Override
 		public ObjectId idFor(int objectType, long length, InputStream in)
 				throws IOException {
 			return delegate().idFor(objectType, length, in);
 		}
 
+		@Override
 		public ObjectId idFor(TreeFormatter formatter) {
 			return delegate().idFor(formatter);
 		}
 
+		@Override
 		public ObjectId insert(int type, byte[] data) throws IOException {
 			return delegate().insert(type, data);
 		}
 
+		@Override
 		public ObjectId insert(int type, byte[] data, int off, int len)
 				throws IOException {
 			return delegate().insert(type, data, off, len);
 		}
 
+		@Override
 		public ObjectId insert(int objectType, long length, InputStream in)
 				throws IOException {
 			return delegate().insert(objectType, length, in);
 		}
 
+		@Override
 		public PackParser newPackParser(InputStream in) throws IOException {
 			return delegate().newPackParser(in);
 		}
 
+		@Override
 		public ObjectReader newReader() {
 			final ObjectReader dr = delegate().newReader();
 			return new ObjectReader.Filter() {
@@ -157,24 +166,24 @@ public abstract class ObjectInserter implements AutoCloseable {
 			};
 		}
 
+		@Override
 		public void flush() throws IOException {
 			delegate().flush();
 		}
 
+		@Override
 		public void close() {
 			delegate().close();
 		}
 	}
 
-	/** Digest to compute the name of an object. */
-	private final MessageDigest digest;
+	private final SHA1 hasher = SHA1.newInstance();
 
 	/** Temporary working buffer for streaming data through. */
 	private byte[] tempBuffer;
 
 	/** Create a new inserter for a database. */
 	protected ObjectInserter() {
-		digest = Constants.newMessageDigest();
 	}
 
 	/**
@@ -208,10 +217,12 @@ public abstract class ObjectInserter implements AutoCloseable {
 		return b;
 	}
 
-	/** @return digest to help compute an ObjectId */
-	protected MessageDigest digest() {
-		digest.reset();
-		return digest;
+	/**
+	 * @return digest to help compute an ObjectId
+	 * @since 4.7
+	 */
+	protected SHA1 digest() {
+		return hasher.reset();
 	}
 
 	/**
@@ -241,13 +252,13 @@ public abstract class ObjectInserter implements AutoCloseable {
 	 * @return the name of the object.
 	 */
 	public ObjectId idFor(int type, byte[] data, int off, int len) {
-		MessageDigest md = digest();
+		SHA1 md = SHA1.newInstance();
 		md.update(Constants.encodedTypeString(type));
 		md.update((byte) ' ');
 		md.update(Constants.encodeASCII(len));
 		md.update((byte) 0);
 		md.update(data, off, len);
-		return ObjectId.fromRaw(md.digest());
+		return md.toObjectId();
 	}
 
 	/**
@@ -266,7 +277,7 @@ public abstract class ObjectInserter implements AutoCloseable {
 	 */
 	public ObjectId idFor(int objectType, long length, InputStream in)
 			throws IOException {
-		MessageDigest md = digest();
+		SHA1 md = SHA1.newInstance();
 		md.update(Constants.encodedTypeString(objectType));
 		md.update((byte) ' ');
 		md.update(Constants.encodeASCII(length));
@@ -279,7 +290,7 @@ public abstract class ObjectInserter implements AutoCloseable {
 			md.update(buf, 0, n);
 			length -= n;
 		}
-		return ObjectId.fromRaw(md.digest());
+		return md.toObjectId();
 	}
 
 	/**

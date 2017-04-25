@@ -110,6 +110,7 @@ public class LockFile {
 
 	/** Filter to skip over active lock files when listing a directory. */
 	static final FilenameFilter FILTER = new FilenameFilter() {
+		@Override
 		public boolean accept(File dir, String name) {
 			return !name.endsWith(SUFFIX);
 		}
@@ -150,7 +151,6 @@ public class LockFile {
 	 *
 	 * @param f
 	 *            the file that will be locked.
-	 * @since 4.2
 	 */
 	public LockFile(final File f) {
 		ref = f;

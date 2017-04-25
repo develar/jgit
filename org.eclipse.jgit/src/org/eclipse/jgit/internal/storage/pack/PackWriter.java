@@ -164,18 +164,20 @@ public class PackWriter implements AutoCloseable {
 	private static final int PACK_VERSION_GENERATED = 2;
 
 	/** Empty set of objects for {@code preparePack()}. */
-	public static Set<ObjectId> NONE = Collections.emptySet();
+	public static final Set<ObjectId> NONE = Collections.emptySet();
 
 	private static final Map<WeakReference<PackWriter>, Boolean> instances =
-			new ConcurrentHashMap<WeakReference<PackWriter>, Boolean>();
+			new ConcurrentHashMap<>();
 
 	private static final Iterable<PackWriter> instancesIterable = new Iterable<PackWriter>() {
+		@Override
 		public Iterator<PackWriter> iterator() {
 			return new Iterator<PackWriter>() {
 				private final Iterator<WeakReference<PackWriter>> it =
 						instances.keySet().iterator();
 				private PackWriter next;
 
+				@Override
 				public boolean hasNext() {
 					if (next != null)
 						return true;
@@ -189,6 +191,7 @@ public class PackWriter implements AutoCloseable {
 					return false;
 				}
 
+				@Override
 				public PackWriter next() {
 					if (hasNext()) {
 						PackWriter result = next;
@@ -198,6 +201,7 @@ public class PackWriter implements AutoCloseable {
 					throw new NoSuchElementException();
 				}
 
+				@Override
 				public void remove() {
 					throw new UnsupportedOperationException();
 				}
@@ -213,21 +217,21 @@ public class PackWriter implements AutoCloseable {
 	@SuppressWarnings("unchecked")
 	BlockList<ObjectToPack> objectsLists[] = new BlockList[OBJ_TAG + 1];
 	{
-		objectsLists[OBJ_COMMIT] = new BlockList<ObjectToPack>();
-		objectsLists[OBJ_TREE] = new BlockList<ObjectToPack>();
-		objectsLists[OBJ_BLOB] = new BlockList<ObjectToPack>();
-		objectsLists[OBJ_TAG] = new BlockList<ObjectToPack>();
+		objectsLists[OBJ_COMMIT] = new BlockList<>();
+		objectsLists[OBJ_TREE] = new BlockList<>();
+		objectsLists[OBJ_BLOB] = new BlockList<>();
+		objectsLists[OBJ_TAG] = new BlockList<>();
 	}
 
-	private ObjectIdOwnerMap<ObjectToPack> objectsMap = new ObjectIdOwnerMap<ObjectToPack>();
+	private ObjectIdOwnerMap<ObjectToPack> objectsMap = new ObjectIdOwnerMap<>();
 
 	// edge objects for thin packs
-	private List<ObjectToPack> edgeObjects = new BlockList<ObjectToPack>();
+	private List<ObjectToPack> edgeObjects = new BlockList<>();
 
 	// Objects the client is known to have already.
 	private BitmapBuilder haveObjects;
 
-	private List<CachedPack> cachedPacks = new ArrayList<CachedPack>(2);
+	private List<CachedPack> cachedPacks = new ArrayList<>(2);
 
 	private Set<ObjectId> tagTargets = Collections.emptySet();
 
@@ -355,7 +359,7 @@ public class PackWriter implements AutoCloseable {
 		reuseValidate = true; // be paranoid by default
 		stats = new PackStatistics.Accumulator();
 		state = new MutableState();
-		selfRef = new WeakReference<PackWriter>(this);
+		selfRef = new WeakReference<>(this);
 		instances.put(selfRef, Boolean.TRUE);
 	}
 
@@ -369,7 +373,6 @@ public class PackWriter implements AutoCloseable {
 	 *            the callback to set
 	 *
 	 * @return this object for chaining.
-	 * @since 4.1
 	 */
 	public PackWriter setObjectCountCallback(ObjectCountCallback callback) {
 		this.callback = callback;
@@ -381,11 +384,10 @@ public class PackWriter implements AutoCloseable {
 	 *
 	 * @param clientShallowCommits
 	 *            the shallow commits in the client
-	 * @since 4.1
 	 */
 	public void setClientShallowCommits(Set<ObjectId> clientShallowCommits) {
 		stats.clientShallowCommits = Collections
-				.unmodifiableSet(new HashSet<ObjectId>(clientShallowCommits));
+				.unmodifiableSet(new HashSet<>(clientShallowCommits));
 	}
 
 	/**
@@ -742,21 +744,20 @@ public class PackWriter implements AutoCloseable {
 	 *            Must not be {@code null}.
 	 * @throws IOException
 	 *            an I/O problem occured while reading objects.
-	 *
-	 * @since 4.5
 	 */
 	public void preparePack(ProgressMonitor countingMonitor,
 			@NonNull Set<? extends ObjectId> want,
 			@NonNull Set<? extends ObjectId> have,
 			@NonNull Set<? extends ObjectId> shallow) throws IOException {
-		ObjectWalk ow;
-		if (shallowPack) {
-			ow = new DepthWalk.ObjectWalk(reader, depth - 1);
-		} else {
-			ow = new ObjectWalk(reader);
+		try (ObjectWalk ow = getObjectWalk()) {
+			ow.assumeShallow(shallow);
+			preparePack(countingMonitor, ow, want, have);
 		}
-		ow.assumeShallow(shallow);
-		preparePack(countingMonitor, ow, want, have);
+	}
+
+	private ObjectWalk getObjectWalk() {
+		return shallowPack ? new DepthWalk.ObjectWalk(reader, depth - 1)
+				: new ObjectWalk(reader);
 	}
 
 	/**
@@ -917,7 +918,7 @@ public class PackWriter implements AutoCloseable {
 			cnt += objectsLists[OBJ_BLOB].size();
 			cnt += objectsLists[OBJ_TAG].size();
 
-			sortedByName = new BlockList<ObjectToPack>(cnt);
+			sortedByName = new BlockList<>(cnt);
 			sortedByName.addAll(objectsLists[OBJ_COMMIT]);
 			sortedByName.addAll(objectsLists[OBJ_TREE]);
 			sortedByName.addAll(objectsLists[OBJ_BLOB]);
@@ -1089,8 +1090,6 @@ public class PackWriter implements AutoCloseable {
 
 	/**
 	 * Release all resources used by this writer.
-	 *
-	 * @since 4.0
 	 */
 	@Override
 	public void close() {
@@ -1113,7 +1112,7 @@ public class PackWriter implements AutoCloseable {
 		beginPhase(PackingPhase.FINDING_SOURCES, monitor, cnt);
 		if (cnt <= 4096) {
 			// For small object counts, do everything as one list.
-			BlockList<ObjectToPack> tmp = new BlockList<ObjectToPack>((int) cnt);
+			BlockList<ObjectToPack> tmp = new BlockList<>((int) cnt);
 			tmp.addAll(objectsLists[OBJ_TAG]);
 			tmp.addAll(objectsLists[OBJ_COMMIT]);
 			tmp.addAll(objectsLists[OBJ_TREE]);
@@ -1259,6 +1258,7 @@ public class PackWriter implements AutoCloseable {
 		// bigger ones, because source files grow and hardly ever shrink.
 		//
 		Arrays.sort(list, 0, cnt, new Comparator<ObjectToPack>() {
+			@Override
 			public int compare(ObjectToPack a, ObjectToPack b) {
 				int cmp = (a.isDoNotDelta() ? 1 : 0)
 						- (b.isDoNotDelta() ? 1 : 0);
@@ -1404,6 +1404,7 @@ public class PackWriter implements AutoCloseable {
 			// can schedule these for us.
 			for (final DeltaTask task : taskBlock.tasks) {
 				executor.execute(new Runnable() {
+					@Override
 					public void run() {
 						try {
 							task.call();
@@ -1446,7 +1447,7 @@ public class PackWriter implements AutoCloseable {
 	private static void runTasks(ExecutorService pool,
 			ThreadSafeProgressMonitor pm,
 			DeltaTask.Block tb, List<Throwable> errors) throws IOException {
-		List<Future<?>> futures = new ArrayList<Future<?>>(tb.tasks.size());
+		List<Future<?>> futures = new ArrayList<>(tb.tasks.size());
 		for (DeltaTask task : tb.tasks)
 			futures.add(pool.submit(task));
 
@@ -1675,7 +1676,7 @@ public class PackWriter implements AutoCloseable {
 			}
 		}
 
-		List<ObjectId> all = new ArrayList<ObjectId>(want.size() + have.size());
+		List<ObjectId> all = new ArrayList<>(want.size() + have.size());
 		all.addAll(want);
 		all.addAll(have);
 
@@ -1693,9 +1694,9 @@ public class PackWriter implements AutoCloseable {
 				walker.sort(RevSort.BOUNDARY, true);
 		}
 
-		List<RevObject> wantObjs = new ArrayList<RevObject>(want.size());
-		List<RevObject> haveObjs = new ArrayList<RevObject>(haveEst);
-		List<RevTag> wantTags = new ArrayList<RevTag>(want.size());
+		List<RevObject> wantObjs = new ArrayList<>(want.size());
+		List<RevObject> haveObjs = new ArrayList<>(haveEst);
+		List<RevTag> wantTags = new ArrayList<>(want.size());
 
 		// Retrieve the RevWalk's versions of "want" and "have" objects to
 		// maintain any state previously set in the RevWalk.
@@ -1726,7 +1727,7 @@ public class PackWriter implements AutoCloseable {
 		}
 
 		if (!wantTags.isEmpty()) {
-			all = new ArrayList<ObjectId>(wantTags.size());
+			all = new ArrayList<>(wantTags.size());
 			for (RevTag tag : wantTags)
 				all.add(tag.getObject());
 			q = walker.parseAny(all, true);
@@ -1769,8 +1770,8 @@ public class PackWriter implements AutoCloseable {
 			walker.markUninteresting(obj);
 
 		final int maxBases = config.getDeltaSearchWindowSize();
-		Set<RevTree> baseTrees = new HashSet<RevTree>();
-		BlockList<RevCommit> commits = new BlockList<RevCommit>();
+		Set<RevTree> baseTrees = new HashSet<>();
+		BlockList<RevCommit> commits = new BlockList<>();
 		Set<ObjectId> roots = new HashSet<>();
 		RevCommit c;
 		while ((c = walker.next()) != null) {
@@ -2258,8 +2259,6 @@ public class PackWriter implements AutoCloseable {
 		 * @return the count of objects that needed to be discovered through an
 		 *         object walk because they were not found in bitmap indices.
 		 *         Returns -1 if no bitmap indices were found.
-		 *
-		 * @since 4.0
 		 */
 		public long getBitmapIndexMisses() {
 			return statistics.getBitmapIndexMisses();

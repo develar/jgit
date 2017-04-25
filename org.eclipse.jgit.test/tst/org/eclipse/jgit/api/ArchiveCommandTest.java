@@ -57,6 +57,7 @@ import java.util.Map;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.junit.RepositoryTestCase;
 import org.eclipse.jgit.lib.FileMode;
+import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.util.StringUtils;
@@ -78,6 +79,7 @@ public class ArchiveCommandTest extends RepositoryTestCase {
 		ArchiveCommand.registerFormat(format.SUFFIXES.get(0), format);
 	}
 
+	@Override
 	@After
 	public void tearDown() {
 		ArchiveCommand.unregisterFormat(format.SUFFIXES.get(0));
@@ -190,7 +192,7 @@ public class ArchiveCommandTest extends RepositoryTestCase {
 
 	private class MockFormat implements ArchiveCommand.Format<MockOutputStream> {
 
-		private Map<String, String> entries = new HashMap<String, String>();
+		private Map<String, String> entries = new HashMap<>();
 
 		private int size() {
 			return entries.size();
@@ -203,12 +205,14 @@ public class ArchiveCommandTest extends RepositoryTestCase {
 		private final List<String> SUFFIXES = Collections
 				.unmodifiableList(Arrays.asList(".mck"));
 
+		@Override
 		public MockOutputStream createArchiveOutputStream(OutputStream s)
 				throws IOException {
 			return createArchiveOutputStream(s,
 					Collections.<String, Object> emptyMap());
 		}
 
+		@Override
 		public MockOutputStream createArchiveOutputStream(OutputStream s,
 				Map<String, Object> o) throws IOException {
 			for (Map.Entry<String, Object> p : o.entrySet()) {
@@ -224,11 +228,18 @@ public class ArchiveCommandTest extends RepositoryTestCase {
 			return new MockOutputStream();
 		}
 
+		@Override
 		public void putEntry(MockOutputStream out, String path, FileMode mode, ObjectLoader loader) {
+			putEntry(out, null, path, mode, loader);
+		}
+
+		@Override
+		public void putEntry(MockOutputStream out, ObjectId tree, String path, FileMode mode, ObjectLoader loader) {
 			String content = mode != FileMode.TREE ? new String(loader.getBytes()) : null;
 			entries.put(path, content);
 		}
 
+		@Override
 		public Iterable<String> suffixes() {
 			return SUFFIXES;
 		}

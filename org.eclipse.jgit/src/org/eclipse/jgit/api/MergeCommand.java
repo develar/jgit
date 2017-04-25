@@ -50,6 +50,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import org.eclipse.jgit.api.MergeResult.MergeStatus;
@@ -101,7 +102,7 @@ public class MergeCommand extends GitCommand<MergeResult> {
 
 	private MergeStrategy mergeStrategy = MergeStrategy.RECURSIVE;
 
-	private List<Ref> commits = new LinkedList<Ref>();
+	private List<Ref> commits = new LinkedList<>();
 
 	private Boolean squash;
 
@@ -133,10 +134,12 @@ public class MergeCommand extends GitCommand<MergeResult> {
 		 */
 		FF_ONLY;
 
+		@Override
 		public String toConfigValue() {
-			return "--" + name().toLowerCase().replace('_', '-'); //$NON-NLS-1$
+			return "--" + name().toLowerCase(Locale.ROOT).replace('_', '-'); //$NON-NLS-1$
 		}
 
+		@Override
 		public boolean matchConfigValue(String in) {
 			if (StringUtils.isEmptyOrNull(in))
 				return false;
@@ -220,6 +223,7 @@ public class MergeCommand extends GitCommand<MergeResult> {
 	 *
 	 * @return the result of the merge
 	 */
+	@Override
 	@SuppressWarnings("boxing")
 	public MergeResult call() throws GitAPIException, NoHeadException,
 			ConcurrentRefUpdateException, CheckoutConflictException,

@@ -63,7 +63,6 @@ public class InMemoryRepository extends DfsRepository {
 	 *
 	 * @param repoDesc
 	 *            description of the repository.
-	 * @since 2.0
 	 */
 	public InMemoryRepository(DfsRepositoryDescription repoDesc) {
 		this(new Builder().setRepositoryDescription(repoDesc));
@@ -108,7 +107,7 @@ public class InMemoryRepository extends DfsRepository {
 	}
 
 	private class MemObjDatabase extends DfsObjDatabase {
-		private List<DfsPackDescription> packs = new ArrayList<DfsPackDescription>();
+		private List<DfsPackDescription> packs = new ArrayList<>();
 
 		MemObjDatabase(DfsRepository repo) {
 			super(repo, new DfsReaderOptions());
@@ -133,7 +132,7 @@ public class InMemoryRepository extends DfsRepository {
 				Collection<DfsPackDescription> desc,
 				Collection<DfsPackDescription> replace) {
 			List<DfsPackDescription> n;
-			n = new ArrayList<DfsPackDescription>(desc.size() + packs.size());
+			n = new ArrayList<>(desc.size() + packs.size());
 			n.addAll(desc);
 			n.addAll(packs);
 			if (replace != null)
@@ -171,7 +170,7 @@ public class InMemoryRepository extends DfsRepository {
 
 	private static class MemPack extends DfsPackDescription {
 		final Map<PackExt, byte[]>
-				fileMap = new HashMap<PackExt, byte[]>();
+				fileMap = new HashMap<>();
 
 		MemPack(String name, DfsRepositoryDescription repoDesc) {
 			super(repoDesc, name);
@@ -226,6 +225,7 @@ public class InMemoryRepository extends DfsRepository {
 			data = buf;
 		}
 
+		@Override
 		public int read(ByteBuffer dst) {
 			int n = Math.min(dst.remaining(), data.length - position);
 			if (n == 0)
@@ -235,30 +235,37 @@ public class InMemoryRepository extends DfsRepository {
 			return n;
 		}
 
+		@Override
 		public void close() {
 			open = false;
 		}
 
+		@Override
 		public boolean isOpen() {
 			return open;
 		}
 
+		@Override
 		public long position() {
 			return position;
 		}
 
+		@Override
 		public void position(long newPosition) {
 			position = (int) newPosition;
 		}
 
+		@Override
 		public long size() {
 			return data.length;
 		}
 
+		@Override
 		public int blockSize() {
 			return 0;
 		}
 
+		@Override
 		public void setReadAheadBytes(int b) {
 			// Unnecessary on a byte array.
 		}
@@ -271,7 +278,7 @@ public class InMemoryRepository extends DfsRepository {
 	 * subclasses of InMemoryRepository.
 	 */
     protected class MemRefDatabase extends DfsRefDatabase {
-		private final ConcurrentMap<String, Ref> refs = new ConcurrentHashMap<String, Ref>();
+		private final ConcurrentMap<String, Ref> refs = new ConcurrentHashMap<>();
 		private final ReadWriteLock lock = new ReentrantReadWriteLock(true /* fair */);
 
 		/**
@@ -308,8 +315,8 @@ public class InMemoryRepository extends DfsRepository {
 
 		@Override
 		protected RefCache scanAllRefs() throws IOException {
-			RefList.Builder<Ref> ids = new RefList.Builder<Ref>();
-			RefList.Builder<Ref> sym = new RefList.Builder<Ref>();
+			RefList.Builder<Ref> ids = new RefList.Builder<>();
+			RefList.Builder<Ref> sym = new RefList.Builder<>();
 			try {
 				lock.readLock().lock();
 				for (Ref ref : refs.values()) {

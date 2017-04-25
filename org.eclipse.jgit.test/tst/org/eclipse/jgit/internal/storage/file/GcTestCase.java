@@ -62,15 +62,17 @@ public abstract class GcTestCase extends LocalDiskRepositoryTestCase {
 	protected GC gc;
 	protected RepoStatistics stats;
 
+	@Override
 	@Before
 	public void setUp() throws Exception {
 		super.setUp();
 		repo = createWorkRepository();
-		tr = new TestRepository<FileRepository>(repo, new RevWalk(repo),
+		tr = new TestRepository<>(repo, new RevWalk(repo),
 				mockSystemReader);
 		gc = new GC(repo);
 	}
 
+	@Override
 	@After
 	public void tearDown() throws Exception {
 		super.tearDown();

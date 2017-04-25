@@ -77,6 +77,7 @@ public class StashApplyCommandTest extends RepositoryTestCase {
 
 	private File committedFile;
 
+	@Override
 	@Before
 	public void setUp() throws Exception {
 		super.setUp();
@@ -735,5 +736,22 @@ public class StashApplyCommandTest extends RepositoryTestCase {
 			assertEquals(e.getMessage(), JGitText.get().stashApplyConflict);
 		}
 		assertEquals("working-directory", read(path));
+	}
+
+	@Test
+	public void untrackedAndTrackedChanges() throws Exception {
+		writeTrashFile(PATH, "changed");
+		String path = "untracked.txt";
+		writeTrashFile(path, "untracked");
+		git.stashCreate().setIncludeUntracked(true).call();
+		assertTrue(PATH + " should exist", check(PATH));
+		assertEquals(PATH + " should have been reset", "content", read(PATH));
+		assertFalse(path + " should not exist", check(path));
+		git.stashApply().setStashRef("stash@{0}").call();
+		assertTrue(PATH + " should exist", check(PATH));
+		assertEquals(PATH + " should have new content", "changed", read(PATH));
+		assertTrue(path + " should exist", check(path));
+		assertEquals(path + " should have new content", "untracked",
+				read(path));
 	}
 }

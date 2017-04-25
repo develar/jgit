@@ -219,6 +219,7 @@ class LfsStore extends TextBuiltin {
 		return false;
 	}
 
+	@Override
 	protected void run() throws Exception {
 		AppServer server = new AppServer(port);
 		URI baseURI = server.getURI();
@@ -254,7 +255,7 @@ class LfsStore extends TextBuiltin {
 
 			@Override
 			protected LargeFileRepository getLargeFileRepository(
-					LfsRequest request, String path) {
+					LfsRequest request, String path, String auth) {
 				return repository;
 			}
 		};

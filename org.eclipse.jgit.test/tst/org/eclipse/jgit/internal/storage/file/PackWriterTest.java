@@ -131,6 +131,7 @@ public class PackWriterTest extends SampleDataRepositoryTestCase {
 
 	private RevCommit c5;
 
+	@Override
 	@Before
 	public void setUp() throws Exception {
 		super.setUp();
@@ -143,6 +144,7 @@ public class PackWriterTest extends SampleDataRepositoryTestCase {
 		write(alt, db.getObjectDatabase().getDirectory().getAbsolutePath() + "\n");
 	}
 
+	@Override
 	@After
 	public void tearDown() throws Exception {
 		if (writer != null) {
@@ -364,8 +366,8 @@ public class PackWriterTest extends SampleDataRepositoryTestCase {
 				ObjectId.fromString("c59759f143fb1fe21c197981df75a7ee00290799"),
 				ObjectId.fromString("aabf2ffaec9b497f0950352b3e582d73035c2035"),
 				ObjectId.fromString("902d5476fa249b7abc9d84c611577a81381f0327"),
-				ObjectId.fromString("5b6e7c66c276e7610d4a73c70ec1a1f7c1003259"),
-				ObjectId.fromString("6ff87c4664981e4397625791c8ea3bbb5f2279a3") };
+				ObjectId.fromString("6ff87c4664981e4397625791c8ea3bbb5f2279a3") ,
+				ObjectId.fromString("5b6e7c66c276e7610d4a73c70ec1a1f7c1003259") };
 		try (final RevWalk parser = new RevWalk(db)) {
 			final RevObject forcedOrderRevs[] = new RevObject[forcedOrder.length];
 			for (int i = 0; i < forcedOrder.length; i++)
@@ -412,6 +414,8 @@ public class PackWriterTest extends SampleDataRepositoryTestCase {
 	 */
 	@Test
 	public void testWritePack2SizeDeltasVsNoDeltas() throws Exception {
+		config.setReuseDeltas(false);
+		config.setDeltaCompress(false);
 		testWritePack2();
 		final long sizePack2NoDeltas = os.size();
 		tearDown();
@@ -465,7 +469,7 @@ public class PackWriterTest extends SampleDataRepositoryTestCase {
 	public void testDeltaStatistics() throws Exception {
 		config.setDeltaCompress(true);
 		FileRepository repo = createBareRepository();
-		TestRepository<FileRepository> testRepo = new TestRepository<FileRepository>(repo);
+		TestRepository<FileRepository> testRepo = new TestRepository<>(repo);
 		ArrayList<RevObject> blobs = new ArrayList<>();
 		blobs.add(testRepo.blob(genDeltableData(1000)));
 		blobs.add(testRepo.blob(genDeltableData(1005)));
@@ -534,7 +538,7 @@ public class PackWriterTest extends SampleDataRepositoryTestCase {
 	public void testExclude() throws Exception {
 		FileRepository repo = createBareRepository();
 
-		TestRepository<FileRepository> testRepo = new TestRepository<FileRepository>(
+		TestRepository<FileRepository> testRepo = new TestRepository<>(
 				repo);
 		BranchBuilder bb = testRepo.branch("refs/heads/master");
 		contentA = testRepo.blob("A");
@@ -659,7 +663,7 @@ public class PackWriterTest extends SampleDataRepositoryTestCase {
 
 	private FileRepository setupRepoForShallowFetch() throws Exception {
 		FileRepository repo = createBareRepository();
-		TestRepository<Repository> r = new TestRepository<Repository>(repo);
+		TestRepository<Repository> r = new TestRepository<>(repo);
 		BranchBuilder bb = r.branch("refs/heads/master");
 		contentA = r.blob("A");
 		contentB = r.blob("B");
@@ -727,7 +731,7 @@ public class PackWriterTest extends SampleDataRepositoryTestCase {
 	// TODO: testWritePackDeltasDepth()
 
 	private void writeVerifyPack1() throws IOException {
-		final HashSet<ObjectId> interestings = new HashSet<ObjectId>();
+		final HashSet<ObjectId> interestings = new HashSet<>();
 		interestings.add(ObjectId
 				.fromString("82c6b885ff600be425b4ea96dee75dca255b69e7"));
 		createVerifyOpenPack(interestings, NONE, false, false);
@@ -739,8 +743,8 @@ public class PackWriterTest extends SampleDataRepositoryTestCase {
 				ObjectId.fromString("aabf2ffaec9b497f0950352b3e582d73035c2035"),
 				ObjectId.fromString("902d5476fa249b7abc9d84c611577a81381f0327"),
 				ObjectId.fromString("4b825dc642cb6eb9a060e54bf8d69288fbee4904"),
-				ObjectId.fromString("5b6e7c66c276e7610d4a73c70ec1a1f7c1003259"),
-				ObjectId.fromString("6ff87c4664981e4397625791c8ea3bbb5f2279a3") };
+				ObjectId.fromString("6ff87c4664981e4397625791c8ea3bbb5f2279a3"),
+				ObjectId.fromString("5b6e7c66c276e7610d4a73c70ec1a1f7c1003259") };
 
 		assertEquals(expectedOrder.length, writer.getObjectCount());
 		verifyObjectsOrder(expectedOrder);
@@ -750,10 +754,10 @@ public class PackWriterTest extends SampleDataRepositoryTestCase {
 
 	private void writeVerifyPack2(boolean deltaReuse) throws IOException {
 		config.setReuseDeltas(deltaReuse);
-		final HashSet<ObjectId> interestings = new HashSet<ObjectId>();
+		final HashSet<ObjectId> interestings = new HashSet<>();
 		interestings.add(ObjectId
 				.fromString("82c6b885ff600be425b4ea96dee75dca255b69e7"));
-		final HashSet<ObjectId> uninterestings = new HashSet<ObjectId>();
+		final HashSet<ObjectId> uninterestings = new HashSet<>();
 		uninterestings.add(ObjectId
 				.fromString("540a36d136cf413e4b064c2b0e0a4db60f77feab"));
 		createVerifyOpenPack(interestings, uninterestings, false, false);
@@ -763,13 +767,11 @@ public class PackWriterTest extends SampleDataRepositoryTestCase {
 				ObjectId.fromString("c59759f143fb1fe21c197981df75a7ee00290799"),
 				ObjectId.fromString("aabf2ffaec9b497f0950352b3e582d73035c2035"),
 				ObjectId.fromString("902d5476fa249b7abc9d84c611577a81381f0327"),
-				ObjectId.fromString("5b6e7c66c276e7610d4a73c70ec1a1f7c1003259"),
-				ObjectId.fromString("6ff87c4664981e4397625791c8ea3bbb5f2279a3") };
-		if (deltaReuse) {
-			// objects order influenced (swapped) by delta-base first rule
-			ObjectId temp = expectedOrder[4];
-			expectedOrder[4] = expectedOrder[5];
-			expectedOrder[5] = temp;
+				ObjectId.fromString("6ff87c4664981e4397625791c8ea3bbb5f2279a3") ,
+				ObjectId.fromString("5b6e7c66c276e7610d4a73c70ec1a1f7c1003259") };
+		if (!config.isReuseDeltas() && !config.isDeltaCompress()) {
+			// If no deltas are in the file the final two entries swap places.
+			swap(expectedOrder, 4, 5);
 		}
 		assertEquals(expectedOrder.length, writer.getObjectCount());
 		verifyObjectsOrder(expectedOrder);
@@ -777,11 +779,17 @@ public class PackWriterTest extends SampleDataRepositoryTestCase {
 				.computeName().name());
 	}
 
+	private static void swap(ObjectId[] arr, int a, int b) {
+		ObjectId tmp = arr[a];
+		arr[a] = arr[b];
+		arr[b] = tmp;
+	}
+
 	private void writeVerifyPack4(final boolean thin) throws IOException {
-		final HashSet<ObjectId> interestings = new HashSet<ObjectId>();
+		final HashSet<ObjectId> interestings = new HashSet<>();
 		interestings.add(ObjectId
 				.fromString("82c6b885ff600be425b4ea96dee75dca255b69e7"));
-		final HashSet<ObjectId> uninterestings = new HashSet<ObjectId>();
+		final HashSet<ObjectId> uninterestings = new HashSet<>();
 		uninterestings.add(ObjectId
 				.fromString("c59759f143fb1fe21c197981df75a7ee00290799"));
 		createVerifyOpenPack(interestings, uninterestings, thin, false);
@@ -870,12 +878,13 @@ public class PackWriterTest extends SampleDataRepositoryTestCase {
 	}
 
 	private void verifyObjectsOrder(final ObjectId objectsOrder[]) {
-		final List<PackIndex.MutableEntry> entries = new ArrayList<PackIndex.MutableEntry>();
+		final List<PackIndex.MutableEntry> entries = new ArrayList<>();
 
 		for (MutableEntry me : pack) {
 			entries.add(me.cloneEntry());
 		}
 		Collections.sort(entries, new Comparator<PackIndex.MutableEntry>() {
+			@Override
 			public int compare(MutableEntry o1, MutableEntry o2) {
 				return Long.signum(o1.getOffset() - o2.getOffset());
 			}

@@ -107,7 +107,7 @@ public class PlotWalk extends RevWalk {
 			if (set == null)
 				set = Collections.singleton(ref);
 			else {
-				set = new HashSet<Ref>(set);
+				set = new HashSet<>(set);
 				set.add(ref);
 			}
 			reverseRefMap.put(ref.getObjectId(), set);
@@ -147,6 +147,7 @@ public class PlotWalk extends RevWalk {
 	}
 
 	class PlotRefComparator implements Comparator<Ref> {
+		@Override
 		public int compare(Ref o1, Ref o2) {
 			try {
 				RevObject obj1 = parseAny(o1.getObjectId());

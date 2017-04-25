@@ -70,6 +70,7 @@ public class TransferConfig {
 
 	/** Key for {@link Config#get(SectionParser)}. */
 	public static final Config.SectionParser<TransferConfig> KEY = new SectionParser<TransferConfig>() {
+		@Override
 		public TransferConfig parse(final Config cfg) {
 			return new TransferConfig(cfg);
 		}
@@ -207,8 +208,9 @@ public class TransferConfig {
 			return RefFilter.DEFAULT;
 
 		return new RefFilter() {
+			@Override
 			public Map<String, Ref> filter(Map<String, Ref> refs) {
-				Map<String, Ref> result = new HashMap<String, Ref>();
+				Map<String, Ref> result = new HashMap<>();
 				for (Map.Entry<String, Ref> e : refs.entrySet()) {
 					boolean add = true;
 					for (String hide : hideRefs) {

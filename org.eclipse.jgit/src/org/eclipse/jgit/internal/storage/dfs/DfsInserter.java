@@ -90,6 +90,7 @@ import org.eclipse.jgit.util.IO;
 import org.eclipse.jgit.util.NB;
 import org.eclipse.jgit.util.TemporaryBuffer;
 import org.eclipse.jgit.util.io.CountingOutputStream;
+import org.eclipse.jgit.util.sha1.SHA1;
 
 /** Inserts objects into the DFS. */
 public class DfsInserter extends ObjectInserter {
@@ -168,7 +169,7 @@ public class DfsInserter extends ObjectInserter {
 		}
 
 		long offset = beginObject(type, len);
-		MessageDigest md = digest();
+		SHA1 md = digest();
 		md.update(Constants.encodedTypeString(type));
 		md.update((byte) ' ');
 		md.update(Constants.encodeASCII(len));
@@ -183,7 +184,7 @@ public class DfsInserter extends ObjectInserter {
 			len -= n;
 		}
 		packOut.compress.finish();
-		return endObject(ObjectId.fromRaw(md.digest()), offset);
+		return endObject(md.toObjectId(), offset);
 	}
 
 	private byte[] insertBuffer(long len) {
@@ -274,8 +275,8 @@ public class DfsInserter extends ObjectInserter {
 	}
 
 	private void beginPack() throws IOException {
-		objectList = new BlockList<PackedObjectInfo>();
-		objectMap = new ObjectIdOwnerMap<PackedObjectInfo>();
+		objectList = new BlockList<>();
+		objectMap = new ObjectIdOwnerMap<>();
 		cache = DfsBlockCache.getInstance();
 
 		rollback = true;
@@ -543,7 +544,7 @@ public class DfsInserter extends ObjectInserter {
 			if (objectList == null)
 				return stored;
 
-			Set<ObjectId> r = new HashSet<ObjectId>(stored.size() + 2);
+			Set<ObjectId> r = new HashSet<>(stored.size() + 2);
 			r.addAll(stored);
 			for (PackedObjectInfo obj : objectList) {
 				if (id.prefixCompare(obj) == 0)

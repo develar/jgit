@@ -51,7 +51,7 @@
   <groupId>org.eclipse.jgit</groupId>
   <artifactId>org.eclipse.jgit-parent</artifactId>
   <packaging>pom</packaging>
-  <version>4.6.1-SNAPSHOT</version>
+  <version>4.7.1-SNAPSHOT</version>
 
   <name>JGit - Parent</name>
   <url>${jgit-url}</url>
@@ -191,8 +191,8 @@
     <maven.build.timestamp.format>yyyyMMddHHmm</maven.build.timestamp.format>
     <bundle-manifest>${project.build.directory}/META-INF/MANIFEST.MF</bundle-manifest>
 
-    <jgit-last-release-version>4.2.0.201601211800-r</jgit-last-release-version>
-    <jsch-version>0.1.53</jsch-version>
+    <jgit-last-release-version>4.6.0.201612231935-r</jgit-last-release-version>
+    <jsch-version>0.1.54</jsch-version>
     <javaewah-version>1.1.6</javaewah-version>
     <junit-version>4.12</junit-version>
     <test-fork-count>1C</test-fork-count>
@@ -200,7 +200,7 @@
     <commons-compress-version>1.6</commons-compress-version>
     <osgi-core-version>4.3.1</osgi-core-version>
     <servlet-api-version>3.1.0</servlet-api-version>
-    <jetty-version>9.2.13.v20150730</jetty-version>
+    <jetty-version>9.3.17.v20170317</jetty-version>
     <japicmp-version>0.5.3</japicmp-version>
     <httpclient-version>4.3.6</httpclient-version>
     <slf4j-version>1.7.2</slf4j-version>
@@ -208,6 +208,7 @@
     <maven-javadoc-plugin-version>2.10.4</maven-javadoc-plugin-version>
     <tycho-extras-version>0.26.0</tycho-extras-version>
     <gson-version>2.2.4</gson-version>
+    <findbugs-maven-plugin-version>3.0.4</findbugs-maven-plugin-version>
 
     <!-- Properties to enable jacoco code coverage analysis -->
     <sonar.core.codeCoveragePlugin>jacoco</sonar.core.codeCoveragePlugin>
@@ -258,7 +259,7 @@
 
         <plugin>
           <artifactId>maven-compiler-plugin</artifactId>
-          <version>3.6.0</version>
+          <version>3.6.1</version>
           <configuration>
             <encoding>UTF-8</encoding>
             <source>1.8</source>
@@ -308,7 +309,7 @@
             <dependency>
               <groupId>com.google.errorprone</groupId>
               <artifactId>error_prone_core</artifactId>
-              <version>2.0.15</version>
+              <version>2.0.19</version>
             </dependency>
           </dependencies>
         </plugin>
@@ -321,7 +322,7 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-shade-plugin</artifactId>
-          <version>2.4.3</version>
+          <version>3.0.0</version>
         </plugin>
 
         <plugin>
@@ -361,13 +362,13 @@
         <plugin>
           <groupId>org.codehaus.mojo</groupId>
           <artifactId>build-helper-maven-plugin</artifactId>
-          <version>1.12</version>
+          <version>3.0.0</version>
         </plugin>
 
         <plugin>
           <groupId>org.codehaus.mojo</groupId>
           <artifactId>findbugs-maven-plugin</artifactId>
-          <version>3.0.4</version>
+          <version>${findbugs-maven-plugin-version}</version>
           <configuration>
             <findbugsXmlOutput>true</findbugsXmlOutput>
             <failOnError>false</failOnError>
@@ -419,7 +420,7 @@
         <plugin>
           <groupId>org.jacoco</groupId>
           <artifactId>jacoco-maven-plugin</artifactId>
-          <version>0.7.8</version>
+          <version>0.7.9</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
@@ -572,7 +573,7 @@
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>findbugs-maven-plugin</artifactId>
-        <version>3.0.3</version>
+        <version>${findbugs-maven-plugin-version}</version>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

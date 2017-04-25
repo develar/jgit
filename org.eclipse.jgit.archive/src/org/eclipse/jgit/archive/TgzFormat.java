@@ -53,6 +53,7 @@ import org.apache.commons.compress.archivers.ArchiveOutputStream;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream;
 import org.eclipse.jgit.api.ArchiveCommand;
 import org.eclipse.jgit.lib.FileMode;
+import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
 
 /**
@@ -65,6 +66,7 @@ public final class TgzFormat extends BaseFormat implements
 
 	private final ArchiveCommand.Format<ArchiveOutputStream> tarFormat = new TarFormat();
 
+	@Override
 	public ArchiveOutputStream createArchiveOutputStream(OutputStream s)
 			throws IOException {
 		return createArchiveOutputStream(s,
@@ -74,18 +76,32 @@ public final class TgzFormat extends BaseFormat implements
 	/**
 	 * @since 4.0
 	 */
+	@Override
 	public ArchiveOutputStream createArchiveOutputStream(OutputStream s,
 			Map<String, Object> o) throws IOException {
 		GzipCompressorOutputStream out = new GzipCompressorOutputStream(s);
 		return tarFormat.createArchiveOutputStream(out, o);
 	}
 
+	@Deprecated
+	@Override
 	public void putEntry(ArchiveOutputStream out,
 			String path, FileMode mode, ObjectLoader loader)
 			throws IOException {
-		tarFormat.putEntry(out, path, mode, loader);
+		putEntry(out, null, path, mode,loader);
 	}
 
+	/**
+	 * @since 4.7
+	 */
+	@Override
+	public void putEntry(ArchiveOutputStream out,
+			ObjectId tree, String path, FileMode mode, ObjectLoader loader)
+			throws IOException {
+		tarFormat.putEntry(out, tree, path, mode, loader);
+	}
+
+	@Override
 	public Iterable<String> suffixes() {
 		return SUFFIXES;
 	}

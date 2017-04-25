@@ -65,6 +65,7 @@ import java.text.Normalizer;
 import java.text.Normalizer.Form;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 import org.eclipse.jgit.internal.JGitText;
@@ -150,8 +151,8 @@ public class FileUtils {
 		if ((options & RECURSIVE) != 0 && fs.isDirectory(f)) {
 			final File[] items = f.listFiles();
 			if (items != null) {
-				List<File> files = new ArrayList<File>();
-				List<File> dirs = new ArrayList<File>();
+				List<File> files = new ArrayList<>();
+				List<File> dirs = new ArrayList<>();
 				for (File c : items)
 					if (c.isFile())
 						files.add(c);
@@ -542,7 +543,28 @@ public class FileUtils {
 	public static boolean isStaleFileHandle(IOException ioe) {
 		String msg = ioe.getMessage();
 		return msg != null
-				&& msg.toLowerCase().matches("stale .*file .*handle"); //$NON-NLS-1$
+				&& msg.toLowerCase(Locale.ROOT)
+						.matches("stale .*file .*handle"); //$NON-NLS-1$
+	}
+
+	/**
+	 * Determine if a throwable or a cause in its causal chain is a Stale NFS
+	 * File Handle
+	 *
+	 * @param throwable
+	 * @return a boolean true if the throwable or a cause in its causal chain is
+	 *         a Stale NFS File Handle
+	 * @since 4.7
+	 */
+	public static boolean isStaleFileHandleInCausalChain(Throwable throwable) {
+		while (throwable != null) {
+			if (throwable instanceof IOException
+					&& isStaleFileHandle((IOException) throwable)) {
+				return true;
+			}
+			throwable = throwable.getCause();
+		}
+		return false;
 	}
 
 	/**

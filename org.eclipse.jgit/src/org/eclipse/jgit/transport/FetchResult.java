@@ -48,7 +48,10 @@ package org.eclipse.jgit.transport;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Final status after a successful fetch from a remote repository.
@@ -58,12 +61,39 @@ import java.util.List;
 public class FetchResult extends OperationResult {
 	private final List<FetchHeadRecord> forMerge;
 
+	private final Map<String, FetchResult> submodules;
+
 	FetchResult() {
-		forMerge = new ArrayList<FetchHeadRecord>();
+		forMerge = new ArrayList<>();
+		submodules = new HashMap<>();
 	}
 
 	void add(final FetchHeadRecord r) {
 		if (!r.notForMerge)
 			forMerge.add(r);
+	}
+
+	/**
+	 * Add fetch results for a submodule.
+	 *
+	 * @param path
+	 *            the submodule path
+	 * @param result
+	 *            the fetch result
+	 * @since 4.7
+	 */
+	public void addSubmodule(String path, FetchResult result) {
+		submodules.put(path, result);
+	}
+
+	/**
+	 * Get fetch results for submodules.
+	 *
+	 * @return Fetch results for submodules as a map of submodule paths to fetch
+	 *         results.
+	 * @since 4.7
+	 */
+	public Map<String, FetchResult> submoduleResults() {
+		return Collections.unmodifiableMap(submodules);
 	}
 }

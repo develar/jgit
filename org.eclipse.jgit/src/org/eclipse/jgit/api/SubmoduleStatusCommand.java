@@ -76,7 +76,7 @@ public class SubmoduleStatusCommand extends
 	 */
 	public SubmoduleStatusCommand(final Repository repo) {
 		super(repo);
-		paths = new ArrayList<String>();
+		paths = new ArrayList<>();
 	}
 
 	/**
@@ -91,13 +91,14 @@ public class SubmoduleStatusCommand extends
 		return this;
 	}
 
+	@Override
 	public Map<String, SubmoduleStatus> call() throws GitAPIException {
 		checkCallable();
 
 		try (SubmoduleWalk generator = SubmoduleWalk.forIndex(repo)) {
 			if (!paths.isEmpty())
 				generator.setFilter(PathFilterGroup.createFromStrings(paths));
-			Map<String, SubmoduleStatus> statuses = new HashMap<String, SubmoduleStatus>();
+			Map<String, SubmoduleStatus> statuses = new HashMap<>();
 			while (generator.next()) {
 				SubmoduleStatus status = getStatus(generator);
 				statuses.put(status.getPath(), status);

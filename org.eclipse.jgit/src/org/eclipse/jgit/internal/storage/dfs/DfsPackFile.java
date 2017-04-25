@@ -187,7 +187,6 @@ public final class DfsPackFile {
 
 	/**
 	 * @return whether the pack index file is loaded and cached in memory.
-	 * @since 2.2
 	 */
 	public boolean isIndexLoaded() {
 		DfsBlockCache.Ref<PackIndex> idxref = index;
@@ -499,6 +498,7 @@ public final class DfsPackFile {
 				rc.setReadAheadBytes(ctx.getOptions().getStreamPackBufferSize());
 			long position = 12;
 			long remaining = length - (12 + 20);
+			boolean packHeadSkipped = false;
 			while (0 < remaining) {
 				DfsBlock b = cache.get(key, alignToBlock(position));
 				if (b != null) {
@@ -508,6 +508,7 @@ public final class DfsPackFile {
 					position += n;
 					remaining -= n;
 					rc.position(position);
+					packHeadSkipped = true;
 					continue;
 				}
 
@@ -517,7 +518,14 @@ public final class DfsPackFile {
 					throw packfileIsTruncated();
 				else if (n > remaining)
 					n = (int) remaining;
-				out.write(buf.array(), 0, n);
+
+				if (!packHeadSkipped) {
+					// Need skip the 'PACK' header for the first read
+					out.write(buf.array(), 12, n - 12);
+					packHeadSkipped = true;
+				} else {
+					out.write(buf.array(), 0, n);
+				}
 				position += n;
 				remaining -= n;
 			}

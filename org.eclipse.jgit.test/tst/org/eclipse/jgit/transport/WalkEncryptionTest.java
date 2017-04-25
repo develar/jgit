@@ -85,12 +85,12 @@ import java.security.Security;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
 
-import javax.crypto.Cipher;
 import javax.crypto.SecretKeyFactory;
 
 import org.eclipse.jgit.api.Git;
@@ -459,14 +459,14 @@ public class WalkEncryptionTest {
 
 		static List<String> cryptoCipherList(String regex) {
 			Set<String> source = Security.getAlgorithms("Cipher");
-			Set<String> target = new TreeSet<String>();
+			Set<String> target = new TreeSet<>();
 			for (String algo : source) {
-				algo = algo.toUpperCase();
+				algo = algo.toUpperCase(Locale.ROOT);
 				if (algo.matches(regex)) {
 					target.add(algo);
 				}
 			}
-			return new ArrayList<String>(target);
+			return new ArrayList<>(target);
 		}
 
 		/**
@@ -598,7 +598,7 @@ public class WalkEncryptionTest {
 		}
 
 		static List<Object[]> product(List<String> one, List<String> two) {
-			List<Object[]> result = new ArrayList<Object[]>();
+			List<Object[]> result = new ArrayList<>();
 			for (String s1 : one) {
 				for (String s2 : two) {
 					result.add(new Object[] { s1, s2 });
@@ -759,7 +759,7 @@ public class WalkEncryptionTest {
 			for (String source : cipherSet) {
 				// Standard names are not case-sensitive.
 				// http://docs.oracle.com/javase/8/docs/technotes/guides/security/StandardNames.html
-				String target = algorithm.toUpperCase();
+				String target = algorithm.toUpperCase(Locale.ROOT);
 				if (source.equalsIgnoreCase(target)) {
 					return true;
 				}
@@ -771,16 +771,16 @@ public class WalkEncryptionTest {
 			String profile = props.getProperty(AmazonS3.Keys.CRYPTO_ALG);
 			String version = props.getProperty(AmazonS3.Keys.CRYPTO_VER,
 					WalkEncryption.Vals.DEFAULT_VERS);
-			String crytoAlgo;
+			String cryptoAlgo;
 			String keyAlgo;
 			switch (version) {
 			case WalkEncryption.Vals.DEFAULT_VERS:
 			case WalkEncryption.JGitV1.VERSION:
-				crytoAlgo = profile;
+				cryptoAlgo = profile;
 				keyAlgo = profile;
 				break;
 			case WalkEncryption.JGitV2.VERSION:
-				crytoAlgo = props
+				cryptoAlgo = props
 						.getProperty(profile + WalkEncryption.Keys.X_ALGO);
 				keyAlgo = props
 						.getProperty(profile + WalkEncryption.Keys.X_KEY_ALGO);
@@ -789,7 +789,7 @@ public class WalkEncryptionTest {
 				return false;
 			}
 			try {
-				Cipher.getInstance(crytoAlgo);
+				InsecureCipherFactory.create(cryptoAlgo);
 				SecretKeyFactory.getInstance(keyAlgo);
 				return true;
 			} catch (Throwable e) {
@@ -1240,10 +1240,10 @@ public class WalkEncryptionTest {
 
 		@Parameters(name = "Profile: {0}   Version: {1}")
 		public static Collection<Object[]> argsList() {
-			List<String> algorithmList = new ArrayList<String>();
+			List<String> algorithmList = new ArrayList<>();
 			algorithmList.addAll(cryptoCipherListPBE());
 
-			List<String> versionList = new ArrayList<String>();
+			List<String> versionList = new ArrayList<>();
 			versionList.add("0");
 			versionList.add("1");
 
@@ -1283,10 +1283,10 @@ public class WalkEncryptionTest {
 
 		@Parameters(name = "Profile: {0}   Version: {1}")
 		public static Collection<Object[]> argsList() {
-			List<String> algorithmList = new ArrayList<String>();
+			List<String> algorithmList = new ArrayList<>();
 			algorithmList.addAll(cryptoCipherListTrans());
 
-			List<String> versionList = new ArrayList<String>();
+			List<String> versionList = new ArrayList<>();
 			versionList.add("1");
 
 			return product(algorithmList, versionList);

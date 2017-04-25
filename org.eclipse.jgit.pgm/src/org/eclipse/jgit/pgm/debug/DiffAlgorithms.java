@@ -84,12 +84,14 @@ import org.kohsuke.args4j.Option;
 class DiffAlgorithms extends TextBuiltin {
 
 	final Algorithm myers = new Algorithm() {
+		@Override
 		DiffAlgorithm create() {
 			return MyersDiff.INSTANCE;
 		}
 	};
 
 	final Algorithm histogram = new Algorithm() {
+		@Override
 		DiffAlgorithm create() {
 			HistogramDiff d = new HistogramDiff();
 			d.setFallbackAlgorithm(null);
@@ -98,6 +100,7 @@ class DiffAlgorithms extends TextBuiltin {
 	};
 
 	final Algorithm histogram_myers = new Algorithm() {
+		@Override
 		DiffAlgorithm create() {
 			HistogramDiff d = new HistogramDiff();
 			d.setFallbackAlgorithm(MyersDiff.INSTANCE);
@@ -112,13 +115,13 @@ class DiffAlgorithms extends TextBuiltin {
 	//
 
 	@Option(name = "--algorithm", multiValued = true, metaVar = "NAME", usage = "Enable algorithm(s)")
-	List<String> algorithms = new ArrayList<String>();
+	List<String> algorithms = new ArrayList<>();
 
 	@Option(name = "--text-limit", metaVar = "LIMIT", usage = "Maximum size in KiB to scan per file revision")
 	int textLimit = 15 * 1024; // 15 MiB as later we do * 1024.
 
 	@Option(name = "--repository", aliases = { "-r" }, multiValued = true, metaVar = "GIT_DIR", usage = "Repository to scan")
-	List<File> gitDirs = new ArrayList<File>();
+	List<File> gitDirs = new ArrayList<>();
 
 	@Option(name = "--count", metaVar = "LIMIT", usage = "Number of file revisions to be compared")
 	int count = 0; // unlimited
@@ -234,6 +237,7 @@ class DiffAlgorithms extends TextBuiltin {
 		}
 
 		Collections.sort(all, new Comparator<Test>() {
+			@Override
 			public int compare(Test a, Test b) {
 				int result = Long.signum(a.runningTimeNanos - b.runningTimeNanos);
 				if (result == 0) {
@@ -320,7 +324,7 @@ class DiffAlgorithms extends TextBuiltin {
 	}
 
 	private List<Test> init() {
-		List<Test> all = new ArrayList<Test>();
+		List<Test> all = new ArrayList<>();
 
 		try {
 			for (Field f : DiffAlgorithms.class.getDeclaredFields()) {

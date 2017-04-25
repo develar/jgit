@@ -113,10 +113,10 @@ public class DfsPackCompactor {
 	public DfsPackCompactor(DfsRepository repository) {
 		repo = repository;
 		autoAddSize = 5 * 1024 * 1024; // 5 MiB
-		srcPacks = new ArrayList<DfsPackFile>();
-		exclude = new ArrayList<ObjectIdSet>(4);
-		newPacks = new ArrayList<DfsPackDescription>(1);
-		newStats = new ArrayList<PackStatistics>(1);
+		srcPacks = new ArrayList<>();
+		exclude = new ArrayList<>(4);
+		newPacks = new ArrayList<>(1);
+		newStats = new ArrayList<>(1);
 	}
 
 	/**
@@ -224,7 +224,8 @@ public class DfsPackCompactor {
 				}
 
 				boolean rollback = true;
-				DfsPackDescription pack = objdb.newPack(COMPACT);
+				DfsPackDescription pack = objdb.newPack(COMPACT,
+						estimatePackSize());
 				try {
 					writePack(objdb, pack, pw, pm);
 					writeIndex(objdb, pack, pw);
@@ -251,6 +252,17 @@ public class DfsPackCompactor {
 		}
 	}
 
+	private long estimatePackSize() {
+		// Every pack file contains 12 bytes of header and 20 bytes of trailer.
+		// Include the final pack file header and trailer size here and ignore
+		// the same from individual pack files.
+		long size = 32;
+		for (DfsPackFile pack : srcPacks) {
+			size += pack.getPackDescription().getFileSize(PACK) - 32;
+		}
+		return size;
+	}
+
 	/** @return all of the source packs that fed into this compaction. */
 	public List<DfsPackDescription> getSourcePacks() {
 		return toPrune();
@@ -268,7 +280,7 @@ public class DfsPackCompactor {
 
 	private List<DfsPackDescription> toPrune() {
 		int cnt = srcPacks.size();
-		List<DfsPackDescription> all = new ArrayList<DfsPackDescription>(cnt);
+		List<DfsPackDescription> all = new ArrayList<>(cnt);
 		for (DfsPackFile pack : srcPacks)
 			all.add(pack.getPackDescription());
 		return all;
@@ -281,6 +293,7 @@ public class DfsPackCompactor {
 		// older packs, allowing the PackWriter to be handed newer objects
 		// first and older objects last.
 		Collections.sort(srcPacks, new Comparator<DfsPackFile>() {
+			@Override
 			public int compare(DfsPackFile a, DfsPackFile b) {
 				return a.getPackDescription().compareTo(b.getPackDescription());
 			}
@@ -289,7 +302,7 @@ public class DfsPackCompactor {
 		rw = new RevWalk(ctx);
 		added = rw.newFlag("ADDED"); //$NON-NLS-1$
 		isBase = rw.newFlag("IS_BASE"); //$NON-NLS-1$
-		List<RevObject> baseObjects = new BlockList<RevObject>();
+		List<RevObject> baseObjects = new BlockList<>();
 
 		pm.beginTask(JGitText.get().countingObjects, ProgressMonitor.UNKNOWN);
 		for (DfsPackFile src : srcPacks) {
@@ -333,7 +346,7 @@ public class DfsPackCompactor {
 	private List<ObjectIdWithOffset> toInclude(DfsPackFile src, DfsReader ctx)
 			throws IOException {
 		PackIndex srcIdx = src.getPackIndex(ctx);
-		List<ObjectIdWithOffset> want = new BlockList<ObjectIdWithOffset>(
+		List<ObjectIdWithOffset> want = new BlockList<>(
 				(int) srcIdx.getObjectCount());
 		SCAN: for (PackIndex.MutableEntry ent : srcIdx) {
 			ObjectId id = ent.toObjectId();
@@ -346,6 +359,7 @@ public class DfsPackCompactor {
 			want.add(new ObjectIdWithOffset(id, ent.getOffset()));
 		}
 		Collections.sort(want, new Comparator<ObjectIdWithOffset>() {
+			@Override
 			public int compare(ObjectIdWithOffset a, ObjectIdWithOffset b) {
 				return Long.signum(a.offset - b.offset);
 			}

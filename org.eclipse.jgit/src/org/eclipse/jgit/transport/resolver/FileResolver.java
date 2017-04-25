@@ -72,8 +72,8 @@ public class FileResolver<C> implements RepositoryResolver<C> {
 
 	/** Initialize an empty file based resolver. */
 	public FileResolver() {
-		exports = new ConcurrentHashMap<String, Repository>();
-		exportBase = new CopyOnWriteArrayList<File>();
+		exports = new ConcurrentHashMap<>();
+		exportBase = new CopyOnWriteArrayList<>();
 	}
 
 	/**
@@ -91,6 +91,7 @@ public class FileResolver<C> implements RepositoryResolver<C> {
 		setExportAll(exportAll);
 	}
 
+	@Override
 	public Repository open(final C req, final String name)
 			throws RepositoryNotFoundException, ServiceNotEnabledException {
 		if (isUnreasonableName(name))

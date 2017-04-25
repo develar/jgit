@@ -55,6 +55,7 @@ import java.util.Set;
 
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.errors.MissingObjectException;
+import org.eclipse.jgit.errors.UnsupportedPackIndexVersionException;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.AbbreviatedObjectId;
 import org.eclipse.jgit.lib.AnyObjectId;
@@ -138,9 +139,7 @@ public abstract class PackIndex
 			case 2:
 				return new PackIndexV2(fd);
 			default:
-				throw new IOException(MessageFormat.format(
-						JGitText.get().unsupportedPackIndexVersion,
-						Integer.valueOf(v)));
+				throw new UnsupportedPackIndexVersionException(v);
 			}
 		}
 		return new PackIndexV1(fd, hdr);
@@ -184,6 +183,7 @@ public abstract class PackIndex
 	 *
 	 * @return iterator over pack index entries
 	 */
+	@Override
 	public abstract Iterator<MutableEntry> iterator();
 
 	/**
@@ -366,6 +366,7 @@ public abstract class PackIndex
 
 		protected abstract MutableEntry initEntry();
 
+		@Override
 		public boolean hasNext() {
 			return returnedNumber < getObjectCount();
 		}
@@ -374,8 +375,10 @@ public abstract class PackIndex
 		 * Implementation must update {@link #returnedNumber} before returning
 		 * element.
 		 */
+		@Override
 		public abstract MutableEntry next();
 
+		@Override
 		public void remove() {
 			throw new UnsupportedOperationException();
 		}

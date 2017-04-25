@@ -74,8 +74,9 @@ class LsRemote extends TextBuiltin {
 	protected void run() throws Exception {
 		LsRemoteCommand command = Git.lsRemoteRepository().setRemote(remote)
 				.setTimeout(timeout).setHeads(heads).setTags(tags);
-		TreeSet<Ref> refs = new TreeSet<Ref>(new Comparator<Ref>() {
+		TreeSet<Ref> refs = new TreeSet<>(new Comparator<Ref>() {
 
+			@Override
 			public int compare(Ref r1, Ref r2) {
 				return r1.getName().compareTo(r2.getName());
 			}

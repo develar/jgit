@@ -56,7 +56,9 @@ import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream;
 import org.eclipse.jgit.api.ArchiveCommand;
 import org.eclipse.jgit.archive.internal.ArchiveText;
 import org.eclipse.jgit.lib.FileMode;
+import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
+import org.eclipse.jgit.revwalk.RevCommit;
 
 /**
  * PKWARE's ZIP format.
@@ -66,6 +68,7 @@ public final class ZipFormat extends BaseFormat implements
 	private static final List<String> SUFFIXES = Collections
 			.unmodifiableList(Arrays.asList(".zip")); //$NON-NLS-1$
 
+	@Override
 	public ArchiveOutputStream createArchiveOutputStream(OutputStream s)
 			throws IOException {
 		return createArchiveOutputStream(s,
@@ -75,13 +78,26 @@ public final class ZipFormat extends BaseFormat implements
 	/**
 	 * @since 4.0
 	 */
+	@Override
 	public ArchiveOutputStream createArchiveOutputStream(OutputStream s,
 			Map<String, Object> o) throws IOException {
 		return applyFormatOptions(new ZipArchiveOutputStream(s), o);
 	}
 
+	@Deprecated
+	@Override
 	public void putEntry(ArchiveOutputStream out,
 			String path, FileMode mode, ObjectLoader loader)
+			throws IOException {
+		putEntry(out, null, path, mode,loader);
+	}
+
+	/**
+	 * @since 4.7
+	 */
+	@Override
+	public void putEntry(ArchiveOutputStream out,
+			ObjectId tree, String path, FileMode mode, ObjectLoader loader)
 			throws IOException {
 		// ZipArchiveEntry detects directories by checking
 		// for '/' at the end of the filename.
@@ -92,6 +108,12 @@ public final class ZipFormat extends BaseFormat implements
 			path = path + "/"; //$NON-NLS-1$
 
 		final ZipArchiveEntry entry = new ZipArchiveEntry(path);
+
+		if (tree instanceof RevCommit) {
+			long t = ((RevCommit) tree).getCommitTime() * 1000L;
+			entry.setTime(t);
+		}
+
 		if (mode == FileMode.TREE) {
 			out.putArchiveEntry(entry);
 			out.closeArchiveEntry();
@@ -114,6 +136,7 @@ public final class ZipFormat extends BaseFormat implements
 		out.closeArchiveEntry();
 	}
 
+	@Override
 	public Iterable<String> suffixes() {
 		return SUFFIXES;
 	}

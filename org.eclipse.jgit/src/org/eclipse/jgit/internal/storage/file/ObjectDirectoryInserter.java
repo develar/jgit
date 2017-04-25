@@ -49,12 +49,11 @@ import java.io.EOFException;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.channels.Channels;
-import java.security.DigestOutputStream;
-import java.security.MessageDigest;
 import java.text.MessageFormat;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
@@ -69,6 +68,7 @@ import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.transport.PackParser;
 import org.eclipse.jgit.util.FileUtils;
 import org.eclipse.jgit.util.IO;
+import org.eclipse.jgit.util.sha1.SHA1;
 
 /** Creates loose objects in a {@link ObjectDirectory}. */
 class ObjectDirectoryInserter extends ObjectInserter {
@@ -86,34 +86,71 @@ class ObjectDirectoryInserter extends ObjectInserter {
 	@Override
 	public ObjectId insert(int type, byte[] data, int off, int len)
 			throws IOException {
+		return insert(type, data, off, len, false);
+	}
+
+	/**
+	 * Insert a loose object into the database. If createDuplicate is true,
+	 * write the loose object even if we already have it in the loose or packed
+	 * ODB.
+	 *
+	 * @param type
+	 * @param data
+	 * @param off
+	 * @param len
+	 * @param createDuplicate
+	 * @return ObjectId
+	 * @throws IOException
+	 */
+	private ObjectId insert(
+			int type, byte[] data, int off, int len, boolean createDuplicate)
+			throws IOException {
 		ObjectId id = idFor(type, data, off, len);
-		if (db.has(id)) {
+		if (!createDuplicate && db.has(id)) {
 			return id;
 		} else {
 			File tmp = toTemp(type, data, off, len);
-			return insertOneObject(tmp, id);
+			return insertOneObject(tmp, id, createDuplicate);
 		}
 	}
 
 	@Override
 	public ObjectId insert(final int type, long len, final InputStream is)
 			throws IOException {
+		return insert(type, len, is, false);
+	}
+
+	/**
+	 * Insert a loose object into the database. If createDuplicate is true,
+	 * write the loose object even if we already have it in the loose or packed
+	 * ODB.
+	 *
+	 * @param type
+	 * @param len
+	 * @param is
+	 * @param createDuplicate
+	 * @return ObjectId
+	 * @throws IOException
+	 */
+	ObjectId insert(int type, long len, InputStream is, boolean createDuplicate)
+			throws IOException {
 		if (len <= buffer().length) {
 			byte[] buf = buffer();
 			int actLen = IO.readFully(is, buf, 0);
-			return insert(type, buf, 0, actLen);
+			return insert(type, buf, 0, actLen, createDuplicate);
 
 		} else {
-			MessageDigest md = digest();
+			SHA1 md = digest();
 			File tmp = toTemp(md, type, len, is);
-			ObjectId id = ObjectId.fromRaw(md.digest());
-			return insertOneObject(tmp, id);
+			ObjectId id = md.toObjectId();
+			return insertOneObject(tmp, id, createDuplicate);
 		}
 	}
 
-	private ObjectId insertOneObject(final File tmp, final ObjectId id)
+	private ObjectId insertOneObject(
+			File tmp, ObjectId id, boolean createDuplicate)
 			throws IOException, ObjectWritingException {
-		switch (db.insertUnpackedObject(tmp, id, false /* no duplicate */)) {
+		switch (db.insertUnpackedObject(tmp, id, createDuplicate)) {
 		case INSERTED:
 		case EXISTS_PACKED:
 		case EXISTS_LOOSE:
@@ -156,7 +193,7 @@ class ObjectDirectoryInserter extends ObjectInserter {
 	}
 
 	@SuppressWarnings("resource" /* java 7 */)
-	private File toTemp(final MessageDigest md, final int type, long len,
+	private File toTemp(final SHA1 md, final int type, long len,
 			final InputStream is) throws IOException, FileNotFoundException,
 			Error {
 		boolean delete = true;
@@ -168,7 +205,7 @@ class ObjectDirectoryInserter extends ObjectInserter {
 				if (config.getFSyncObjectFiles())
 					out = Channels.newOutputStream(fOut.getChannel());
 				DeflaterOutputStream cOut = compress(out);
-				DigestOutputStream dOut = new DigestOutputStream(cOut, md);
+				SHA1OutputStream dOut = new SHA1OutputStream(cOut, md);
 				writeHeader(dOut, type, len);
 
 				final byte[] buf = buffer();
@@ -247,5 +284,26 @@ class ObjectDirectoryInserter extends ObjectInserter {
 	private static EOFException shortInput(long missing) {
 		return new EOFException(MessageFormat.format(
 				JGitText.get().inputDidntMatchLength, Long.valueOf(missing)));
+	}
+
+	private static class SHA1OutputStream extends FilterOutputStream {
+		private final SHA1 md;
+
+		SHA1OutputStream(OutputStream out, SHA1 md) {
+			super(out);
+			this.md = md;
+		}
+
+		@Override
+		public void write(int b) throws IOException {
+			md.update((byte) b);
+			out.write(b);
+		}
+
+		@Override
+		public void write(byte[] in, int p, int n) throws IOException {
+			md.update(in, p, n);
+			out.write(in, p, n);
+		}
 	}
 }
