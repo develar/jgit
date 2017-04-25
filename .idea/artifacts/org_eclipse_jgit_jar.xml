@@ -1,9 +1,9 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <component name="ArtifactManager">
   <artifact type="jar" name="org.eclipse.jgit:jar">
     <output-path>$PROJECT_DIR$/target</output-path>
     <root id="archive" name="jgit.jar">
       <element id="module-output" name="org.eclipse.jgit" />
+      <element id="extracted-dir" path="$MAVEN_REPOSITORY$/com/googlecode/javaewah/JavaEWAH/1.1.6/JavaEWAH-1.1.6.jar" path-in-jar="/" />
     </root>
   </artifact>
 </component>
