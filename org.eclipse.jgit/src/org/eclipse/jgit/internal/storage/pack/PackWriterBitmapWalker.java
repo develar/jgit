@@ -44,7 +44,7 @@
 package org.eclipse.jgit.internal.storage.pack;
 
 import java.io.IOException;
-import java.util.Set;
+import java.util.Arrays;
 
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.errors.MissingObjectException;
@@ -84,9 +84,60 @@ final class PackWriterBitmapWalker {
 		return countOfBitmapIndexMisses;
 	}
 
-	BitmapBuilder findObjects(Set<? extends ObjectId> start, BitmapBuilder seen, boolean ignoreMissingStart)
+	BitmapBuilder findObjects(Iterable<? extends ObjectId> start, BitmapBuilder seen,
+			boolean ignoreMissing)
+			throws MissingObjectException, IncorrectObjectTypeException,
+				   IOException {
+		if (!ignoreMissing) {
+			return findObjectsWalk(start, seen, false);
+		}
+
+		try {
+			return findObjectsWalk(start, seen, true);
+		} catch (MissingObjectException ignore) {
+			// An object reachable from one of the "start"s is missing.
+			// Walk from the "start"s one at a time so it can be excluded.
+		}
+
+		final BitmapBuilder result = bitmapIndex.newBitmapBuilder();
+		for (ObjectId obj : start) {
+			Bitmap bitmap = bitmapIndex.getBitmap(obj);
+			if (bitmap != null) {
+				result.or(bitmap);
+			}
+		}
+
+		for (ObjectId obj : start) {
+			if (result.contains(obj)) {
+				continue;
+			}
+			try {
+				result.or(findObjectsWalk(Arrays.asList(obj), result, false));
+			} catch (MissingObjectException ignore) {
+				// An object reachable from this "start" is missing.
+				//
+				// This can happen when the client specified a "have" line
+				// pointing to an object that is present but unreachable:
+				// "git prune" and "git fsck" only guarantee that the object
+				// database will continue to contain all objects reachable
+				// from a ref and does not guarantee connectivity for other
+				// objects in the object database.
+				//
+				// In this situation, skip the relevant "start" and move on
+				// to the next one.
+				//
+				// TODO(czhen): Make findObjectsWalk resume the walk instead
+				// once RevWalk and ObjectWalk support that.
+			}
+		}
+		return result;
+	}
+
+	private BitmapBuilder findObjectsWalk(Iterable<? extends ObjectId> start, BitmapBuilder seen,
+			boolean ignoreMissingStart)
 			throws MissingObjectException, IncorrectObjectTypeException,
 			IOException {
+		walker.reset();
 		final BitmapBuilder bitmapResult = bitmapIndex.newBitmapBuilder();
 
 		for (ObjectId obj : start) {
@@ -139,10 +190,6 @@ final class PackWriterBitmapWalker {
 		}
 
 		return bitmapResult;
-	}
-
-	void reset() {
-		walker.reset();
 	}
 
 	/**

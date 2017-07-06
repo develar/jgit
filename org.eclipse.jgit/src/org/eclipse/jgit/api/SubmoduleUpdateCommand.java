@@ -89,6 +89,8 @@ public class SubmoduleUpdateCommand extends
 
 	private MergeStrategy strategy = MergeStrategy.RECURSIVE;
 
+	private CloneCommand.Callback callback;
+
 	/**
 	 * @param repo
 	 */
@@ -161,6 +163,9 @@ public class SubmoduleUpdateCommand extends
 				Repository submoduleRepo = generator.getRepository();
 				// Clone repository is not present
 				if (submoduleRepo == null) {
+					if (callback != null) {
+						callback.cloningSubmodule(generator.getPath());
+					}
 					CloneCommand clone = Git.cloneRepository();
 					configure(clone);
 					clone.setURI(url);
@@ -201,6 +206,10 @@ public class SubmoduleUpdateCommand extends
 								Constants.HEAD, true);
 						refUpdate.setNewObjectId(commit);
 						refUpdate.forceUpdate();
+						if (callback != null) {
+							callback.checkingOut(commit,
+									generator.getPath());
+						}
 					}
 				} finally {
 					submoduleRepo.close();
@@ -223,6 +232,19 @@ public class SubmoduleUpdateCommand extends
 	 */
 	public SubmoduleUpdateCommand setStrategy(MergeStrategy strategy) {
 		this.strategy = strategy;
+		return this;
+	}
+
+	/**
+	 * Set status callback for submodule clone operation.
+	 *
+	 * @param callback
+	 *            the callback
+	 * @return {@code this}
+	 * @since 4.8
+	 */
+	public SubmoduleUpdateCommand setCallback(CloneCommand.Callback callback) {
+		this.callback = callback;
 		return this;
 	}
 }
