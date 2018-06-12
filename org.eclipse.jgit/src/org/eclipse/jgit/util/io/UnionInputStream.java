@@ -58,7 +58,7 @@ import java.util.LinkedList;
  * Currently this stream does not support the mark/reset APIs. If mark and later
  * reset functionality is needed the caller should wrap this stream with a
  * {@link java.io.BufferedInputStream}.
- * */
+ */
 public class UnionInputStream extends InputStream {
 	private static final InputStream EOF = new InputStream() {
 		@Override
@@ -69,7 +69,9 @@ public class UnionInputStream extends InputStream {
 
 	private final LinkedList<InputStream> streams = new LinkedList<>();
 
-	/** Create an empty InputStream that is currently at EOF state. */
+	/**
+	 * Create an empty InputStream that is currently at EOF state.
+	 */
 	public UnionInputStream() {
 		// Do nothing.
 	}
@@ -105,7 +107,7 @@ public class UnionInputStream extends InputStream {
 	 * @param in
 	 *            the stream to add; must not be null.
 	 */
-	public void add(final InputStream in) {
+	public void add(InputStream in) {
 		streams.add(in);
 	}
 
@@ -122,6 +124,7 @@ public class UnionInputStream extends InputStream {
 		return streams.isEmpty();
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public int read() throws IOException {
 		for (;;) {
@@ -136,6 +139,7 @@ public class UnionInputStream extends InputStream {
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public int read(byte[] b, int off, int len) throws IOException {
 		if (len == 0)
@@ -152,13 +156,15 @@ public class UnionInputStream extends InputStream {
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public int available() throws IOException {
 		return head().available();
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public long skip(final long count) throws IOException {
+	public long skip(long count) throws IOException {
 		long skipped = 0;
 		long cnt = count;
 		while (0 < cnt) {
@@ -190,6 +196,7 @@ public class UnionInputStream extends InputStream {
 		return skipped;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void close() throws IOException {
 		IOException err = null;

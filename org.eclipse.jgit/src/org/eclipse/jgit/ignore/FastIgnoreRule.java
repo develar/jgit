@@ -55,7 +55,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * "Fast" (compared with IgnoreRule) git ignore rule implementation supporting
- * also double star <code>**<code> pattern.
+ * also double star {@code **} pattern.
  * <p>
  * This class is immutable and thread safe.
  *
@@ -77,6 +77,7 @@ public class FastIgnoreRule {
 	private final boolean dirOnly;
 
 	/**
+	 * Constructor for FastIgnoreRule
 	 *
 	 * @param pattern
 	 *            ignore pattern as described in <a href=
@@ -151,24 +152,51 @@ public class FastIgnoreRule {
 	 *         result.
 	 */
 	public boolean isMatch(String path, boolean directory) {
+		return isMatch(path, directory, false);
+	}
+
+	/**
+	 * Returns true if a match was made. <br>
+	 * This function does NOT return the actual ignore status of the target!
+	 * Please consult {@link #getResult()} for the negation status. The actual
+	 * ignore status may be true or false depending on whether this rule is an
+	 * ignore rule or a negation rule.
+	 *
+	 * @param path
+	 *            Name pattern of the file, relative to the base directory of
+	 *            this rule
+	 * @param directory
+	 *            Whether the target file is a directory or not
+	 * @param pathMatch
+	 *            {@code true} if the match is for the full path: see
+	 *            {@link IMatcher#matches(String, int, int)}
+	 * @return True if a match was made. This does not necessarily mean that the
+	 *         target is ignored. Call {@link #getResult() getResult()} for the
+	 *         result.
+	 * @since 4.11
+	 */
+	public boolean isMatch(String path, boolean directory, boolean pathMatch) {
 		if (path == null)
 			return false;
 		if (path.length() == 0)
 			return false;
-		boolean match = matcher.matches(path, directory);
+		boolean match = matcher.matches(path, directory, pathMatch);
 		return match;
 	}
 
 	/**
-	 * @return True if the pattern is just a file name and not a path
+	 * Whether the pattern is just a file name and not a path
+	 *
+	 * @return {@code true} if the pattern is just a file name and not a path
 	 */
 	public boolean getNameOnly() {
 		return !(matcher instanceof PathMatcher);
 	}
 
 	/**
+	 * Whether the pattern should match directories only
 	 *
-	 * @return True if the pattern should match directories only
+	 * @return {@code true} if the pattern should match directories only
 	 */
 	public boolean dirOnly() {
 		return dirOnly;
@@ -193,13 +221,17 @@ public class FastIgnoreRule {
 	}
 
 	/**
-	 * @return true if the rule never matches (comment line or broken pattern)
+	 * Whether the rule never matches
+	 *
+	 * @return {@code true} if the rule never matches (comment line or broken
+	 *         pattern)
 	 * @since 4.1
 	 */
 	public boolean isEmpty() {
 		return matcher == NO_MATCH;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public String toString() {
 		StringBuilder sb = new StringBuilder();
@@ -212,6 +244,7 @@ public class FastIgnoreRule {
 
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public int hashCode() {
 		final int prime = 31;
@@ -222,6 +255,7 @@ public class FastIgnoreRule {
 		return result;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean equals(Object obj) {
 		if (this == obj)

@@ -49,17 +49,17 @@ import java.io.Writer;
 import java.nio.ByteBuffer;
 
 import org.eclipse.jgit.lib.AnyObjectId;
-import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.util.NB;
 
 /**
  * A (possibly mutable) SHA-256 abstraction.
  * <p>
- * If this is an instance of {@link MutableLongObjectId} the concept of equality
+ * If this is an instance of
+ * {@link org.eclipse.jgit.lfs.lib.MutableLongObjectId} the concept of equality
  * with this instance can alter at any time, if this instance is modified to
  * represent a different object name.
  *
- * Ported to SHA-256 from {@link AnyObjectId}
+ * Ported to SHA-256 from {@link org.eclipse.jgit.lib.AnyObjectId}
  *
  * @since 4.3
  */
@@ -132,14 +132,15 @@ public abstract class AnyLongObjectId implements Comparable<AnyLongObjectId> {
 	 * @param index
 	 *            index of the byte to obtain from the raw form of the
 	 *            LongObjectId. Must be in range [0,
-	 *            {@link Constants#LONG_OBJECT_ID_LENGTH}).
+	 *            {@link org.eclipse.jgit.lfs.lib.Constants#LONG_OBJECT_ID_LENGTH}).
 	 * @return the value of the requested byte at {@code index}. Returned values
 	 *         are unsigned and thus are in the range [0,255] rather than the
 	 *         signed byte range of [-128, 127].
-	 * @throws ArrayIndexOutOfBoundsException
+	 * @throws java.lang.ArrayIndexOutOfBoundsException
 	 *             {@code index} is less than 0, equal to
-	 *             {@link Constants#LONG_OBJECT_ID_LENGTH}, or greater than
-	 *             {@link Constants#LONG_OBJECT_ID_LENGTH}.
+	 *             {@link org.eclipse.jgit.lfs.lib.Constants#LONG_OBJECT_ID_LENGTH},
+	 *             or greater than
+	 *             {@link org.eclipse.jgit.lfs.lib.Constants#LONG_OBJECT_ID_LENGTH}.
 	 */
 	public final int getByte(int index) {
 		long w;
@@ -164,15 +165,12 @@ public abstract class AnyLongObjectId implements Comparable<AnyLongObjectId> {
 	}
 
 	/**
-	 * Compare this LongObjectId to another and obtain a sort ordering.
+	 * {@inheritDoc}
 	 *
-	 * @param other
-	 *            the other id to compare to. Must not be null.
-	 * @return &lt; 0 if this id comes before other; 0 if this id is equal to
-	 *         other; &gt; 0 if this id comes after other.
+	 * Compare this LongObjectId to another and obtain a sort ordering.
 	 */
 	@Override
-	public final int compareTo(final AnyLongObjectId other) {
+	public final int compareTo(AnyLongObjectId other) {
 		if (this == other)
 			return 0;
 
@@ -204,7 +202,7 @@ public abstract class AnyLongObjectId implements Comparable<AnyLongObjectId> {
 	 * @return a negative integer, zero, or a positive integer as this object is
 	 *         less than, equal to, or greater than the specified object.
 	 */
-	public final int compareTo(final byte[] bs, final int p) {
+	public final int compareTo(byte[] bs, int p) {
 		int cmp;
 
 		cmp = NB.compareUInt64(w1, NB.decodeInt64(bs, p));
@@ -233,7 +231,7 @@ public abstract class AnyLongObjectId implements Comparable<AnyLongObjectId> {
 	 * @return a negative integer, zero, or a positive integer as this object is
 	 *         less than, equal to, or greater than the specified object.
 	 */
-	public final int compareTo(final long[] bs, final int p) {
+	public final int compareTo(long[] bs, int p) {
 		int cmp;
 
 		cmp = NB.compareUInt64(w1, bs[p]);
@@ -259,10 +257,11 @@ public abstract class AnyLongObjectId implements Comparable<AnyLongObjectId> {
 	 * @return true if this LongObjectId begins with the abbreviation; else
 	 *         false.
 	 */
-	public boolean startsWith(final AbbreviatedLongObjectId abbr) {
+	public boolean startsWith(AbbreviatedLongObjectId abbr) {
 		return abbr.prefixCompare(this) == 0;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public final int hashCode() {
 		return (int) (w1 >> 32);
@@ -275,12 +274,13 @@ public abstract class AnyLongObjectId implements Comparable<AnyLongObjectId> {
 	 *            the other id to compare to. May be null.
 	 * @return true only if both LongObjectIds have identical bits.
 	 */
-	public final boolean equals(final AnyLongObjectId other) {
+	public final boolean equals(AnyLongObjectId other) {
 		return other != null ? equals(this, other) : false;
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public final boolean equals(final Object o) {
+	public final boolean equals(Object o) {
 		if (o instanceof AnyLongObjectId)
 			return equals((AnyLongObjectId) o);
 		else
@@ -293,7 +293,7 @@ public abstract class AnyLongObjectId implements Comparable<AnyLongObjectId> {
 	 * @param w
 	 *            the buffer to copy to. Must be in big endian order.
 	 */
-	public void copyRawTo(final ByteBuffer w) {
+	public void copyRawTo(ByteBuffer w) {
 		w.putLong(w1);
 		w.putLong(w2);
 		w.putLong(w3);
@@ -308,7 +308,7 @@ public abstract class AnyLongObjectId implements Comparable<AnyLongObjectId> {
 	 * @param o
 	 *            the offset within b to write at.
 	 */
-	public void copyRawTo(final byte[] b, final int o) {
+	public void copyRawTo(byte[] b, int o) {
 		NB.encodeInt64(b, o, w1);
 		NB.encodeInt64(b, o + 8, w2);
 		NB.encodeInt64(b, o + 16, w3);
@@ -323,7 +323,7 @@ public abstract class AnyLongObjectId implements Comparable<AnyLongObjectId> {
 	 * @param o
 	 *            the offset within b to write at.
 	 */
-	public void copyRawTo(final long[] b, final int o) {
+	public void copyRawTo(long[] b, int o) {
 		b[o] = w1;
 		b[o + 1] = w2;
 		b[o + 2] = w3;
@@ -335,17 +335,17 @@ public abstract class AnyLongObjectId implements Comparable<AnyLongObjectId> {
 	 *
 	 * @param w
 	 *            the stream to write to.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the stream writing failed.
 	 */
-	public void copyRawTo(final OutputStream w) throws IOException {
+	public void copyRawTo(OutputStream w) throws IOException {
 		writeRawLong(w, w1);
 		writeRawLong(w, w2);
 		writeRawLong(w, w3);
 		writeRawLong(w, w4);
 	}
 
-	private static void writeRawLong(final OutputStream w, long v)
+	private static void writeRawLong(OutputStream w, long v)
 			throws IOException {
 		w.write((int) (v >>> 56));
 		w.write((int) (v >>> 48));
@@ -362,10 +362,10 @@ public abstract class AnyLongObjectId implements Comparable<AnyLongObjectId> {
 	 *
 	 * @param w
 	 *            the stream to copy to.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the stream writing failed.
 	 */
-	public void copyTo(final OutputStream w) throws IOException {
+	public void copyTo(OutputStream w) throws IOException {
 		w.write(toHexByteArray());
 	}
 
@@ -406,7 +406,7 @@ public abstract class AnyLongObjectId implements Comparable<AnyLongObjectId> {
 	private static final byte[] hexbyte = { '0', '1', '2', '3', '4', '5', '6',
 			'7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
 
-	private static void formatHexByte(final byte[] dst, final int p, long w) {
+	private static void formatHexByte(byte[] dst, int p, long w) {
 		int o = p + 15;
 		while (o >= p && w != 0) {
 			dst[o--] = hexbyte[(int) (w & 0xf)];
@@ -421,10 +421,10 @@ public abstract class AnyLongObjectId implements Comparable<AnyLongObjectId> {
 	 *
 	 * @param w
 	 *            the stream to copy to.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the stream writing failed.
 	 */
-	public void copyTo(final Writer w) throws IOException {
+	public void copyTo(Writer w) throws IOException {
 		w.write(toHexCharArray());
 	}
 
@@ -437,10 +437,10 @@ public abstract class AnyLongObjectId implements Comparable<AnyLongObjectId> {
 	 *            of object id (64 characters or larger).
 	 * @param w
 	 *            the stream to copy to.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the stream writing failed.
 	 */
-	public void copyTo(final char[] tmp, final Writer w) throws IOException {
+	public void copyTo(char[] tmp, Writer w) throws IOException {
 		toHexCharArray(tmp);
 		w.write(tmp, 0, Constants.LONG_OBJECT_ID_STRING_LENGTH);
 	}
@@ -455,7 +455,7 @@ public abstract class AnyLongObjectId implements Comparable<AnyLongObjectId> {
 	 * @param w
 	 *            the string to append onto.
 	 */
-	public void copyTo(final char[] tmp, final StringBuilder w) {
+	public void copyTo(char[] tmp, StringBuilder w) {
 		toHexCharArray(tmp);
 		w.append(tmp, 0, Constants.LONG_OBJECT_ID_STRING_LENGTH);
 	}
@@ -466,7 +466,7 @@ public abstract class AnyLongObjectId implements Comparable<AnyLongObjectId> {
 		return dst;
 	}
 
-	private void toHexCharArray(final char[] dst) {
+	private void toHexCharArray(char[] dst) {
 		formatHexChar(dst, 0, w1);
 		formatHexChar(dst, 16, w2);
 		formatHexChar(dst, 32, w3);
@@ -476,7 +476,7 @@ public abstract class AnyLongObjectId implements Comparable<AnyLongObjectId> {
 	private static final char[] hexchar = { '0', '1', '2', '3', '4', '5', '6',
 			'7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
 
-	static void formatHexChar(final char[] dst, final int p, long w) {
+	static void formatHexChar(char[] dst, int p, long w) {
 		int o = p + 15;
 		while (o >= p && w != 0) {
 			dst[o--] = hexchar[(int) (w & 0xf)];
@@ -486,6 +486,7 @@ public abstract class AnyLongObjectId implements Comparable<AnyLongObjectId> {
 			dst[o--] = '0';
 	}
 
+	/** {@inheritDoc} */
 	@SuppressWarnings("nls")
 	@Override
 	public String toString() {
@@ -493,6 +494,8 @@ public abstract class AnyLongObjectId implements Comparable<AnyLongObjectId> {
 	}
 
 	/**
+	 * Get string form of the SHA-256
+	 *
 	 * @return string form of the SHA-256, in lower case hexadecimal.
 	 */
 	public final String name() {
@@ -500,6 +503,8 @@ public abstract class AnyLongObjectId implements Comparable<AnyLongObjectId> {
 	}
 
 	/**
+	 * Get string form of the SHA-256
+	 *
 	 * @return string form of the SHA-256, in lower case hexadecimal.
 	 */
 	public final String getName() {
@@ -510,14 +515,16 @@ public abstract class AnyLongObjectId implements Comparable<AnyLongObjectId> {
 	 * Return an abbreviation (prefix) of this object SHA-256.
 	 * <p>
 	 * This implementation does not guarantee uniqueness. Callers should instead
-	 * use {@link ObjectReader#abbreviate(AnyObjectId, int)} to obtain a unique
-	 * abbreviation within the scope of a particular object database.
+	 * use
+	 * {@link org.eclipse.jgit.lib.ObjectReader#abbreviate(AnyObjectId, int)} to
+	 * obtain a unique abbreviation within the scope of a particular object
+	 * database.
 	 *
 	 * @param len
 	 *            length of the abbreviated string.
 	 * @return SHA-256 abbreviation.
 	 */
-	public AbbreviatedLongObjectId abbreviate(final int len) {
+	public AbbreviatedLongObjectId abbreviate(int len) {
 		final long a = AbbreviatedLongObjectId.mask(len, 1, w1);
 		final long b = AbbreviatedLongObjectId.mask(len, 2, w2);
 		final long c = AbbreviatedLongObjectId.mask(len, 3, w3);
@@ -529,8 +536,8 @@ public abstract class AnyLongObjectId implements Comparable<AnyLongObjectId> {
 	 * Obtain an immutable copy of this current object.
 	 * <p>
 	 * Only returns <code>this</code> if this instance is an unsubclassed
-	 * instance of {@link LongObjectId}; otherwise a new instance is returned
-	 * holding the same value.
+	 * instance of {@link org.eclipse.jgit.lfs.lib.LongObjectId}; otherwise a
+	 * new instance is returned holding the same value.
 	 * <p>
 	 * This method is useful to shed any additional memory that may be tied to
 	 * the subclass, yet retain the unique identity of the object id for future

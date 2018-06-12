@@ -70,6 +70,7 @@ class LsRemote extends TextBuiltin {
 	@Argument(index = 0, metaVar = "metaVar_uriish", required = true)
 	private String remote;
 
+	/** {@inheritDoc} */
 	@Override
 	protected void run() throws Exception {
 		LsRemoteCommand command = Git.lsRemoteRepository().setRemote(remote)
@@ -82,19 +83,20 @@ class LsRemote extends TextBuiltin {
 			}
 		});
 		refs.addAll(command.call());
-		for (final Ref r : refs) {
+		for (Ref r : refs) {
 			show(r.getObjectId(), r.getName());
 			if (r.getPeeledObjectId() != null)
 				show(r.getPeeledObjectId(), r.getName() + "^{}"); //$NON-NLS-1$
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	protected boolean requiresRepository() {
 		return false;
 	}
 
-	private void show(final AnyObjectId id, final String name)
+	private void show(AnyObjectId id, String name)
 			throws IOException {
 		outw.print(id.name());
 		outw.print('\t');

@@ -61,7 +61,8 @@ import org.eclipse.jgit.treewalk.WorkingTreeIterator;
  * The attributes handler knows how to retrieve, parse and merge attributes from
  * the various gitattributes files. Furthermore it collects and expands macro
  * expressions. The method {@link #getAttributes()} yields the ready processed
- * attributes for the current path represented by the {@link TreeWalk}
+ * attributes for the current path represented by the
+ * {@link org.eclipse.jgit.treewalk.TreeWalk}
  * <p>
  * The implementation is based on the specifications in
  * http://git-scm.com/docs/gitattributes
@@ -90,11 +91,13 @@ public class AttributesHandler {
 	private final Map<String, List<Attribute>> expansions = new HashMap<>();
 
 	/**
-	 * Create an {@link AttributesHandler} with default rules as well as merged
-	 * rules from global, info and worktree root attributes
+	 * Create an {@link org.eclipse.jgit.attributes.AttributesHandler} with
+	 * default rules as well as merged rules from global, info and worktree root
+	 * attributes
 	 *
 	 * @param treeWalk
-	 * @throws IOException
+	 *            a {@link org.eclipse.jgit.treewalk.TreeWalk}
+	 * @throws java.io.IOException
 	 */
 	public AttributesHandler(TreeWalk treeWalk) throws IOException {
 		this.treeWalk = treeWalk;
@@ -129,11 +132,12 @@ public class AttributesHandler {
 	}
 
 	/**
-	 * see {@link TreeWalk#getAttributes()}
+	 * See {@link org.eclipse.jgit.treewalk.TreeWalk#getAttributes()}
 	 *
-	 * @return the {@link Attributes} for the current path represented by the
-	 *         {@link TreeWalk}
-	 * @throws IOException
+	 * @return the {@link org.eclipse.jgit.attributes.Attributes} for the
+	 *         current path represented by the
+	 *         {@link org.eclipse.jgit.treewalk.TreeWalk}
+	 * @throws java.io.IOException
 	 */
 	public Attributes getAttributes() throws IOException {
 		String entryPath = treeWalk.getPathString();
@@ -144,7 +148,8 @@ public class AttributesHandler {
 		mergeInfoAttributes(entryPath, isDirectory, attributes);
 
 		// Gets the attributes located on the current entry path
-		mergePerDirectoryEntryAttributes(entryPath, isDirectory,
+		mergePerDirectoryEntryAttributes(entryPath, entryPath.lastIndexOf('/'),
+				isDirectory,
 				treeWalk.getTree(WorkingTreeIterator.class),
 				treeWalk.getTree(DirCacheIterator.class),
 				treeWalk.getTree(CanonicalTreeParser.class),
@@ -206,6 +211,8 @@ public class AttributesHandler {
 	 *            the path to test. The path must be relative to this attribute
 	 *            node's own repository path, and in repository path format
 	 *            (uses '/' and not '\').
+	 * @param nameRoot
+	 *            index of the '/' preceeding the current level, or -1 if none
 	 * @param isDirectory
 	 *            true if the target item is a directory.
 	 * @param workingTreeIterator
@@ -217,7 +224,7 @@ public class AttributesHandler {
 	 * @throws IOException
 	 */
 	private void mergePerDirectoryEntryAttributes(String entryPath,
-			boolean isDirectory,
+			int nameRoot, boolean isDirectory,
 			@Nullable WorkingTreeIterator workingTreeIterator,
 			@Nullable DirCacheIterator dirCacheIterator,
 			@Nullable CanonicalTreeParser otherTree, Attributes result)
@@ -228,9 +235,12 @@ public class AttributesHandler {
 			AttributesNode attributesNode = attributesNode(
 					treeWalk, workingTreeIterator, dirCacheIterator, otherTree);
 			if (attributesNode != null) {
-				mergeAttributes(attributesNode, entryPath, isDirectory, result);
+				mergeAttributes(attributesNode,
+						entryPath.substring(nameRoot + 1), isDirectory,
+						result);
 			}
-			mergePerDirectoryEntryAttributes(entryPath, isDirectory,
+			mergePerDirectoryEntryAttributes(entryPath,
+					entryPath.lastIndexOf('/', nameRoot - 1), isDirectory,
 					parentOf(workingTreeIterator), parentOf(dirCacheIterator),
 					parentOf(otherTree), result);
 		}
@@ -276,7 +286,10 @@ public class AttributesHandler {
 	}
 
 	/**
+	 * Expand a macro
+	 *
 	 * @param attr
+	 *            a {@link org.eclipse.jgit.attributes.Attribute}
 	 * @param result
 	 *            contains the (recursive) expanded and merged macro attributes
 	 *            including the attribute iself

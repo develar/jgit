@@ -250,23 +250,25 @@ class TextHashFunctions extends TextBuiltin {
 	//
 	//
 
-	@Option(name = "--hash", multiValued = true, metaVar = "NAME", usage = "Enable hash function(s)")
+	@Option(name = "--hash", metaVar = "NAME", usage = "Enable hash function(s)")
 	List<String> hashFunctions = new ArrayList<>();
 
-	@Option(name = "--fold", multiValued = true, metaVar = "NAME", usage = "Enable fold function(s)")
+	@Option(name = "--fold", metaVar = "NAME", usage = "Enable fold function(s)")
 	List<String> foldFunctions = new ArrayList<>();
 
 	@Option(name = "--text-limit", metaVar = "LIMIT", usage = "Maximum size in KiB to scan")
 	int textLimit = 15 * 1024; // 15 MiB as later we do * 1024.
 
-	@Option(name = "--repository", aliases = { "-r" }, multiValued = true, metaVar = "GIT_DIR", usage = "Repository to scan")
+	@Option(name = "--repository", aliases = { "-r" }, metaVar = "GIT_DIR", usage = "Repository to scan")
 	List<File> gitDirs = new ArrayList<>();
 
+	/** {@inheritDoc} */
 	@Override
 	protected boolean requiresRepository() {
 		return false;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	protected void run() throws Exception {
 		if (gitDirs.isEmpty()) {
@@ -286,11 +288,8 @@ class TextHashFunctions extends TextBuiltin {
 			else
 				rb.findGitDir(dir);
 
-			Repository repo = rb.build();
-			try {
+			try (Repository repo = rb.build()) {
 				run(repo);
-			} finally {
-				repo.close();
 			}
 		}
 	}
@@ -500,7 +499,7 @@ class TextHashFunctions extends TextBuiltin {
 		}
 	}
 
-	private static int tableBits(final int sz) {
+	private static int tableBits(int sz) {
 		int bits = 31 - Integer.numberOfLeadingZeros(sz);
 		if (bits == 0)
 			bits = 1;

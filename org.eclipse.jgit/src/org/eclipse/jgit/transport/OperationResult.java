@@ -107,7 +107,7 @@ public abstract class OperationResult {
 	 *            name of the ref to obtain.
 	 * @return the requested ref; null if the remote did not advertise this ref.
 	 */
-	public final Ref getAdvertisedRef(final String name) {
+	public final Ref getAdvertisedRef(String name) {
 		return advertisedRefs.get(name);
 	}
 
@@ -129,16 +129,16 @@ public abstract class OperationResult {
 	 * @return status of the local ref; null if this local ref was not touched
 	 *         during this operation.
 	 */
-	public TrackingRefUpdate getTrackingRefUpdate(final String localName) {
+	public TrackingRefUpdate getTrackingRefUpdate(String localName) {
 		return updates.get(localName);
 	}
 
-	void setAdvertisedRefs(final URIish u, final Map<String, Ref> ar) {
+	void setAdvertisedRefs(URIish u, Map<String, Ref> ar) {
 		uri = u;
 		advertisedRefs = ar;
 	}
 
-	void add(final TrackingRefUpdate u) {
+	void add(TrackingRefUpdate u) {
 		updates.put(u.getLocalName(), u);
 	}
 
@@ -158,7 +158,7 @@ public abstract class OperationResult {
 		return messageBuffer != null ? messageBuffer.toString() : ""; //$NON-NLS-1$
 	}
 
-	void addMessages(final String msg) {
+	void addMessages(String msg) {
 		if (msg != null && msg.length() > 0) {
 			if (messageBuffer == null)
 				messageBuffer = new StringBuilder();

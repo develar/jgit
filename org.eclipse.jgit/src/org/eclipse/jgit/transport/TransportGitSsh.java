@@ -141,12 +141,12 @@ public class TransportGitSsh extends SshTransport implements PackTransport {
 		}
 	};
 
-	TransportGitSsh(final Repository local, final URIish uri) {
+	TransportGitSsh(Repository local, URIish uri) {
 		super(local, uri);
 		initSshSessionFactory();
 	}
 
-	TransportGitSsh(final URIish uri) {
+	TransportGitSsh(URIish uri) {
 		super(uri);
 		initSshSessionFactory();
 	}
@@ -164,17 +164,19 @@ public class TransportGitSsh extends SshTransport implements PackTransport {
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public FetchConnection openFetch() throws TransportException {
 		return new SshFetchConnection();
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public PushConnection openPush() throws TransportException {
 		return new SshPushConnection();
 	}
 
-	String commandFor(final String exe) {
+	String commandFor(String exe) {
 		String path = uri.getPath();
 		if (uri.getScheme() != null && uri.getPath().startsWith("/~")) //$NON-NLS-1$
 			path = (uri.getPath().substring(1));
@@ -242,19 +244,23 @@ public class TransportGitSsh extends SshTransport implements PackTransport {
 				args.add(getURI().getHost());
 			args.add(command);
 
-			ProcessBuilder pb = new ProcessBuilder();
-			pb.command(args);
-
-			File directory = local.getDirectory();
-			if (directory != null)
-				pb.environment().put(Constants.GIT_DIR_KEY,
-						directory.getPath());
-
+			ProcessBuilder pb = createProcess(args);
 			try {
 				return pb.start();
 			} catch (IOException err) {
 				throw new TransportException(err.getMessage(), err);
 			}
+		}
+
+		private ProcessBuilder createProcess(List<String> args) {
+			ProcessBuilder pb = new ProcessBuilder();
+			pb.command(args);
+			File directory = local != null ? local.getDirectory() : null;
+			if (directory != null) {
+				pb.environment().put(Constants.GIT_DIR_KEY,
+						directory.getPath());
+			}
+			return pb;
 		}
 
 		@Override
@@ -285,7 +291,7 @@ public class TransportGitSsh extends SshTransport implements PackTransport {
 			} catch (TransportException err) {
 				close();
 				throw err;
-			} catch (IOException err) {
+			} catch (Throwable err) {
 				close();
 				throw new TransportException(uri,
 						JGitText.get().remoteHungUpUnexpectedly, err);
@@ -305,6 +311,9 @@ public class TransportGitSsh extends SshTransport implements PackTransport {
 		public void close() {
 			endOut();
 
+			if (process != null) {
+				process.destroy();
+			}
 			if (errorThread != null) {
 				try {
 					errorThread.halt();
@@ -316,8 +325,6 @@ public class TransportGitSsh extends SshTransport implements PackTransport {
 			}
 
 			super.close();
-			if (process != null)
-				process.destroy();
 		}
 	}
 
@@ -341,10 +348,18 @@ public class TransportGitSsh extends SshTransport implements PackTransport {
 				init(process.getInputStream(), process.getOutputStream());
 
 			} catch (TransportException err) {
-				close();
+				try {
+					close();
+				} catch (Exception e) {
+					// ignore
+				}
 				throw err;
-			} catch (IOException err) {
-				close();
+			} catch (Throwable err) {
+				try {
+					close();
+				} catch (Exception e) {
+					// ignore
+				}
 				throw new TransportException(uri,
 						JGitText.get().remoteHungUpUnexpectedly, err);
 			}
@@ -363,6 +378,9 @@ public class TransportGitSsh extends SshTransport implements PackTransport {
 		public void close() {
 			endOut();
 
+			if (process != null) {
+				process.destroy();
+			}
 			if (errorThread != null) {
 				try {
 					errorThread.halt();
@@ -374,8 +392,6 @@ public class TransportGitSsh extends SshTransport implements PackTransport {
 			}
 
 			super.close();
-			if (process != null)
-				process.destroy();
 		}
 	}
 }

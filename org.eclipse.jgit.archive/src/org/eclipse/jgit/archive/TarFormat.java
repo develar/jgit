@@ -42,6 +42,8 @@
  */
 package org.eclipse.jgit.archive;
 
+import static org.eclipse.jgit.lib.Constants.CHARACTER_ENCODING;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.text.MessageFormat;
@@ -70,6 +72,7 @@ public final class TarFormat extends BaseFormat implements
 	private static final List<String> SUFFIXES = Collections
 			.unmodifiableList(Arrays.asList(".tar")); //$NON-NLS-1$
 
+	/** {@inheritDoc} */
 	@Override
 	public ArchiveOutputStream createArchiveOutputStream(OutputStream s)
 			throws IOException {
@@ -77,29 +80,18 @@ public final class TarFormat extends BaseFormat implements
 				Collections.<String, Object> emptyMap());
 	}
 
-	/**
-	 * @since 4.0
-	 */
+	/** {@inheritDoc} */
 	@Override
 	public ArchiveOutputStream createArchiveOutputStream(OutputStream s,
 			Map<String, Object> o) throws IOException {
-		TarArchiveOutputStream out = new TarArchiveOutputStream(s, "UTF-8"); //$NON-NLS-1$
+		TarArchiveOutputStream out = new TarArchiveOutputStream(s,
+				CHARACTER_ENCODING);
 		out.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX);
 		out.setBigNumberMode(TarArchiveOutputStream.BIGNUMBER_POSIX);
 		return applyFormatOptions(out, o);
 	}
 
-	@Deprecated
-	@Override
-	public void putEntry(ArchiveOutputStream out,
-			String path, FileMode mode, ObjectLoader loader)
-			throws IOException {
-		putEntry(out, null, path, mode,loader);
-	}
-
-	/**
-	 * @since 4.7
-	 */
+	/** {@inheritDoc} */
 	@Override
 	public void putEntry(ArchiveOutputStream out,
 			ObjectId tree, String path, FileMode mode, ObjectLoader loader)
@@ -108,7 +100,7 @@ public final class TarFormat extends BaseFormat implements
 			final TarArchiveEntry entry = new TarArchiveEntry(
 					path, TarConstants.LF_SYMLINK);
 			entry.setLinkName(new String(
-					loader.getCachedBytes(100), "UTF-8")); //$NON-NLS-1$
+					loader.getCachedBytes(100), CHARACTER_ENCODING));
 			out.putArchiveEntry(entry);
 			out.closeArchiveEntry();
 			return;
@@ -150,16 +142,19 @@ public final class TarFormat extends BaseFormat implements
 		out.closeArchiveEntry();
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public Iterable<String> suffixes() {
 		return SUFFIXES;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean equals(Object other) {
 		return (other instanceof TarFormat);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public int hashCode() {
 		return getClass().hashCode();

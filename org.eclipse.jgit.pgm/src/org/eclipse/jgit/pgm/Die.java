@@ -45,7 +45,8 @@
 package org.eclipse.jgit.pgm;
 
 /**
- * Indicates a {@link TextBuiltin} implementation has failed during execution.
+ * Indicates a {@link org.eclipse.jgit.pgm.TextBuiltin} implementation has
+ * failed during execution.
  * <p>
  * Typically the stack trace for a Die exception is not shown to the user as it
  * may indicate a simple error condition that the end-user can fix on their own,
@@ -62,7 +63,7 @@ public class Die extends RuntimeException {
 	 * @param why
 	 *            the message to show to the end-user.
 	 */
-	public Die(final String why) {
+	public Die(String why) {
 		super(why);
 	}
 
@@ -74,7 +75,7 @@ public class Die extends RuntimeException {
 	 * @param cause
 	 *            why the command has failed.
 	 */
-	public Die(final String why, final Throwable cause) {
+	public Die(String why, Throwable cause) {
 		super(why, cause);
 	}
 
@@ -99,7 +100,7 @@ public class Die extends RuntimeException {
 	 *            can be null
 	 * @since 4.2
 	 */
-	public Die(boolean aborted, final Throwable cause) {
+	public Die(boolean aborted, Throwable cause) {
 		super(cause != null ? cause.getMessage() : null, cause);
 		this.aborted = aborted;
 	}

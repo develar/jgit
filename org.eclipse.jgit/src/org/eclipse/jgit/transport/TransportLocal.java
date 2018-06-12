@@ -162,22 +162,25 @@ class TransportLocal extends Transport implements PackTransport {
 		remoteGitDir = gitDir;
 	}
 
-	UploadPack createUploadPack(final Repository dst) {
+	UploadPack createUploadPack(Repository dst) {
 		return new UploadPack(dst);
 	}
 
-	ReceivePack createReceivePack(final Repository dst) {
+	ReceivePack createReceivePack(Repository dst) {
 		return new ReceivePack(dst);
 	}
 
 	private Repository openRepo() throws TransportException {
 		try {
-			return new RepositoryBuilder().setGitDir(remoteGitDir).build();
+			return new RepositoryBuilder()
+					.setFS(local != null ? local.getFS() : FS.DETECTED)
+					.setGitDir(remoteGitDir).build();
 		} catch (IOException err) {
 			throw new TransportException(uri, JGitText.get().notAGitDirectory);
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public FetchConnection openFetch() throws TransportException {
 		final String up = getOptionUploadPack();
@@ -194,6 +197,7 @@ class TransportLocal extends Transport implements PackTransport {
 		return new InternalFetchConnection<>(this, upf, null, openRepo());
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public PushConnection openPush() throws TransportException {
 		final String rp = getOptionReceivePack();
@@ -210,12 +214,22 @@ class TransportLocal extends Transport implements PackTransport {
 		return new InternalPushConnection<>(this, rpf, null, openRepo());
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void close() {
 		// Resources must be established per-connection.
 	}
 
-	protected Process spawn(final String cmd)
+	/**
+	 * Spawn process
+	 *
+	 * @param cmd
+	 *            command
+	 * @return a {@link java.lang.Process} object.
+	 * @throws org.eclipse.jgit.errors.TransportException
+	 *             if any.
+	 */
+	protected Process spawn(String cmd)
 			throws TransportException {
 		try {
 			String[] args = { "." }; //$NON-NLS-1$

@@ -91,10 +91,19 @@ public class SubmoduleUpdateCommand extends
 
 	private CloneCommand.Callback callback;
 
+	private FetchCommand.Callback fetchCallback;
+
+	private boolean fetch = false;
+
 	/**
+	 * <p>
+	 * Constructor for SubmoduleUpdateCommand.
+	 * </p>
+	 *
 	 * @param repo
+	 *            a {@link org.eclipse.jgit.lib.Repository} object.
 	 */
-	public SubmoduleUpdateCommand(final Repository repo) {
+	public SubmoduleUpdateCommand(Repository repo) {
 		super(repo);
 		paths = new ArrayList<>();
 	}
@@ -105,11 +114,26 @@ public class SubmoduleUpdateCommand extends
 	 *
 	 * @see NullProgressMonitor
 	 * @param monitor
+	 *            a {@link org.eclipse.jgit.lib.ProgressMonitor} object.
 	 * @return this command
 	 */
 	public SubmoduleUpdateCommand setProgressMonitor(
 			final ProgressMonitor monitor) {
 		this.monitor = monitor;
+		return this;
+	}
+
+	/**
+	 * Whether to fetch the submodules before we update them. By default, this
+	 * is set to <code>false</code>
+	 *
+	 * @param fetch
+	 *            whether to fetch the submodules before we update them
+	 * @return this command
+	 * @since 4.9
+	 */
+	public SubmoduleUpdateCommand setFetch(boolean fetch) {
+		this.fetch = fetch;
 		return this;
 	}
 
@@ -120,24 +144,47 @@ public class SubmoduleUpdateCommand extends
 	 *            (with <code>/</code> as separator)
 	 * @return this command
 	 */
-	public SubmoduleUpdateCommand addPath(final String path) {
+	public SubmoduleUpdateCommand addPath(String path) {
 		paths.add(path);
 		return this;
 	}
 
+	private Repository getOrCloneSubmodule(SubmoduleWalk generator, String url)
+			throws IOException, GitAPIException {
+		Repository repository = generator.getRepository();
+		if (repository == null) {
+			if (callback != null) {
+				callback.cloningSubmodule(generator.getPath());
+			}
+			CloneCommand clone = Git.cloneRepository();
+			configure(clone);
+			clone.setURI(url);
+			clone.setDirectory(generator.getDirectory());
+			clone.setGitDir(
+					new File(new File(repo.getDirectory(), Constants.MODULES),
+							generator.getPath()));
+			if (monitor != null) {
+				clone.setProgressMonitor(monitor);
+			}
+			repository = clone.call().getRepository();
+		} else if (this.fetch) {
+			if (fetchCallback != null) {
+				fetchCallback.fetchingSubmodule(generator.getPath());
+			}
+			FetchCommand fetchCommand = Git.wrap(repository).fetch();
+			if (monitor != null) {
+				fetchCommand.setProgressMonitor(monitor);
+			}
+			configure(fetchCommand);
+			fetchCommand.call();
+		}
+		return repository;
+	}
+
 	/**
-	 * Execute the SubmoduleUpdateCommand command.
+	 * {@inheritDoc}
 	 *
-	 * @return a collection of updated submodule paths
-	 * @throws ConcurrentRefUpdateException
-	 * @throws CheckoutConflictException
-	 * @throws InvalidMergeHeadsException
-	 * @throws InvalidConfigurationException
-	 * @throws NoHeadException
-	 * @throws NoMessageException
-	 * @throws RefNotFoundException
-	 * @throws WrongRepositoryStateException
-	 * @throws GitAPIException
+	 * Execute the SubmoduleUpdateCommand command.
 	 */
 	@Override
 	public Collection<String> call() throws InvalidConfigurationException,
@@ -160,24 +207,8 @@ public class SubmoduleUpdateCommand extends
 				if (url == null)
 					continue;
 
-				Repository submoduleRepo = generator.getRepository();
-				// Clone repository is not present
-				if (submoduleRepo == null) {
-					if (callback != null) {
-						callback.cloningSubmodule(generator.getPath());
-					}
-					CloneCommand clone = Git.cloneRepository();
-					configure(clone);
-					clone.setURI(url);
-					clone.setDirectory(generator.getDirectory());
-					clone.setGitDir(new File(new File(repo.getDirectory(),
-							Constants.MODULES), generator.getPath()));
-					if (monitor != null)
-						clone.setProgressMonitor(monitor);
-					submoduleRepo = clone.call().getRepository();
-				}
-
-				try (RevWalk walk = new RevWalk(submoduleRepo)) {
+				try (Repository submoduleRepo = getOrCloneSubmodule(generator,
+						url); RevWalk walk = new RevWalk(submoduleRepo)) {
 					RevCommit commit = walk
 							.parseCommit(generator.getObjectId());
 
@@ -201,6 +232,7 @@ public class SubmoduleUpdateCommand extends
 								submoduleRepo, submoduleRepo.lockDirCache(),
 								commit.getTree());
 						co.setFailOnConflict(true);
+						co.setProgressMonitor(monitor);
 						co.checkout();
 						RefUpdate refUpdate = submoduleRepo.updateRef(
 								Constants.HEAD, true);
@@ -211,8 +243,6 @@ public class SubmoduleUpdateCommand extends
 									generator.getPath());
 						}
 					}
-				} finally {
-					submoduleRepo.close();
 				}
 				updated.add(generator.getPath());
 			}
@@ -225,6 +255,8 @@ public class SubmoduleUpdateCommand extends
 	}
 
 	/**
+	 * Setter for the field <code>strategy</code>.
+	 *
 	 * @param strategy
 	 *            The merge strategy to use during this update operation.
 	 * @return {@code this}
@@ -245,6 +277,20 @@ public class SubmoduleUpdateCommand extends
 	 */
 	public SubmoduleUpdateCommand setCallback(CloneCommand.Callback callback) {
 		this.callback = callback;
+		return this;
+	}
+
+	/**
+	 * Set status callback for submodule fetch operation.
+	 *
+	 * @param callback
+	 *            the callback
+	 * @return {@code this}
+	 * @since 4.9
+	 */
+	public SubmoduleUpdateCommand setFetchCallback(
+			FetchCommand.Callback callback) {
+		this.fetchCallback = callback;
 		return this;
 	}
 }

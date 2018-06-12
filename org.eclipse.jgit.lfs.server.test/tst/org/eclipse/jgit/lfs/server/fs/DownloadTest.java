@@ -45,7 +45,6 @@ package org.eclipse.jgit.lfs.server.fs;
 import static org.apache.http.HttpStatus.SC_NOT_FOUND;
 import static org.apache.http.HttpStatus.SC_UNPROCESSABLE_ENTITY;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -56,9 +55,14 @@ import org.apache.http.client.ClientProtocolException;
 import org.eclipse.jgit.lfs.lib.AnyLongObjectId;
 import org.eclipse.jgit.lfs.test.LongObjectIdTestUtils;
 import org.eclipse.jgit.util.FileUtils;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 public class DownloadTest extends LfsServerTest {
+
+	@Rule
+	public ExpectedException exception = ExpectedException.none();
 
 	@Test
 	public void testDownload() throws Exception {
@@ -76,15 +80,12 @@ public class DownloadTest extends LfsServerTest {
 		String TEXT = "test";
 		String id = putContent(TEXT).name().substring(0, 60);
 		Path f = Paths.get(getTempDirectory().toString(), "download");
-		try {
-			getContent(id, f);
-			fail("expected RuntimeException");
-		} catch (RuntimeException e) {
-			String error = String.format(
-					"Invalid pathInfo '/%s' does not match '/{SHA-256}'", id);
-			assertEquals(formatErrorMessage(SC_UNPROCESSABLE_ENTITY, error),
-					e.getMessage());
-		}
+		String error = String.format(
+				"Invalid pathInfo: '/%s' does not match '/{SHA-256}'", id);
+		exception.expect(RuntimeException.class);
+		exception.expectMessage(
+				formatErrorMessage(SC_UNPROCESSABLE_ENTITY, error));
+		getContent(id, f);
 	}
 
 	@Test
@@ -93,14 +94,11 @@ public class DownloadTest extends LfsServerTest {
 		String TEXT = "test";
 		String id = putContent(TEXT).name().replace('f', 'z');
 		Path f = Paths.get(getTempDirectory().toString(), "download");
-		try {
-			getContent(id, f);
-			fail("expected RuntimeException");
-		} catch (RuntimeException e) {
-			String error = String.format("Invalid id: : %s", id);
-			assertEquals(formatErrorMessage(SC_UNPROCESSABLE_ENTITY, error),
-					e.getMessage());
-		}
+		String error = String.format("Invalid id: %s", id);
+		exception.expect(RuntimeException.class);
+		exception.expectMessage(
+				formatErrorMessage(SC_UNPROCESSABLE_ENTITY, error));
+		getContent(id, f);
 	}
 
 	@Test
@@ -109,14 +107,10 @@ public class DownloadTest extends LfsServerTest {
 		String TEXT = "test";
 		AnyLongObjectId id = LongObjectIdTestUtils.hash(TEXT);
 		Path f = Paths.get(getTempDirectory().toString(), "download");
-		try {
-			getContent(id, f);
-			fail("expected RuntimeException");
-		} catch (RuntimeException e) {
-			String error = String.format("Object '%s' not found", id.getName());
-			assertEquals(formatErrorMessage(SC_NOT_FOUND, error),
-					e.getMessage());
-		}
+		String error = String.format("Object '%s' not found", id.getName());
+		exception.expect(RuntimeException.class);
+		exception.expectMessage(formatErrorMessage(SC_NOT_FOUND, error));
+		getContent(id, f);
 	}
 
 	@SuppressWarnings("boxing")
@@ -129,7 +123,7 @@ public class DownloadTest extends LfsServerTest {
 		long start = System.nanoTime();
 		long len = getContent(id, f2);
 		System.out.println(
-				MessageFormat.format("dowloaded 10 MiB random data in {0}ms",
+				MessageFormat.format("downloaded 10 MiB random data in {0}ms",
 						(System.nanoTime() - start) / 1e6));
 		assertEquals(expectedLen, len);
 		FileUtils.delete(f.toFile(), FileUtils.RETRY);
@@ -138,7 +132,7 @@ public class DownloadTest extends LfsServerTest {
 
 	@SuppressWarnings("boxing")
 	private String formatErrorMessage(int status, String message) {
-		return String.format("Status: %d {\n  \"message\": \"%s\"\n}", status,
+		return String.format("Status: %d {\"message\":\"%s\"}", status,
 				message);
 	}
 }

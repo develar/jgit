@@ -45,6 +45,8 @@
 package org.eclipse.jgit.lib;
 
 import static java.lang.Integer.valueOf;
+import static org.eclipse.jgit.lib.Constants.CHARSET;
+import static org.eclipse.jgit.junit.JGitTestUtil.concat;
 import static org.eclipse.jgit.lib.Constants.OBJECT_ID_LENGTH;
 import static org.eclipse.jgit.lib.Constants.OBJ_BAD;
 import static org.eclipse.jgit.lib.Constants.OBJ_BLOB;
@@ -62,20 +64,61 @@ import static org.eclipse.jgit.lib.ObjectChecker.ErrorType.HAS_DOTGIT;
 import static org.eclipse.jgit.lib.ObjectChecker.ErrorType.NULL_SHA1;
 import static org.eclipse.jgit.lib.ObjectChecker.ErrorType.TREE_NOT_SORTED;
 import static org.eclipse.jgit.lib.ObjectChecker.ErrorType.ZERO_PADDED_FILEMODE;
+import static org.eclipse.jgit.util.RawParseUtils.decode;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.fail;
 
-import java.io.UnsupportedEncodingException;
 import java.text.MessageFormat;
 
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.internal.JGitText;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 public class ObjectCheckerTest {
+	private static final ObjectChecker SECRET_KEY_CHECKER = new ObjectChecker() {
+		@Override
+		public void checkBlob(byte[] raw) throws CorruptObjectException {
+			String in = decode(raw);
+			if (in.contains("secret_key")) {
+				throw new CorruptObjectException("don't add a secret key");
+			}
+		}
+	};
+
+	private static final ObjectChecker SECRET_KEY_BLOB_CHECKER = new ObjectChecker() {
+		@Override
+		public BlobObjectChecker newBlobObjectChecker() {
+			return new BlobObjectChecker() {
+				private boolean containSecretKey;
+
+				@Override
+				public void update(byte[] in, int offset, int len) {
+					String str = decode(in, offset, offset + len);
+					if (str.contains("secret_key")) {
+						containSecretKey = true;
+					}
+				}
+
+				@Override
+				public void endBlob(AnyObjectId id)
+						throws CorruptObjectException {
+					if (containSecretKey) {
+						throw new CorruptObjectException(
+								"don't add a secret key");
+					}
+				}
+			};
+		}
+	};
+
 	private ObjectChecker checker;
+
+	@Rule
+	public final ExpectedException thrown = ExpectedException.none();
 
 	@Before
 	public void setUp() throws Exception {
@@ -98,6 +141,32 @@ public class ObjectCheckerTest {
 
 		checker.check(OBJ_BLOB, new byte[0]);
 		checker.check(OBJ_BLOB, new byte[1]);
+	}
+
+	@Test
+	public void testCheckBlobNotCorrupt() throws CorruptObjectException {
+		SECRET_KEY_CHECKER.check(OBJ_BLOB, encodeASCII("key = \"public_key\""));
+	}
+
+	@Test
+	public void testCheckBlobCorrupt() throws CorruptObjectException {
+		thrown.expect(CorruptObjectException.class);
+		SECRET_KEY_CHECKER.check(OBJ_BLOB, encodeASCII("key = \"secret_key\""));
+	}
+
+	@Test
+	public void testCheckBlobWithBlobObjectCheckerNotCorrupt()
+			throws CorruptObjectException {
+		SECRET_KEY_BLOB_CHECKER.check(OBJ_BLOB,
+				encodeASCII("key = \"public_key\""));
+	}
+
+	@Test
+	public void testCheckBlobWithBlobObjectCheckerCorrupt()
+			throws CorruptObjectException {
+		thrown.expect(CorruptObjectException.class);
+		SECRET_KEY_BLOB_CHECKER.check(OBJ_BLOB,
+				encodeASCII("key = \"secret_key\""));
 	}
 
 	@Test
@@ -1054,20 +1123,7 @@ public class ObjectCheckerTest {
 		checker.checkTree(data);
 	}
 
-	private static byte[] concat(byte[]... b) {
-		int n = 0;
-		for (byte[] a : b) {
-			n += a.length;
-		}
 
-		byte[] data = new byte[n];
-		n = 0;
-		for (byte[] a : b) {
-			System.arraycopy(a, 0, data, n, a.length);
-			n += a.length;
-		}
-		return data;
-	}
 
 	@Test
 	public void testInvalidTreeNameIsMacHFSGitCorruptUTF8AtEnd()
@@ -1394,11 +1450,11 @@ public class ObjectCheckerTest {
 
 	@Test
 	public void testInvalidTreeDuplicateNames5()
-			throws UnsupportedEncodingException, CorruptObjectException {
+			throws CorruptObjectException {
 		StringBuilder b = new StringBuilder();
 		entry(b, "100644 A");
 		entry(b, "100644 a");
-		byte[] data = b.toString().getBytes("UTF-8");
+		byte[] data = b.toString().getBytes(CHARSET);
 		checker.setSafeForWindows(true);
 		assertCorrupt("duplicate entry names", OBJ_TREE, data);
 		assertSkipListAccepts(OBJ_TREE, data);
@@ -1408,11 +1464,11 @@ public class ObjectCheckerTest {
 
 	@Test
 	public void testInvalidTreeDuplicateNames6()
-			throws UnsupportedEncodingException, CorruptObjectException {
+			throws CorruptObjectException {
 		StringBuilder b = new StringBuilder();
 		entry(b, "100644 A");
 		entry(b, "100644 a");
-		byte[] data = b.toString().getBytes("UTF-8");
+		byte[] data = b.toString().getBytes(CHARSET);
 		checker.setSafeForMacOS(true);
 		assertCorrupt("duplicate entry names", OBJ_TREE, data);
 		assertSkipListAccepts(OBJ_TREE, data);
@@ -1422,11 +1478,11 @@ public class ObjectCheckerTest {
 
 	@Test
 	public void testInvalidTreeDuplicateNames7()
-			throws UnsupportedEncodingException, CorruptObjectException {
+			throws CorruptObjectException {
 		StringBuilder b = new StringBuilder();
 		entry(b, "100644 \u0065\u0301");
 		entry(b, "100644 \u00e9");
-		byte[] data = b.toString().getBytes("UTF-8");
+		byte[] data = b.toString().getBytes(CHARSET);
 		checker.setSafeForMacOS(true);
 		assertCorrupt("duplicate entry names", OBJ_TREE, data);
 		assertSkipListAccepts(OBJ_TREE, data);
@@ -1436,11 +1492,11 @@ public class ObjectCheckerTest {
 
 	@Test
 	public void testInvalidTreeDuplicateNames8()
-			throws UnsupportedEncodingException, CorruptObjectException {
+			throws CorruptObjectException {
 		StringBuilder b = new StringBuilder();
 		entry(b, "100644 A");
 		checker.setSafeForMacOS(true);
-		checker.checkTree(b.toString().getBytes("UTF-8"));
+		checker.checkTree(b.toString().getBytes(CHARSET));
 	}
 
 	@Test
@@ -1551,7 +1607,7 @@ public class ObjectCheckerTest {
 		checker.checkTree(encodeASCII(b.toString()));
 	}
 
-	private static void entry(StringBuilder b, final String modeName) {
+	private static void entry(StringBuilder b, String modeName) {
 		b.append(modeName);
 		b.append('\0');
 		for (int i = 0; i < OBJECT_ID_LENGTH; i++)
@@ -1591,7 +1647,7 @@ public class ObjectCheckerTest {
 		checker.setSkipList(null);
 	}
 
-	private static ObjectIdSet set(final ObjectId... ids) {
+	private static ObjectIdSet set(ObjectId... ids) {
 		return new ObjectIdSet() {
 			@Override
 			public boolean contains(AnyObjectId objectId) {

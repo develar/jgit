@@ -47,8 +47,6 @@
 
 package org.eclipse.jgit.transport;
 
-import static org.eclipse.jgit.lib.RefDatabase.ALL;
-
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -98,7 +96,7 @@ class BundleFetchConnection extends BaseFetchConnection {
 
 	private PackLock packLock;
 
-	BundleFetchConnection(Transport transportBundle, final InputStream src) throws TransportException {
+	BundleFetchConnection(Transport transportBundle, InputStream src) throws TransportException {
 		transport = transportBundle;
 		bin = new BufferedInputStream(src);
 		try {
@@ -155,12 +153,12 @@ class BundleFetchConnection extends BaseFetchConnection {
 		available(avail);
 	}
 
-	private PackProtocolException duplicateAdvertisement(final String name) {
+	private PackProtocolException duplicateAdvertisement(String name) {
 		return new PackProtocolException(transport.uri,
 				MessageFormat.format(JGitText.get().duplicateAdvertisementsOf, name));
 	}
 
-	private String readLine(final byte[] hdrbuf) throws IOException {
+	private String readLine(byte[] hdrbuf) throws IOException {
 		StringBuilder line = new StringBuilder();
 		boolean done = false;
 		while (!done) {
@@ -180,11 +178,13 @@ class BundleFetchConnection extends BaseFetchConnection {
 		return line.toString();
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean didFetchTestConnectivity() {
 		return false;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	protected void doFetch(final ProgressMonitor monitor,
 			final Collection<Ref> want, final Set<ObjectId> have)
@@ -208,11 +208,13 @@ class BundleFetchConnection extends BaseFetchConnection {
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public void setPackLockMessage(final String message) {
+	public void setPackLockMessage(String message) {
 		lockMessage = message;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public Collection<PackLock> getPackLocks() {
 		if (packLock != null)
@@ -224,13 +226,13 @@ class BundleFetchConnection extends BaseFetchConnection {
 		if (prereqs.isEmpty())
 			return;
 
-		try (final RevWalk rw = new RevWalk(transport.local)) {
+		try (RevWalk rw = new RevWalk(transport.local)) {
 			final RevFlag PREREQ = rw.newFlag("PREREQ"); //$NON-NLS-1$
 			final RevFlag SEEN = rw.newFlag("SEEN"); //$NON-NLS-1$
 
 			final Map<ObjectId, String> missing = new HashMap<>();
 			final List<RevObject> commits = new ArrayList<>();
-			for (final Map.Entry<ObjectId, String> e : prereqs.entrySet()) {
+			for (Map.Entry<ObjectId, String> e : prereqs.entrySet()) {
 				ObjectId p = e.getKey();
 				try {
 					final RevCommit c = rw.parseCommit(p);
@@ -250,13 +252,13 @@ class BundleFetchConnection extends BaseFetchConnection {
 				throw new MissingBundlePrerequisiteException(transport.uri,
 						missing);
 
-			Map<String, Ref> localRefs;
+			List<Ref> localRefs;
 			try {
-				localRefs = transport.local.getRefDatabase().getRefs(ALL);
+				localRefs = transport.local.getRefDatabase().getRefs();
 			} catch (IOException e) {
 				throw new TransportException(transport.uri, e.getMessage(), e);
 			}
-			for (final Ref r : localRefs.values()) {
+			for (Ref r : localRefs) {
 				try {
 					rw.markStart(rw.parseCommit(r.getObjectId()));
 				} catch (IOException readError) {
@@ -280,7 +282,7 @@ class BundleFetchConnection extends BaseFetchConnection {
 			}
 
 			if (remaining > 0) {
-				for (final RevObject o : commits) {
+				for (RevObject o : commits) {
 					if (!o.has(SEEN))
 						missing.put(o, prereqs.get(o));
 				}
@@ -290,6 +292,7 @@ class BundleFetchConnection extends BaseFetchConnection {
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void close() {
 		if (bin != null) {

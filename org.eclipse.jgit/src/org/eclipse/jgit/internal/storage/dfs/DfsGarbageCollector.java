@@ -50,13 +50,16 @@ import static org.eclipse.jgit.internal.storage.dfs.DfsObjDatabase.PackSource.GC
 import static org.eclipse.jgit.internal.storage.dfs.DfsObjDatabase.PackSource.INSERT;
 import static org.eclipse.jgit.internal.storage.dfs.DfsObjDatabase.PackSource.RECEIVE;
 import static org.eclipse.jgit.internal.storage.dfs.DfsObjDatabase.PackSource.UNREACHABLE_GARBAGE;
+import static org.eclipse.jgit.internal.storage.dfs.DfsPackCompactor.configureReftable;
 import static org.eclipse.jgit.internal.storage.pack.PackExt.BITMAP_INDEX;
 import static org.eclipse.jgit.internal.storage.pack.PackExt.INDEX;
 import static org.eclipse.jgit.internal.storage.pack.PackExt.PACK;
+import static org.eclipse.jgit.internal.storage.pack.PackExt.REFTABLE;
 import static org.eclipse.jgit.internal.storage.pack.PackWriter.NONE;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.EnumSet;
@@ -72,6 +75,9 @@ import org.eclipse.jgit.internal.storage.file.PackIndex;
 import org.eclipse.jgit.internal.storage.file.PackReverseIndex;
 import org.eclipse.jgit.internal.storage.pack.PackExt;
 import org.eclipse.jgit.internal.storage.pack.PackWriter;
+import org.eclipse.jgit.internal.storage.reftable.ReftableCompactor;
+import org.eclipse.jgit.internal.storage.reftable.ReftableConfig;
+import org.eclipse.jgit.internal.storage.reftable.ReftableWriter;
 import org.eclipse.jgit.internal.storage.reftree.RefTreeNames;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.Constants;
@@ -87,21 +93,26 @@ import org.eclipse.jgit.storage.pack.PackStatistics;
 import org.eclipse.jgit.util.SystemReader;
 import org.eclipse.jgit.util.io.CountingOutputStream;
 
-/** Repack and garbage collect a repository. */
+/**
+ * Repack and garbage collect a repository.
+ */
 public class DfsGarbageCollector {
 	private final DfsRepository repo;
 	private final RefDatabase refdb;
 	private final DfsObjDatabase objdb;
 
 	private final List<DfsPackDescription> newPackDesc;
-
 	private final List<PackStatistics> newPackStats;
-
 	private final List<ObjectIdSet> newPackObj;
 
 	private DfsReader ctx;
 
 	private PackConfig packConfig;
+	private ReftableConfig reftableConfig;
+	private boolean convertToReftable = true;
+	private boolean includeDeletes;
+	private long reftableInitialMinUpdateIndex = 1;
+	private long reftableInitialMaxUpdateIndex = 1;
 
 	// See packIsCoalesceableGarbage(), below, for how these two variables
 	// interact.
@@ -110,8 +121,10 @@ public class DfsGarbageCollector {
 
 	private long startTimeMillis;
 	private List<DfsPackFile> packsBefore;
+	private List<DfsReftable> reftablesBefore;
 	private List<DfsPackFile> expiredGarbagePacks;
 
+	private Collection<Ref> refsBefore;
 	private Set<ObjectId> allHeadsAndTags;
 	private Set<ObjectId> allTags;
 	private Set<ObjectId> nonHeads;
@@ -136,12 +149,18 @@ public class DfsGarbageCollector {
 		packConfig.setIndexVersion(2);
 	}
 
-	/** @return configuration used to generate the new pack file. */
+	/**
+	 * Get configuration used to generate the new pack file.
+	 *
+	 * @return configuration used to generate the new pack file.
+	 */
 	public PackConfig getPackConfig() {
 		return packConfig;
 	}
 
 	/**
+	 * Set the new configuration to use when creating the pack file.
+	 *
 	 * @param newConfig
 	 *            the new configuration to use when creating the pack file.
 	 * @return {@code this}
@@ -151,7 +170,88 @@ public class DfsGarbageCollector {
 		return this;
 	}
 
-	/** @return garbage packs smaller than this size will be repacked. */
+	/**
+	 * Set configuration to write a reftable.
+	 *
+	 * @param cfg
+	 *            configuration to write a reftable. Reftable writing is
+	 *            disabled (default) when {@code cfg} is {@code null}.
+	 * @return {@code this}
+	 */
+	public DfsGarbageCollector setReftableConfig(ReftableConfig cfg) {
+		reftableConfig = cfg;
+		return this;
+	}
+
+	/**
+	 * Whether the garbage collector should convert references to reftable.
+	 *
+	 * @param convert
+	 *            if {@code true}, {@link #setReftableConfig(ReftableConfig)}
+	 *            has been set non-null, and a GC reftable doesn't yet exist,
+	 *            the garbage collector will make one by scanning the existing
+	 *            references, and writing a new reftable. Default is
+	 *            {@code true}.
+	 * @return {@code this}
+	 */
+	public DfsGarbageCollector setConvertToReftable(boolean convert) {
+		convertToReftable = convert;
+		return this;
+	}
+
+	/**
+	 * Whether the garbage collector will include tombstones for deleted
+	 * references in the reftable.
+	 *
+	 * @param include
+	 *            if {@code true}, the garbage collector will include tombstones
+	 *            for deleted references in the reftable. Default is
+	 *            {@code false}.
+	 * @return {@code this}
+	 */
+	public DfsGarbageCollector setIncludeDeletes(boolean include) {
+		includeDeletes = include;
+		return this;
+	}
+
+	/**
+	 * Set minUpdateIndex for the initial reftable created during conversion.
+	 *
+	 * @param u
+	 *            minUpdateIndex for the initial reftable created by scanning
+	 *            {@link org.eclipse.jgit.internal.storage.dfs.DfsRefDatabase#getRefs(String)}.
+	 *            Ignored unless caller has also set
+	 *            {@link #setReftableConfig(ReftableConfig)}. Defaults to
+	 *            {@code 1}. Must be {@code u >= 0}.
+	 * @return {@code this}
+	 */
+	public DfsGarbageCollector setReftableInitialMinUpdateIndex(long u) {
+		reftableInitialMinUpdateIndex = Math.max(u, 0);
+		return this;
+	}
+
+	/**
+	 * Set maxUpdateIndex for the initial reftable created during conversion.
+	 *
+	 * @param u
+	 *            maxUpdateIndex for the initial reftable created by scanning
+	 *            {@link org.eclipse.jgit.internal.storage.dfs.DfsRefDatabase#getRefs(String)}.
+	 *            Ignored unless caller has also set
+	 *            {@link #setReftableConfig(ReftableConfig)}. Defaults to
+	 *            {@code 1}. Must be {@code u >= 0}.
+	 * @return {@code this}
+	 */
+	public DfsGarbageCollector setReftableInitialMaxUpdateIndex(long u) {
+		reftableInitialMaxUpdateIndex = Math.max(0, u);
+		return this;
+	}
+
+	/**
+	 * Get coalesce garbage limit
+	 *
+	 * @return coalesce garbage limit, packs smaller than this size will be
+	 *         repacked.
+	 */
 	public long getCoalesceGarbageLimit() {
 		return coalesceGarbageLimit;
 	}
@@ -168,7 +268,8 @@ public class DfsGarbageCollector {
 	 * reading and copying the objects.
 	 * <p>
 	 * If limit is set to 0 the UNREACHABLE_GARBAGE coalesce is disabled.<br>
-	 * If limit is set to {@link Long#MAX_VALUE}, everything is coalesced.
+	 * If limit is set to {@link java.lang.Long#MAX_VALUE}, everything is
+	 * coalesced.
 	 * <p>
 	 * Keeping unreachable garbage prevents race conditions with repository
 	 * changes that may suddenly need an object whose only copy was stored in
@@ -184,9 +285,11 @@ public class DfsGarbageCollector {
 	}
 
 	/**
+	 * Get time to live for garbage packs.
+	 *
 	 * @return garbage packs older than this limit (in milliseconds) will be
 	 *         pruned as part of the garbage collection process if the value is
-	 *         > 0, otherwise garbage packs are retained.
+	 *         &gt; 0, otherwise garbage packs are retained.
 	 */
 	public long getGarbageTtlMillis() {
 		return garbageTtlMillis;
@@ -224,7 +327,7 @@ public class DfsGarbageCollector {
 	 * @return true if the repack was successful without race conditions. False
 	 *         if a race condition was detected and the repack should be run
 	 *         again later.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             a new pack cannot be created.
 	 */
 	public boolean pack(ProgressMonitor pm) throws IOException {
@@ -240,8 +343,9 @@ public class DfsGarbageCollector {
 			refdb.refresh();
 			objdb.clearCache();
 
-			Collection<Ref> refsBefore = getAllRefs();
+			refsBefore = getAllRefs();
 			readPacksBefore();
+			readReftablesBefore();
 
 			Set<ObjectId> allHeads = new HashSet<>();
 			allHeadsAndTags = new HashSet<>();
@@ -274,6 +378,12 @@ public class DfsGarbageCollector {
 			// Hoist all branch tips and tags earlier in the pack file
 			tagTargets.addAll(allHeadsAndTags);
 
+			// Combine the GC_REST objects into the GC pack if requested
+			if (packConfig.getSinglePack()) {
+				allHeadsAndTags.addAll(nonHeads);
+				nonHeads.clear();
+			}
+
 			boolean rollback = true;
 			try {
 				packHeads(pm);
@@ -293,7 +403,7 @@ public class DfsGarbageCollector {
 	}
 
 	private Collection<Ref> getAllRefs() throws IOException {
-		Collection<Ref> refs = refdb.getRefs(RefDatabase.ALL).values();
+		Collection<Ref> refs = refdb.getRefs();
 		List<Ref> addl = refdb.getAdditionalRefs();
 		if (!addl.isEmpty()) {
 			List<Ref> all = new ArrayList<>(refs.size() + addl.size());
@@ -325,6 +435,11 @@ public class DfsGarbageCollector {
 				packsBefore.add(p);
 			}
 		}
+	}
+
+	private void readReftablesBefore() throws IOException {
+		DfsReftable[] tables = objdb.getReftables();
+		reftablesBefore = new ArrayList<>(Arrays.asList(tables));
 	}
 
 	private boolean packIsExpiredGarbage(DfsPackDescription d, long now) {
@@ -400,43 +515,66 @@ public class DfsGarbageCollector {
 		return cal.getTimeInMillis();
 	}
 
-	/** @return all of the source packs that fed into this compaction. */
-	public List<DfsPackDescription> getSourcePacks() {
+	/**
+	 * Get all of the source packs that fed into this compaction.
+	 *
+	 * @return all of the source packs that fed into this compaction.
+	 */
+	public Set<DfsPackDescription> getSourcePacks() {
 		return toPrune();
 	}
 
-	/** @return new packs created by this compaction. */
+	/**
+	 * Get new packs created by this compaction.
+	 *
+	 * @return new packs created by this compaction.
+	 */
 	public List<DfsPackDescription> getNewPacks() {
 		return newPackDesc;
 	}
 
-	/** @return statistics corresponding to the {@link #getNewPacks()}. */
+	/**
+	 * Get statistics corresponding to the {@link #getNewPacks()}.
+	 * <p>
+	 * The elements can be null if the stat is not available for the pack file.
+	 *
+	 * @return statistics corresponding to the {@link #getNewPacks()}.
+	 */
 	public List<PackStatistics> getNewPackStatistics() {
 		return newPackStats;
 	}
 
-	private List<DfsPackDescription> toPrune() {
-		int cnt = packsBefore.size();
-		List<DfsPackDescription> all = new ArrayList<>(cnt);
+	private Set<DfsPackDescription> toPrune() {
+		Set<DfsPackDescription> toPrune = new HashSet<>();
 		for (DfsPackFile pack : packsBefore) {
-			all.add(pack.getPackDescription());
+			toPrune.add(pack.getPackDescription());
+		}
+		if (reftableConfig != null) {
+			for (DfsReftable table : reftablesBefore) {
+				toPrune.add(table.getPackDescription());
+			}
 		}
 		for (DfsPackFile pack : expiredGarbagePacks) {
-			all.add(pack.getPackDescription());
+			toPrune.add(pack.getPackDescription());
 		}
-		return all;
+		return toPrune;
 	}
 
 	private void packHeads(ProgressMonitor pm) throws IOException {
-		if (allHeadsAndTags.isEmpty())
+		if (allHeadsAndTags.isEmpty()) {
+			writeReftable();
 			return;
+		}
 
 		try (PackWriter pw = newPackWriter()) {
 			pw.setTagTargets(tagTargets);
 			pw.preparePack(pm, allHeadsAndTags, NONE, NONE, allTags);
-			if (0 < pw.getObjectCount())
-				writePack(GC, pw, pm,
-						estimateGcPackSize(INSERT, RECEIVE, COMPACT, GC));
+			if (0 < pw.getObjectCount()) {
+				long estSize = estimateGcPackSize(INSERT, RECEIVE, COMPACT, GC);
+				writePack(GC, pw, pm, estSize);
+			} else {
+				writeReftable();
+			}
 		}
 	}
 
@@ -552,37 +690,99 @@ public class DfsGarbageCollector {
 			ProgressMonitor pm, long estimatedPackSize) throws IOException {
 		DfsPackDescription pack = repo.getObjectDatabase().newPack(source,
 				estimatedPackSize);
-		newPackDesc.add(pack);
+
+		if (source == GC && reftableConfig != null) {
+			writeReftable(pack);
+		}
 
 		try (DfsOutputStream out = objdb.writeFile(pack, PACK)) {
 			pw.writePack(pm, pm, out);
 			pack.addFileExt(PACK);
+			pack.setBlockSize(PACK, out.blockSize());
 		}
 
-		try (CountingOutputStream cnt =
-				new CountingOutputStream(objdb.writeFile(pack, INDEX))) {
+		try (DfsOutputStream out = objdb.writeFile(pack, INDEX)) {
+			CountingOutputStream cnt = new CountingOutputStream(out);
 			pw.writeIndex(cnt);
 			pack.addFileExt(INDEX);
 			pack.setFileSize(INDEX, cnt.getCount());
+			pack.setBlockSize(INDEX, out.blockSize());
 			pack.setIndexVersion(pw.getIndexVersion());
 		}
 
 		if (pw.prepareBitmapIndex(pm)) {
-			try (CountingOutputStream cnt = new CountingOutputStream(
-					objdb.writeFile(pack, BITMAP_INDEX))) {
+			try (DfsOutputStream out = objdb.writeFile(pack, BITMAP_INDEX)) {
+				CountingOutputStream cnt = new CountingOutputStream(out);
 				pw.writeBitmapIndex(cnt);
 				pack.addFileExt(BITMAP_INDEX);
 				pack.setFileSize(BITMAP_INDEX, cnt.getCount());
+				pack.setBlockSize(BITMAP_INDEX, out.blockSize());
 			}
 		}
 
 		PackStatistics stats = pw.getStatistics();
 		pack.setPackStats(stats);
 		pack.setLastModified(startTimeMillis);
+		newPackDesc.add(pack);
 		newPackStats.add(stats);
 		newPackObj.add(pw.getObjectSet());
-
-		DfsBlockCache.getInstance().getOrCreate(pack, null);
 		return pack;
+	}
+
+	private void writeReftable() throws IOException {
+		if (reftableConfig != null) {
+			DfsPackDescription pack = objdb.newPack(GC);
+			newPackDesc.add(pack);
+			newPackStats.add(null);
+			writeReftable(pack);
+		}
+	}
+
+	private void writeReftable(DfsPackDescription pack) throws IOException {
+		if (convertToReftable && !hasGcReftable()) {
+			writeReftable(pack, refsBefore);
+			return;
+		}
+
+		try (ReftableStack stack = ReftableStack.open(ctx, reftablesBefore)) {
+			ReftableCompactor compact = new ReftableCompactor();
+			compact.addAll(stack.readers());
+			compact.setIncludeDeletes(includeDeletes);
+			compactReftable(pack, compact);
+		}
+	}
+
+	private boolean hasGcReftable() {
+		for (DfsReftable table : reftablesBefore) {
+			if (table.getPackDescription().getPackSource() == GC) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private void writeReftable(DfsPackDescription pack, Collection<Ref> refs)
+			throws IOException {
+		try (DfsOutputStream out = objdb.writeFile(pack, REFTABLE)) {
+			ReftableConfig cfg = configureReftable(reftableConfig, out);
+			ReftableWriter writer = new ReftableWriter(cfg)
+					.setMinUpdateIndex(reftableInitialMinUpdateIndex)
+					.setMaxUpdateIndex(reftableInitialMaxUpdateIndex)
+					.begin(out)
+					.sortAndWriteRefs(refs)
+					.finish();
+			pack.addFileExt(REFTABLE);
+			pack.setReftableStats(writer.getStats());
+		}
+	}
+
+	private void compactReftable(DfsPackDescription pack,
+			ReftableCompactor compact) throws IOException {
+		try (DfsOutputStream out = objdb.writeFile(pack, REFTABLE)) {
+			compact.setConfig(configureReftable(reftableConfig, out));
+			compact.compact(out);
+			pack.addFileExt(REFTABLE);
+			pack.setReftableStats(compact.getStats());
+		}
 	}
 }

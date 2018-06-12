@@ -95,6 +95,7 @@ class RefDirectoryRename extends RefRename {
 		refdb = src.getRefDatabase();
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	protected Result doRename() throws IOException {
 		if (source.getRef().isSymbolic())
@@ -103,7 +104,7 @@ class RefDirectoryRename extends RefRename {
 		objId = source.getOldObjectId();
 		updateHEAD = needToUpdateHEAD();
 		tmp = refdb.newTemporaryUpdate();
-		try (final RevWalk rw = new RevWalk(refdb.getRepository())) {
+		try (RevWalk rw = new RevWalk(refdb.getRepository())) {
 			// First backup the source so its never unreachable.
 			tmp.setNewObjectId(objId);
 			tmp.setForceUpdate(true);
@@ -188,8 +189,8 @@ class RefDirectoryRename extends RefRename {
 	}
 
 	private boolean renameLog(RefUpdate src, RefUpdate dst) {
-		File srcLog = refdb.getLogWriter().logFor(src.getName());
-		File dstLog = refdb.getLogWriter().logFor(dst.getName());
+		File srcLog = refdb.logFor(src.getName());
+		File dstLog = refdb.logFor(dst.getName());
 
 		if (!srcLog.exists())
 			return true;

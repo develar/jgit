@@ -56,8 +56,9 @@ import org.eclipse.jgit.lib.ObjectStream;
  * Index structure of lines/blocks in one file.
  * <p>
  * This structure can be used to compute an approximation of the similarity
- * between two files. The index is used by {@link SimilarityRenameDetector} to
- * compute scores between files.
+ * between two files. The index is used by
+ * {@link org.eclipse.jgit.diff.SimilarityRenameDetector} to compute scores
+ * between files.
  * <p>
  * To save space in memory, this index uses a space efficient encoding which
  * will not exceed 1 MiB per instance. The index starts out at a smaller size
@@ -114,9 +115,9 @@ public class SimilarityIndex {
 	 * @param obj
 	 *            the object to hash
 	 * @return similarity index for this object
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             file contents cannot be read from the repository.
-	 * @throws TableFullException
+	 * @throws org.eclipse.jgit.diff.SimilarityIndex.TableFullException
 	 *             object hashing overflowed the storage capacity of the
 	 *             SimilarityIndex.
 	 */
@@ -146,23 +147,17 @@ public class SimilarityIndex {
 
 	private void hashLargeObject(ObjectLoader obj) throws IOException,
 			TableFullException {
-		ObjectStream in1 = obj.openStream();
 		boolean text;
-		try {
+		try (ObjectStream in1 = obj.openStream()) {
 			text = !RawText.isBinary(in1);
-		} finally {
-			in1.close();
 		}
 
-		ObjectStream in2 = obj.openStream();
-		try {
+		try (ObjectStream in2 = obj.openStream()) {
 			hash(in2, in2.getSize(), text);
-		} finally {
-			in2.close();
 		}
 	}
 
-	void hash(byte[] raw, int ptr, final int end) throws TableFullException {
+	void hash(byte[] raw, int ptr, int end) throws TableFullException {
 		final boolean text = !RawText.isBinary(raw);
 		hashedCnt = 0;
 		while (ptr < end) {

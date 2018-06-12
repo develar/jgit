@@ -77,7 +77,7 @@ class Push extends TextBuiltin {
 	private String remote = Constants.DEFAULT_REMOTE_NAME;
 
 	@Argument(index = 1, metaVar = "metaVar_refspec")
-	private final List<RefSpec> refSpecs = new ArrayList<>();
+	private List<RefSpec> refSpecs = new ArrayList<>();
 
 	@Option(name = "--all")
 	private boolean all;
@@ -113,6 +113,7 @@ class Push extends TextBuiltin {
 
 	private boolean shownURI;
 
+	/** {@inheritDoc} */
 	@Override
 	protected void run() throws Exception {
 		try (Git git = new Git(db)) {
@@ -148,7 +149,7 @@ class Push extends TextBuiltin {
 		boolean everythingUpToDate = true;
 
 		// at first, print up-to-date ones...
-		for (final RemoteRefUpdate rru : result.getRemoteUpdates()) {
+		for (RemoteRefUpdate rru : result.getRemoteUpdates()) {
 			if (rru.getStatus() == Status.UP_TO_DATE) {
 				if (verbose)
 					printRefUpdateResult(reader, uri, result, rru);
@@ -156,13 +157,13 @@ class Push extends TextBuiltin {
 				everythingUpToDate = false;
 		}
 
-		for (final RemoteRefUpdate rru : result.getRemoteUpdates()) {
+		for (RemoteRefUpdate rru : result.getRemoteUpdates()) {
 			// ...then successful updates...
 			if (rru.getStatus() == Status.OK)
 				printRefUpdateResult(reader, uri, result, rru);
 		}
 
-		for (final RemoteRefUpdate rru : result.getRemoteUpdates()) {
+		for (RemoteRefUpdate rru : result.getRemoteUpdates()) {
 			// ...finally, others (problematic)
 			if (rru.getStatus() != Status.OK
 					&& rru.getStatus() != Status.UP_TO_DATE)

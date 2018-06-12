@@ -84,7 +84,7 @@ final class FileSender {
 
 	private long end;
 
-	FileSender(final File path) throws FileNotFoundException {
+	FileSender(File path) throws FileNotFoundException {
 		this.path = path;
 		this.source = new RandomAccessFile(path, "r");
 
@@ -137,8 +137,7 @@ final class FileSender {
 		rsp.setHeader(HDR_CONTENT_LENGTH, Long.toString(end - pos));
 
 		if (sendBody) {
-			final OutputStream out = rsp.getOutputStream();
-			try {
+			try (OutputStream out = rsp.getOutputStream()) {
 				final byte[] buf = new byte[4096];
 				source.seek(pos);
 				while (pos < end) {
@@ -151,8 +150,6 @@ final class FileSender {
 					pos += n;
 				}
 				out.flush();
-			} finally {
-				out.close();
 			}
 		}
 	}
@@ -220,7 +217,7 @@ final class FileSender {
 		return true;
 	}
 
-	private static Enumeration<String> getRange(final HttpServletRequest req) {
+	private static Enumeration<String> getRange(HttpServletRequest req) {
 		return req.getHeaders(HDR_RANGE);
 	}
 }

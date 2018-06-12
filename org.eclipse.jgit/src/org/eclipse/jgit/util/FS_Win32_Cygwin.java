@@ -43,6 +43,8 @@
 
 package org.eclipse.jgit.util;
 
+import static org.eclipse.jgit.lib.Constants.CHARSET;
+
 import java.io.File;
 import java.io.PrintStream;
 import java.nio.file.Files;
@@ -72,6 +74,8 @@ public class FS_Win32_Cygwin extends FS_Win32 {
 	private static String cygpath;
 
 	/**
+	 * Whether cygwin is found
+	 *
 	 * @return true if cygwin is found
 	 */
 	public static boolean isCygwin() {
@@ -107,20 +111,22 @@ public class FS_Win32_Cygwin extends FS_Win32 {
 		super(src);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public FS newInstance() {
 		return new FS_Win32_Cygwin(this);
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public File resolve(final File dir, final String pn) {
+	public File resolve(File dir, String pn) {
 		String useCygPath = System.getProperty("jgit.usecygpath"); //$NON-NLS-1$
 		if (useCygPath != null && useCygPath.equals("true")) { //$NON-NLS-1$
 			String w;
 			try {
 				w = readPipe(dir, //
 					new String[] { cygpath, "--windows", "--absolute", pn }, // //$NON-NLS-1$ //$NON-NLS-2$
-					"UTF-8"); //$NON-NLS-1$
+					CHARSET.name());
 			} catch (CommandFailedException e) {
 				LOG.warn(e.getMessage());
 				return null;
@@ -132,6 +138,7 @@ public class FS_Win32_Cygwin extends FS_Win32 {
 		return super.resolve(dir, pn);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	protected File userHomeImpl() {
 		final String home = AccessController
@@ -146,6 +153,7 @@ public class FS_Win32_Cygwin extends FS_Win32 {
 		return resolve(new File("."), home); //$NON-NLS-1$
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public ProcessBuilder runInShell(String cmd, String[] args) {
 		List<String> argv = new ArrayList<>(4 + args.length);
@@ -159,18 +167,14 @@ public class FS_Win32_Cygwin extends FS_Win32 {
 		return proc;
 	}
 
-	/**
-	 * @since 3.7
-	 */
+	/** {@inheritDoc} */
 	@Override
 	public String relativize(String base, String other) {
 		final String relativized = super.relativize(base, other);
 		return relativized.replace(File.separatorChar, '/');
 	}
 
-	/**
-	 * @since 4.0
-	 */
+	/** {@inheritDoc} */
 	@Override
 	public ProcessResult runHookIfPresent(Repository repository, String hookName,
 			String[] args, PrintStream outRedirect, PrintStream errRedirect,
@@ -179,9 +183,7 @@ public class FS_Win32_Cygwin extends FS_Win32 {
 				errRedirect, stdinArgs);
 	}
 
-	/**
-	 * @since 3.7
-	 */
+	/** {@inheritDoc} */
 	@Override
 	public File findHook(Repository repository, String hookName) {
 		final File gitdir = repository.getDirectory();

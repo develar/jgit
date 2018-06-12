@@ -103,22 +103,24 @@ class PackIndexV1 extends PackIndex {
 		IO.readFully(fd, packChecksum, 0, packChecksum.length);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public long getObjectCount() {
 		return objectCnt;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public long getOffset64Count() {
 		long n64 = 0;
-		for (final MutableEntry e : this) {
+		for (MutableEntry e : this) {
 			if (e.getOffset() >= Integer.MAX_VALUE)
 				n64++;
 		}
 		return n64;
 	}
 
-	private int findLevelOne(final long nthPosition) {
+	private int findLevelOne(long nthPosition) {
 		int levelOne = Arrays.binarySearch(idxHeader, nthPosition + 1);
 		if (levelOne >= 0) {
 			// If we hit the bucket exactly the item is in the bucket, or
@@ -135,13 +137,14 @@ class PackIndexV1 extends PackIndex {
 		return levelOne;
 	}
 
-	private int getLevelTwo(final long nthPosition, final int levelOne) {
+	private int getLevelTwo(long nthPosition, int levelOne) {
 		final long base = levelOne > 0 ? idxHeader[levelOne - 1] : 0;
 		return (int) (nthPosition - base);
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public ObjectId getObjectId(final long nthPosition) {
+	public ObjectId getObjectId(long nthPosition) {
 		final int levelOne = findLevelOne(nthPosition);
 		final int p = getLevelTwo(nthPosition, levelOne);
 		final int dataIdx = idOffset(p);
@@ -156,8 +159,9 @@ class PackIndexV1 extends PackIndex {
 		return NB.decodeUInt32(idxdata[levelOne], p);
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public long findOffset(final AnyObjectId objId) {
+	public long findOffset(AnyObjectId objId) {
 		final int levelOne = objId.getFirstByte();
 		byte[] data = idxdata[levelOne];
 		if (data == null)
@@ -182,21 +186,25 @@ class PackIndexV1 extends PackIndex {
 		return -1;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public long findCRC32(AnyObjectId objId) {
 		throw new UnsupportedOperationException();
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean hasCRC32Support() {
 		return false;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public Iterator<MutableEntry> iterator() {
 		return new IndexV1Iterator();
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void resolve(Set<ObjectId> matches, AbbreviatedObjectId id,
 			int matchLimit) throws IOException {

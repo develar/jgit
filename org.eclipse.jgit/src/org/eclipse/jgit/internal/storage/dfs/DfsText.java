@@ -46,18 +46,22 @@ package org.eclipse.jgit.internal.storage.dfs;
 import org.eclipse.jgit.nls.NLS;
 import org.eclipse.jgit.nls.TranslationBundle;
 
-/** Translation bundle for the DFS storage implementation. */
+/**
+ * Translation bundle for the DFS storage implementation.
+ */
 public class DfsText extends TranslationBundle {
-	/** @return instance of this translation bundle */
+	/**
+	 * Get an instance of this translation bundle.
+	 *
+	 * @return instance of this translation bundle.
+	 */
 	public static DfsText get() {
 		return NLS.getBundleFor(DfsText.class);
 	}
 
 	// @formatter:off
 	/***/ public String cannotReadIndex;
-	/***/ public String cannotReadBackDelta;
 	/***/ public String shortReadOfBlock;
 	/***/ public String shortReadOfIndex;
-	/***/ public String unexpectedEofInPack;
 	/***/ public String willNotStoreEmptyPack;
 }

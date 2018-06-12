@@ -77,7 +77,7 @@ class ByteArraySet {
 		initTable(1 << Integer.highestOneBit((capacity * 2) - 1));
 	}
 
-	private byte[] get(final byte[] toFind, int length, int hash) {
+	private byte[] get(byte[] toFind, int length, int hash) {
 		final int msk = mask;
 		int i = hash & msk;
 		final byte[][] tbl = table;
@@ -112,7 +112,7 @@ class ByteArraySet {
 	 *            pre-computed hash of toFind
 	 * @return true if the mapping exists for this byte array; false otherwise.
 	 */
-	boolean contains(final byte[] toFind, int length, int hash) {
+	boolean contains(byte[] toFind, int length, int hash) {
 		return get(toFind, length, hash) != null;
 	}
 
@@ -180,7 +180,7 @@ class ByteArraySet {
 		return size == 0;
 	}
 
-	private void insert(final byte[] newValue, int hash) {
+	private void insert(byte[] newValue, int hash) {
 		final int msk = mask;
 		int j = hash & msk;
 		final byte[][] tbl = table;
@@ -213,6 +213,7 @@ class ByteArraySet {
 		table = new byte[sz][];
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public String toString() {
 		StringBuilder sb = new StringBuilder();

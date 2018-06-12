@@ -86,7 +86,7 @@ public class UnpackedObject {
 	 *            expected ObjectId of the object, used only for error reporting
 	 *            in exceptions.
 	 * @return loader to read the inflated contents.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the object cannot be parsed.
 	 */
 	public static ObjectLoader parse(byte[] raw, AnyObjectId id)
@@ -266,7 +266,7 @@ public class UnpackedObject {
 		}
 	}
 
-	static boolean isStandardFormat(final byte[] hdr) {
+	static boolean isStandardFormat(byte[] hdr) {
 		/*
 		 * We must determine if the buffer contains the standard
 		 * zlib-deflated stream or the experimental format based

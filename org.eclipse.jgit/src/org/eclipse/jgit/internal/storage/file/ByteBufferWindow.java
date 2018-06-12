@@ -60,13 +60,14 @@ import org.eclipse.jgit.internal.storage.pack.PackOutputStream;
 final class ByteBufferWindow extends ByteWindow {
 	private final ByteBuffer buffer;
 
-	ByteBufferWindow(final PackFile pack, final long o, final ByteBuffer b) {
+	ByteBufferWindow(PackFile pack, long o, ByteBuffer b) {
 		super(pack, o, b.capacity());
 		buffer = b;
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	protected int copy(final int p, final byte[] b, final int o, int n) {
+	protected int copy(int p, byte[] b, int o, int n) {
 		final ByteBuffer s = buffer.slice();
 		s.position(p);
 		n = Math.min(s.remaining(), n);
@@ -89,8 +90,9 @@ final class ByteBufferWindow extends ByteWindow {
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	protected int setInput(final int pos, final Inflater inf)
+	protected int setInput(int pos, Inflater inf)
 			throws DataFormatException {
 		final ByteBuffer s = buffer.slice();
 		s.position(pos);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012, GitHub Inc.
+ * Copyright (C) 2012, 2017 GitHub Inc.
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -42,8 +42,13 @@
  */
 package org.eclipse.jgit.api;
 
+import static org.eclipse.jgit.treewalk.TreeWalk.OperationType.CHECKOUT_OP;
+
 import java.io.IOException;
 import java.text.MessageFormat;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.InvalidRefNameException;
@@ -58,6 +63,7 @@ import org.eclipse.jgit.dircache.DirCacheCheckout.CheckoutMetadata;
 import org.eclipse.jgit.dircache.DirCacheEntry;
 import org.eclipse.jgit.dircache.DirCacheIterator;
 import org.eclipse.jgit.errors.CheckoutConflictException;
+import org.eclipse.jgit.events.WorkingTreeModifiedEvent;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.CoreConfig.EolStreamType;
@@ -82,7 +88,6 @@ import org.eclipse.jgit.treewalk.TreeWalk;
  *
  * @see <a href="http://www.kernel.org/pub/software/scm/git/docs/git-stash.html"
  *      >Git documentation about Stash</a>
- *
  * @since 2.0
  */
 public class StashApplyCommand extends GitCommand<ObjectId> {
@@ -103,8 +108,10 @@ public class StashApplyCommand extends GitCommand<ObjectId> {
 	 * Create command to apply the changes of a stashed commit
 	 *
 	 * @param repo
+	 *            the {@link org.eclipse.jgit.lib.Repository} to apply the stash
+	 *            to
 	 */
-	public StashApplyCommand(final Repository repo) {
+	public StashApplyCommand(Repository repo) {
 		super(repo);
 	}
 
@@ -115,15 +122,19 @@ public class StashApplyCommand extends GitCommand<ObjectId> {
 	 * unspecified
 	 *
 	 * @param stashRef
+	 *            name of the stash {@code Ref} to apply
 	 * @return {@code this}
 	 */
-	public StashApplyCommand setStashRef(final String stashRef) {
+	public StashApplyCommand setStashRef(String stashRef) {
 		this.stashRef = stashRef;
 		return this;
 	}
 
 	/**
+	 * Whether to ignore the repository state when applying the stash
+	 *
 	 * @param willIgnoreRepositoryState
+	 *            whether to ignore the repository state when applying the stash
 	 * @return {@code this}
 	 * @since 3.2
 	 */
@@ -148,14 +159,9 @@ public class StashApplyCommand extends GitCommand<ObjectId> {
 	}
 
 	/**
+	 * {@inheritDoc}
+	 * <p>
 	 * Apply the changes in a stashed commit to the working directory and index
-	 *
-	 * @return id of stashed commit that was applied TODO: Does anyone depend on
-	 *         this, or could we make it more like Merge/CherryPick/Revert?
-	 * @throws GitAPIException
-	 * @throws WrongRepositoryStateException
-	 * @throws NoHeadException
-	 * @throws StashApplyFailureException
 	 */
 	@Override
 	public ObjectId call() throws GitAPIException,
@@ -198,7 +204,13 @@ public class StashApplyCommand extends GitCommand<ObjectId> {
 					"stash" }); //$NON-NLS-1$
 			merger.setBase(stashHeadCommit);
 			merger.setWorkingTreeIterator(new FileTreeIterator(repo));
-			if (merger.merge(headCommit, stashCommit)) {
+			boolean mergeSucceeded = merger.merge(headCommit, stashCommit);
+			List<String> modifiedByMerge = merger.getModifiedFiles();
+			if (!modifiedByMerge.isEmpty()) {
+				repo.fireEvent(
+						new WorkingTreeModifiedEvent(modifiedByMerge, null));
+			}
+			if (mergeSucceeded) {
 				DirCache dc = repo.lockDirCache();
 				DirCacheCheckout dco = new DirCacheCheckout(repo, headTree,
 						dc, merger.getResultTreeId());
@@ -261,6 +273,8 @@ public class StashApplyCommand extends GitCommand<ObjectId> {
 	}
 
 	/**
+	 * Whether to restore the index state
+	 *
 	 * @param applyIndex
 	 *            true (default) if the command should restore the index state
 	 */
@@ -269,6 +283,8 @@ public class StashApplyCommand extends GitCommand<ObjectId> {
 	}
 
 	/**
+	 * Set the <code>MergeStrategy</code> to use.
+	 *
 	 * @param strategy
 	 *            The merge strategy to use in order to merge during this
 	 *            command execution.
@@ -281,6 +297,8 @@ public class StashApplyCommand extends GitCommand<ObjectId> {
 	}
 
 	/**
+	 * Whether the command should restore untracked files
+	 *
 	 * @param applyUntracked
 	 *            true (default) if the command should restore untracked files
 	 * @since 3.4
@@ -329,6 +347,7 @@ public class StashApplyCommand extends GitCommand<ObjectId> {
 
 	private void resetUntracked(RevTree tree) throws CheckoutConflictException,
 			IOException {
+		Set<String> actuallyModifiedPaths = new HashSet<>();
 		// TODO maybe NameConflictTreeWalk ?
 		try (TreeWalk walk = new TreeWalk(repo)) {
 			walk.addTree(tree);
@@ -344,7 +363,8 @@ public class StashApplyCommand extends GitCommand<ObjectId> {
 					// Not in commit, don't create untracked
 					continue;
 
-				final EolStreamType eolStreamType = walk.getEolStreamType();
+				final EolStreamType eolStreamType = walk
+						.getEolStreamType(CHECKOUT_OP);
 				final DirCacheEntry entry = new DirCacheEntry(walk.getRawPath());
 				entry.setFileMode(cIter.getEntryFileMode());
 				entry.setObjectIdFromRaw(cIter.idBuffer(), cIter.idOffset());
@@ -361,6 +381,12 @@ public class StashApplyCommand extends GitCommand<ObjectId> {
 
 				checkoutPath(entry, reader,
 						new CheckoutMetadata(eolStreamType, null));
+				actuallyModifiedPaths.add(entry.getPathString());
+			}
+		} finally {
+			if (!actuallyModifiedPaths.isEmpty()) {
+				repo.fireEvent(new WorkingTreeModifiedEvent(
+						actuallyModifiedPaths, null));
 			}
 		}
 	}

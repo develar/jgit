@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2008, Google Inc.
  * Copyright (C) 2008, Robin Rosenberg <robin.rosenberg@dewire.com>
- * Copyright (C) 2006-2012, Shawn O. Pearce <spearce@spearce.org>
+ * Copyright (C) 2006-2017, Shawn O. Pearce <spearce@spearce.org>
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -45,6 +45,8 @@
 
 package org.eclipse.jgit.lib;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.security.MessageDigest;
@@ -55,7 +57,9 @@ import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.util.MutableInteger;
 
-/** Misc. constants used throughout JGit. */
+/**
+ * Misc. constants used throughout JGit.
+ */
 @SuppressWarnings("nls")
 public final class Constants {
 	/** Hash function used natively by Git for all objects. */
@@ -224,10 +228,10 @@ public final class Constants {
 	public static final byte[] PACK_SIGNATURE = { 'P', 'A', 'C', 'K' };
 
 	/** Native character encoding for commit messages, file names... */
-	public static final String CHARACTER_ENCODING = "UTF-8";
+	public static final Charset CHARSET;
 
 	/** Native character encoding for commit messages, file names... */
-	public static final Charset CHARSET;
+	public static final String CHARACTER_ENCODING;
 
 	/** Default main branch name */
 	public static final String MASTER = "master";
@@ -429,10 +433,31 @@ public final class Constants {
 	public static final String HOOKS = "hooks";
 
 	/**
+	 * Merge attribute.
+	 *
+	 * @since 4.9
+	 */
+	public static final String ATTR_MERGE = "merge"; //$NON-NLS-1$
+
+	/**
+	 * Diff attribute.
+	 *
+	 * @since 4.11
+	 */
+	public static final String ATTR_DIFF = "diff"; //$NON-NLS-1$
+
+	/**
+	 * Binary value for custom merger.
+	 *
+	 * @since 4.9
+	 */
+	public static final String ATTR_BUILTIN_BINARY_MERGER = "binary"; //$NON-NLS-1$
+
+	/**
 	 * Create a new digest function for objects.
 	 *
 	 * @return a new digest object.
-	 * @throws RuntimeException
+	 * @throws java.lang.RuntimeException
 	 *             this Java virtual machine does not support the required hash
 	 *             function. Very unlikely given that JGit uses a hash function
 	 *             that is in the Java reference specification.
@@ -452,7 +477,7 @@ public final class Constants {
 	 * @param typeCode the type code, from a pack representation.
 	 * @return the canonical string name of this type.
 	 */
-	public static String typeString(final int typeCode) {
+	public static String typeString(int typeCode) {
 		switch (typeCode) {
 		case OBJ_COMMIT:
 			return TYPE_COMMIT;
@@ -477,7 +502,7 @@ public final class Constants {
 	 * @param typeCode the type code, from a pack representation.
 	 * @return the canonical ASCII encoded name of this type.
 	 */
-	public static byte[] encodedTypeString(final int typeCode) {
+	public static byte[] encodedTypeString(int typeCode) {
 		switch (typeCode) {
 		case OBJ_COMMIT:
 			return ENCODED_TYPE_COMMIT;
@@ -510,7 +535,7 @@ public final class Constants {
 	 *            <code>endMark</code> when the parse is successful.
 	 * @return a type code constant (one of {@link #OBJ_BLOB},
 	 *         {@link #OBJ_COMMIT}, {@link #OBJ_TAG}, {@link #OBJ_TREE}.
-	 * @throws CorruptObjectException
+	 * @throws org.eclipse.jgit.errors.CorruptObjectException
 	 *             there is no valid type identified by <code>typeString</code>.
 	 */
 	public static int decodeTypeString(final AnyObjectId id,
@@ -576,7 +601,7 @@ public final class Constants {
 	 * @return a decimal representation of the input integer. The returned array
 	 *         is the smallest array that will hold the value.
 	 */
-	public static byte[] encodeASCII(final long s) {
+	public static byte[] encodeASCII(long s) {
 		return encodeASCII(Long.toString(s));
 	}
 
@@ -588,11 +613,11 @@ public final class Constants {
 	 *            127 (outside of 7-bit ASCII).
 	 * @return a byte array of the same length as the input string, holding the
 	 *         same characters, in the same order.
-	 * @throws IllegalArgumentException
+	 * @throws java.lang.IllegalArgumentException
 	 *             the input string contains one or more characters outside of
 	 *             the 7-bit ASCII character space.
 	 */
-	public static byte[] encodeASCII(final String s) {
+	public static byte[] encodeASCII(String s) {
 		final byte[] r = new byte[s.length()];
 		for (int k = r.length - 1; k >= 0; k--) {
 			final char c = s.charAt(k);
@@ -612,7 +637,7 @@ public final class Constants {
 	 *         default character encoding (UTF-8).
 	 * @see #CHARACTER_ENCODING
 	 */
-	public static byte[] encode(final String str) {
+	public static byte[] encode(String str) {
 		final ByteBuffer bb = Constants.CHARSET.encode(str);
 		final int len = bb.limit();
 		if (bb.hasArray() && bb.arrayOffset() == 0) {
@@ -629,7 +654,8 @@ public final class Constants {
 	static {
 		if (OBJECT_ID_LENGTH != newMessageDigest().getDigestLength())
 			throw new LinkageError(JGitText.get().incorrectOBJECT_ID_LENGTH);
-		CHARSET = Charset.forName(CHARACTER_ENCODING);
+		CHARSET = UTF_8;
+		CHARACTER_ENCODING = CHARSET.name();
 	}
 
 	/** name of the file containing the commit msg for a merge commit */
@@ -664,6 +690,13 @@ public final class Constants {
 	/** objectid for the empty blob */
 	public static final ObjectId EMPTY_BLOB_ID = ObjectId
 			.fromString("e69de29bb2d1d6434b8b29ae775ad8c2e48c5391");
+
+	/**
+	 * Suffix of lock file name
+	 *
+	 * @since 5.0
+	 */
+	public static final String LOCK_SUFFIX = ".lock"; //$NON-NLS-1$
 
 	private Constants() {
 		// Hide the default constructor

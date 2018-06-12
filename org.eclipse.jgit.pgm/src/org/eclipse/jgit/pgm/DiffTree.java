@@ -67,16 +67,17 @@ class DiffTree extends TextBuiltin {
 	}
 
 	@Argument(index = 1, metaVar = "metaVar_treeish", required = true)
-	private final List<AbstractTreeIterator> trees = new ArrayList<>();
+	private List<AbstractTreeIterator> trees = new ArrayList<>();
 
-	@Option(name = "--", metaVar = "metaVar_path", multiValued = true, handler = PathTreeFilterHandler.class)
+	@Option(name = "--", metaVar = "metaVar_path", handler = PathTreeFilterHandler.class)
 	private TreeFilter pathFilter = TreeFilter.ALL;
 
+	/** {@inheritDoc} */
 	@Override
 	protected void run() throws Exception {
-		try (final TreeWalk walk = new TreeWalk(db)) {
+		try (TreeWalk walk = new TreeWalk(db)) {
 			walk.setRecursive(recursive);
-			for (final AbstractTreeIterator i : trees)
+			for (AbstractTreeIterator i : trees)
 				walk.addTree(i);
 			walk.setFilter(AndTreeFilter.create(TreeFilter.ANY_DIFF, pathFilter));
 

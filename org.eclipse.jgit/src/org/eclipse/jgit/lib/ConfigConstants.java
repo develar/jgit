@@ -108,6 +108,12 @@ public class ConfigConstants {
 	public static final String CONFIG_PULL_SECTION = "pull";
 
 	/**
+	 * The "merge" section
+	 * @since 4.9
+	 */
+	public static final String CONFIG_MERGE_SECTION = "merge";
+
+	/**
 	 * The "filter" section
 	 * @since 4.6
 	 */
@@ -341,6 +347,13 @@ public class ConfigConstants {
 	public static final String CONFIG_KEY_TRUSTFOLDERSTAT = "trustfolderstat";
 
 	/**
+	 * The "supportsAtomicFileCreation" key in the "core section"
+	 *
+	 * @since 4.5
+	 */
+	public static final String CONFIG_KEY_SUPPORTSATOMICFILECREATION = "supportsatomicfilecreation";
+
+	/**
 	 * The "noprefix" key in the "diff section"
 	 * @since 3.0
 	 */
@@ -363,6 +376,13 @@ public class ConfigConstants {
 	 * @since 3.0
 	 */
 	public static final String CONFIG_KEY_RENAMES = "renames";
+
+	/**
+	 * The "inCoreLimit" key in the "merge section". It's a size limit (bytes) used to
+	 * control a file to be stored in {@code Heap} or {@code LocalFile} during the merge.
+	 * @since 4.9
+	 */
+	public static final String CONFIG_KEY_IN_CORE_LIMIT = "inCoreLimit";
 
 	/**
 	 * The "prune" key
@@ -400,4 +420,16 @@ public class ConfigConstants {
 	 * @since 4.7
 	 */
 	public static final String CONFIG_KEY_RECURSE_SUBMODULES = "recurseSubmodules";
+
+	/**
+	 * The "required" key
+	 * @since 4.11
+	 */
+	public static final String CONFIG_KEY_REQUIRED = "required";
+
+	/**
+	 * The "lfs" section
+	 * @since 4.11
+	 */
+	public static final String CONFIG_SECTION_LFS = "lfs";
 }

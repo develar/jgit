@@ -47,11 +47,21 @@ package org.eclipse.jgit.util;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.nio.file.FileVisitOption;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 
 import org.eclipse.jgit.errors.CommandFailedException;
+import org.eclipse.jgit.treewalk.FileTreeIterator.FileEntry;
+import org.eclipse.jgit.treewalk.FileTreeIterator.FileModeStrategy;
+import org.eclipse.jgit.treewalk.WorkingTreeIterator.Entry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -83,36 +93,86 @@ public class FS_Win32 extends FS {
 		super(src);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public FS newInstance() {
 		return new FS_Win32(this);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean supportsExecute() {
 		return false;
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public boolean canExecute(final File f) {
+	public boolean canExecute(File f) {
 		return false;
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public boolean setExecute(final File f, final boolean canExec) {
+	public boolean setExecute(File f, boolean canExec) {
 		return false;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean isCaseSensitive() {
 		return false;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean retryFailedLockFileCommit() {
 		return true;
 	}
 
+	/** {@inheritDoc} */
+	@Override
+	public Entry[] list(File directory, FileModeStrategy fileModeStrategy) {
+		List<Entry> result = new ArrayList<>();
+		FS fs = this;
+		boolean checkExecutable = fs.supportsExecute();
+		try {
+			Files.walkFileTree(directory.toPath(),
+					EnumSet.noneOf(FileVisitOption.class), 1,
+					new SimpleFileVisitor<Path>() {
+						@Override
+						public FileVisitResult visitFile(Path file,
+								BasicFileAttributes attrs) throws IOException {
+							File f = file.toFile();
+							FS.Attributes attributes = new FS.Attributes(fs, f,
+									true, attrs.isDirectory(),
+									checkExecutable && f.canExecute(),
+									attrs.isSymbolicLink(),
+									attrs.isRegularFile(),
+									attrs.creationTime().toMillis(),
+									attrs.lastModifiedTime().toMillis(),
+									attrs.size());
+							result.add(new FileEntry(f, fs, attributes,
+									fileModeStrategy));
+							return FileVisitResult.CONTINUE;
+						}
+
+						@Override
+						public FileVisitResult visitFileFailed(Path file,
+								IOException exc) throws IOException {
+							// Just ignore it
+							return FileVisitResult.CONTINUE;
+						}
+					});
+		} catch (IOException e) {
+			// Ignore
+		}
+		if (result.isEmpty()) {
+			return NO_ENTRIES;
+		}
+		return result.toArray(new Entry[result.size()]);
+	}
+
+	/** {@inheritDoc} */
 	@Override
 	protected File discoverGitExe() {
 		String path = SystemReader.getInstance().getenv("PATH"); //$NON-NLS-1$
@@ -141,6 +201,7 @@ public class FS_Win32 extends FS {
 		return gitExe;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	protected File userHomeImpl() {
 		String home = SystemReader.getInstance().getenv("HOME"); //$NON-NLS-1$
@@ -160,6 +221,7 @@ public class FS_Win32 extends FS {
 		return super.userHomeImpl();
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public ProcessBuilder runInShell(String cmd, String[] args) {
 		List<String> argv = new ArrayList<>(3 + args.length);
@@ -172,6 +234,7 @@ public class FS_Win32 extends FS {
 		return proc;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean supportsSymlinks() {
 		if (supportSymlinks == null)
@@ -200,9 +263,7 @@ public class FS_Win32 extends FS {
 		}
 	}
 
-	/**
-	 * @since 3.3
-	 */
+	/** {@inheritDoc} */
 	@Override
 	public Attributes getAttributes(File path) {
 		return FileUtils.getFileAttributesBasic(this, path);

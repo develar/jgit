@@ -43,13 +43,7 @@
 
 package org.eclipse.jgit.internal.storage.file;
 
-import org.eclipse.jgit.api.errors.JGitInternalException;
-import org.eclipse.jgit.internal.JGitText;
-import org.eclipse.jgit.lib.ConfigConstants;
-import org.eclipse.jgit.util.GitDateParser;
-import org.eclipse.jgit.util.SystemReader;
-
-import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.eclipse.jgit.lib.Constants.CHARSET;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -60,6 +54,13 @@ import java.nio.file.attribute.FileTime;
 import java.text.MessageFormat;
 import java.text.ParseException;
 import java.time.Instant;
+
+import org.eclipse.jgit.api.errors.JGitInternalException;
+import org.eclipse.jgit.internal.JGitText;
+import org.eclipse.jgit.lib.ConfigConstants;
+import org.eclipse.jgit.util.FileUtils;
+import org.eclipse.jgit.util.GitDateParser;
+import org.eclipse.jgit.util.SystemReader;
 
 /**
  * This class manages the gc.log file for a {@link FileRepository}.
@@ -105,12 +106,12 @@ class GcLog {
 
 	private boolean autoGcBlockedByOldLockFile(boolean background) {
 		try {
-			FileTime lastModified = Files.getLastModifiedTime(logFile.toPath());
+			FileTime lastModified = Files.getLastModifiedTime(FileUtils.toPath(logFile));
 			if (lastModified.toInstant().compareTo(getLogExpiry()) > 0) {
 				// There is an existing log file, which is too recent to ignore
 				if (!background) {
 					try (BufferedReader reader = Files
-							.newBufferedReader(logFile.toPath())) {
+							.newBufferedReader(FileUtils.toPath(logFile))) {
 						char[] buf = new char[1000];
 						int len = reader.read(buf, 0, 1000);
 						String oldError = new String(buf, 0, len);
@@ -186,6 +187,6 @@ class GcLog {
 		if (content.length() > 0) {
 			nonEmpty = true;
 		}
-		lock.write(content.getBytes(UTF_8));
+		lock.write(content.getBytes(CHARSET));
 	}
 }

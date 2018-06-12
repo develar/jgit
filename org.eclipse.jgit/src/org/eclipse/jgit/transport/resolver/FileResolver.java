@@ -70,7 +70,9 @@ public class FileResolver<C> implements RepositoryResolver<C> {
 
 	private final Collection<File> exportBase;
 
-	/** Initialize an empty file based resolver. */
+	/**
+	 * Initialize an empty file based resolver.
+	 */
 	public FileResolver() {
 		exports = new ConcurrentHashMap<>();
 		exportBase = new CopyOnWriteArrayList<>();
@@ -85,14 +87,15 @@ public class FileResolver<C> implements RepositoryResolver<C> {
 	 *            if true, exports all repositories, ignoring the check for the
 	 *            {@code git-daemon-export-ok} files.
 	 */
-	public FileResolver(final File basePath, final boolean exportAll) {
+	public FileResolver(File basePath, boolean exportAll) {
 		this();
 		exportDirectory(basePath);
 		setExportAll(exportAll);
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public Repository open(final C req, final String name)
+	public Repository open(C req, String name)
 			throws RepositoryNotFoundException, ServiceNotEnabledException {
 		if (isUnreasonableName(name))
 			throw new RepositoryNotFoundException(name);
@@ -148,6 +151,9 @@ public class FileResolver<C> implements RepositoryResolver<C> {
 	}
 
 	/**
+	 * Whether <code>git-daemon-export-ok</code> is required to export a
+	 * repository
+	 *
 	 * @return false if <code>git-daemon-export-ok</code> is required to export
 	 *         a repository; true if <code>git-daemon-export-ok</code> is
 	 *         ignored.
@@ -167,9 +173,9 @@ public class FileResolver<C> implements RepositoryResolver<C> {
 	 * If true, all repositories are available through the daemon, whether or
 	 * not <code>git-daemon-export-ok</code> exists.
 	 *
-	 * @param export
+	 * @param export a boolean.
 	 */
-	public void setExportAll(final boolean export) {
+	public void setExportAll(boolean export) {
 		exportAll = export;
 	}
 
@@ -196,7 +202,7 @@ public class FileResolver<C> implements RepositoryResolver<C> {
 	 *            git repository, but any directory below it which has a file
 	 *            named <code>git-daemon-export-ok</code> will be published.
 	 */
-	public void exportDirectory(final File dir) {
+	public void exportDirectory(File dir) {
 		exportBase.add(dir);
 	}
 
@@ -214,7 +220,7 @@ public class FileResolver<C> implements RepositoryResolver<C> {
 	 * @param db
 	 *            the opened repository instance.
 	 * @return true if the repository is accessible; false if not.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the repository could not be accessed, the caller will claim
 	 *             the repository does not exist.
 	 */
@@ -234,7 +240,7 @@ public class FileResolver<C> implements RepositoryResolver<C> {
 		return name + Constants.DOT_GIT_EXT;
 	}
 
-	private static boolean isUnreasonableName(final String name) {
+	private static boolean isUnreasonableName(String name) {
 		if (name.length() == 0)
 			return true; // no empty paths
 
@@ -244,11 +250,11 @@ public class FileResolver<C> implements RepositoryResolver<C> {
 			return true; // no absolute paths
 
 		if (name.startsWith("../")) //$NON-NLS-1$
-			return true; // no "l../etc/passwd" 
+			return true; // no "l../etc/passwd"
 		if (name.contains("/../")) //$NON-NLS-1$
-			return true; // no "foo/../etc/passwd" 
+			return true; // no "foo/../etc/passwd"
 		if (name.contains("/./")) //$NON-NLS-1$
-			return true; // "foo/./foo" is insane to ask 
+			return true; // "foo/./foo" is insane to ask
 		if (name.contains("//")) //$NON-NLS-1$
 			return true; // double slashes is sloppy, don't use it
 

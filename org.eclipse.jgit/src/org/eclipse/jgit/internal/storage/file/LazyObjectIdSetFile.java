@@ -43,7 +43,7 @@
 
 package org.eclipse.jgit.internal.storage.file;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.eclipse.jgit.lib.Constants.CHARSET;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -57,7 +57,9 @@ import org.eclipse.jgit.lib.MutableObjectId;
 import org.eclipse.jgit.lib.ObjectIdOwnerMap;
 import org.eclipse.jgit.lib.ObjectIdSet;
 
-/** Lazily loads a set of ObjectIds, one per line. */
+/**
+ * Lazily loads a set of ObjectIds, one per line.
+ */
 public class LazyObjectIdSetFile implements ObjectIdSet {
 	private final File src;
 	private ObjectIdOwnerMap<Entry> set;
@@ -72,6 +74,7 @@ public class LazyObjectIdSetFile implements ObjectIdSet {
 		this.src = src;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean contains(AnyObjectId objectId) {
 		if (set == null) {
@@ -83,7 +86,7 @@ public class LazyObjectIdSetFile implements ObjectIdSet {
 	private ObjectIdOwnerMap<Entry> load() {
 		ObjectIdOwnerMap<Entry> r = new ObjectIdOwnerMap<>();
 		try (FileInputStream fin = new FileInputStream(src);
-				Reader rin = new InputStreamReader(fin, UTF_8);
+				Reader rin = new InputStreamReader(fin, CHARSET);
 				BufferedReader br = new BufferedReader(rin)) {
 			MutableObjectId id = new MutableObjectId();
 			for (String line; (line = br.readLine()) != null;) {

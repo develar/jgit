@@ -45,7 +45,6 @@
 package org.eclipse.jgit.pgm.opt;
 
 import java.io.IOException;
-import java.text.MessageFormat;
 
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.errors.MissingObjectException;
@@ -60,7 +59,8 @@ import org.kohsuke.args4j.spi.Parameters;
 import org.kohsuke.args4j.spi.Setter;
 
 /**
- * Custom argument handler {@link RevTree} from string values.
+ * Custom argument handler {@link org.eclipse.jgit.revwalk.RevTree} from string
+ * values.
  * <p>
  * Assumes the parser has been initialized with a Repository.
  */
@@ -73,8 +73,11 @@ public class RevTreeHandler extends OptionHandler<RevTree> {
 	 * This constructor is used only by args4j.
 	 *
 	 * @param parser
+	 *            a {@link org.kohsuke.args4j.CmdLineParser} object.
 	 * @param option
+	 *            a {@link org.kohsuke.args4j.OptionDef} object.
 	 * @param setter
+	 *            a {@link org.kohsuke.args4j.spi.Setter} object.
 	 */
 	public RevTreeHandler(final CmdLineParser parser, final OptionDef option,
 			final Setter<? super RevTree> setter) {
@@ -82,32 +85,39 @@ public class RevTreeHandler extends OptionHandler<RevTree> {
 		clp = (org.eclipse.jgit.pgm.opt.CmdLineParser) parser;
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public int parseArguments(final Parameters params) throws CmdLineException {
+	public int parseArguments(Parameters params) throws CmdLineException {
 		final String name = params.getParameter(0);
 		final ObjectId id;
 		try {
 			id = clp.getRepository().resolve(name);
 		} catch (IOException e) {
-			throw new CmdLineException(clp, e.getMessage());
+			throw new CmdLineException(clp, CLIText.format(e.getMessage()));
 		}
 		if (id == null)
-			throw new CmdLineException(clp, MessageFormat.format(CLIText.get().notATree, name));
+			throw new CmdLineException(clp,
+					CLIText.format(CLIText.get().notATree), name);
 
 		final RevTree c;
 		try {
 			c = clp.getRevWalk().parseTree(id);
 		} catch (MissingObjectException e) {
-			throw new CmdLineException(clp, MessageFormat.format(CLIText.get().notATree, name));
+			throw new CmdLineException(clp,
+					CLIText.format(CLIText.get().notATree), name);
 		} catch (IncorrectObjectTypeException e) {
-			throw new CmdLineException(clp, MessageFormat.format(CLIText.get().notATree, name));
+			throw new CmdLineException(clp,
+					CLIText.format(CLIText.get().notATree), name);
 		} catch (IOException e) {
-			throw new CmdLineException(clp, MessageFormat.format(CLIText.get().cannotReadBecause, name, e.getMessage()));
+			throw new CmdLineException(clp,
+					CLIText.format(CLIText.get().cannotReadBecause), name,
+					e.getMessage());
 		}
 		setter.addValue(c);
 		return 1;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public String getDefaultMetaVariable() {
 		return CLIText.get().metaVar_treeish;

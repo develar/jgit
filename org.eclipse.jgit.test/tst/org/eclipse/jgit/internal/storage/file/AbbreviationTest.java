@@ -178,7 +178,7 @@ public class AbbreviationTest extends LocalDiskRepositoryTestCase {
 		}
 
 		String packName = "pack-" + id.name();
-		File packDir = new File(db.getObjectDatabase().getDirectory(), "pack");
+		File packDir = db.getObjectDatabase().getPackDirectory();
 		File idxFile = new File(packDir, packName + ".idx");
 		File packFile = new File(packDir, packName + ".pack");
 		FileUtils.mkdir(packDir, true);
@@ -187,7 +187,10 @@ public class AbbreviationTest extends LocalDiskRepositoryTestCase {
 			PackIndexWriter writer = new PackIndexWriterV2(dst);
 			writer.write(objects, new byte[OBJECT_ID_LENGTH]);
 		}
-		new FileOutputStream(packFile).close();
+
+		try (FileOutputStream unused = new FileOutputStream(packFile)) {
+			// unused
+		}
 
 		assertEquals(id.abbreviate(20), reader.abbreviate(id, 2));
 

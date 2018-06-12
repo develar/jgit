@@ -46,11 +46,10 @@
 
 package org.eclipse.jgit.transport;
 
-import static org.eclipse.jgit.lib.RefDatabase.ALL;
+import static org.eclipse.jgit.lib.Constants.CHARSET;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintStream;
@@ -64,7 +63,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -78,7 +77,6 @@ import org.eclipse.jgit.hooks.Hooks;
 import org.eclipse.jgit.hooks.PrePushHook;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.Constants;
-import org.eclipse.jgit.lib.NullProgressMonitor;
 import org.eclipse.jgit.lib.ObjectChecker;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ProgressMonitor;
@@ -145,17 +143,8 @@ public abstract class Transport implements AutoCloseable {
 	}
 
 	private static void scan(ClassLoader ldr, URL url) {
-		BufferedReader br;
-		try {
-			InputStream urlIn = url.openStream();
-			br = new BufferedReader(new InputStreamReader(urlIn, "UTF-8")); //$NON-NLS-1$
-		} catch (IOException err) {
-			// If we cannot read from the service list, go to the next.
-			//
-			return;
-		}
-
-		try {
+		try (BufferedReader br = new BufferedReader(
+				new InputStreamReader(url.openStream(), CHARSET))) {
 			String line;
 			while ((line = br.readLine()) != null) {
 				line = line.trim();
@@ -168,15 +157,8 @@ public abstract class Transport implements AutoCloseable {
 					line = line.substring(0, comment).trim();
 				load(ldr, line);
 			}
-		} catch (IOException err) {
-			// If we failed during a read, ignore the error.
-			//
-		} finally {
-			try {
-				br.close();
-			} catch (IOException e) {
-				// Ignore the close error; we are only reading.
-			}
+		} catch (IOException e) {
+			// Ignore errors
 		}
 	}
 
@@ -215,7 +197,8 @@ public abstract class Transport implements AutoCloseable {
 	 * Protocol definitions are held by WeakReference, allowing them to be
 	 * garbage collected when the calling application drops all strongly held
 	 * references to the TransportProtocol. Therefore applications should use a
-	 * singleton pattern as described in {@link TransportProtocol}'s class
+	 * singleton pattern as described in
+	 * {@link org.eclipse.jgit.transport.TransportProtocol}'s class
 	 * documentation to ensure their protocol does not get disabled by garbage
 	 * collection earlier than expected.
 	 * <p>
@@ -270,7 +253,8 @@ public abstract class Transport implements AutoCloseable {
 	/**
 	 * Open a new transport instance to connect two repositories.
 	 * <p>
-	 * This method assumes {@link Operation#FETCH}.
+	 * This method assumes
+	 * {@link org.eclipse.jgit.transport.Transport.Operation#FETCH}.
 	 *
 	 * @param local
 	 *            existing local repository.
@@ -279,15 +263,15 @@ public abstract class Transport implements AutoCloseable {
 	 *            configuration name.
 	 * @return the new transport instance. Never null. In case of multiple URIs
 	 *         in remote configuration, only the first is chosen.
-	 * @throws URISyntaxException
+	 * @throws java.net.URISyntaxException
 	 *             the location is not a remote defined in the configuration
 	 *             file and is not a well-formed URL.
-	 * @throws NotSupportedException
+	 * @throws org.eclipse.jgit.errors.NotSupportedException
 	 *             the protocol specified is not supported.
-	 * @throws TransportException
+	 * @throws org.eclipse.jgit.errors.TransportException
 	 *             the transport cannot open this URI.
 	 */
-	public static Transport open(final Repository local, final String remote)
+	public static Transport open(Repository local, String remote)
 			throws NotSupportedException, URISyntaxException,
 			TransportException {
 		return open(local, remote, Operation.FETCH);
@@ -306,12 +290,12 @@ public abstract class Transport implements AutoCloseable {
 	 *            based on the type of connection desired.
 	 * @return the new transport instance. Never null. In case of multiple URIs
 	 *         in remote configuration, only the first is chosen.
-	 * @throws URISyntaxException
+	 * @throws java.net.URISyntaxException
 	 *             the location is not a remote defined in the configuration
 	 *             file and is not a well-formed URL.
-	 * @throws NotSupportedException
+	 * @throws org.eclipse.jgit.errors.NotSupportedException
 	 *             the protocol specified is not supported.
-	 * @throws TransportException
+	 * @throws org.eclipse.jgit.errors.TransportException
 	 *             the transport cannot open this URI.
 	 */
 	public static Transport open(final Repository local, final String remote,
@@ -330,7 +314,8 @@ public abstract class Transport implements AutoCloseable {
 	/**
 	 * Open new transport instances to connect two repositories.
 	 * <p>
-	 * This method assumes {@link Operation#FETCH}.
+	 * This method assumes
+	 * {@link org.eclipse.jgit.transport.Transport.Operation#FETCH}.
 	 *
 	 * @param local
 	 *            existing local repository.
@@ -339,12 +324,12 @@ public abstract class Transport implements AutoCloseable {
 	 *            configuration name.
 	 * @return the list of new transport instances for every URI in remote
 	 *         configuration.
-	 * @throws URISyntaxException
+	 * @throws java.net.URISyntaxException
 	 *             the location is not a remote defined in the configuration
 	 *             file and is not a well-formed URL.
-	 * @throws NotSupportedException
+	 * @throws org.eclipse.jgit.errors.NotSupportedException
 	 *             the protocol specified is not supported.
-	 * @throws TransportException
+	 * @throws org.eclipse.jgit.errors.TransportException
 	 *             the transport cannot open this URI.
 	 */
 	public static List<Transport> openAll(final Repository local,
@@ -366,12 +351,12 @@ public abstract class Transport implements AutoCloseable {
 	 *            based on the type of connection desired.
 	 * @return the list of new transport instances for every URI in remote
 	 *         configuration.
-	 * @throws URISyntaxException
+	 * @throws java.net.URISyntaxException
 	 *             the location is not a remote defined in the configuration
 	 *             file and is not a well-formed URL.
-	 * @throws NotSupportedException
+	 * @throws org.eclipse.jgit.errors.NotSupportedException
 	 *             the protocol specified is not supported.
-	 * @throws TransportException
+	 * @throws org.eclipse.jgit.errors.TransportException
 	 *             the transport cannot open this URI.
 	 */
 	public static List<Transport> openAll(final Repository local,
@@ -390,7 +375,8 @@ public abstract class Transport implements AutoCloseable {
 	/**
 	 * Open a new transport instance to connect two repositories.
 	 * <p>
-	 * This method assumes {@link Operation#FETCH}.
+	 * This method assumes
+	 * {@link org.eclipse.jgit.transport.Transport.Operation#FETCH}.
 	 *
 	 * @param local
 	 *            existing local repository.
@@ -399,15 +385,15 @@ public abstract class Transport implements AutoCloseable {
 	 *            repository.
 	 * @return the new transport instance. Never null. In case of multiple URIs
 	 *         in remote configuration, only the first is chosen.
-	 * @throws NotSupportedException
+	 * @throws org.eclipse.jgit.errors.NotSupportedException
 	 *             the protocol specified is not supported.
-	 * @throws TransportException
+	 * @throws org.eclipse.jgit.errors.TransportException
 	 *             the transport cannot open this URI.
-	 * @throws IllegalArgumentException
+	 * @throws java.lang.IllegalArgumentException
 	 *             if provided remote configuration doesn't have any URI
 	 *             associated.
 	 */
-	public static Transport open(final Repository local, final RemoteConfig cfg)
+	public static Transport open(Repository local, RemoteConfig cfg)
 			throws NotSupportedException, TransportException {
 		return open(local, cfg, Operation.FETCH);
 	}
@@ -425,11 +411,11 @@ public abstract class Transport implements AutoCloseable {
 	 *            based on the type of connection desired.
 	 * @return the new transport instance. Never null. In case of multiple URIs
 	 *         in remote configuration, only the first is chosen.
-	 * @throws NotSupportedException
+	 * @throws org.eclipse.jgit.errors.NotSupportedException
 	 *             the protocol specified is not supported.
-	 * @throws TransportException
+	 * @throws org.eclipse.jgit.errors.TransportException
 	 *             the transport cannot open this URI.
-	 * @throws IllegalArgumentException
+	 * @throws java.lang.IllegalArgumentException
 	 *             if provided remote configuration doesn't have any URI
 	 *             associated.
 	 */
@@ -448,7 +434,8 @@ public abstract class Transport implements AutoCloseable {
 	/**
 	 * Open new transport instances to connect two repositories.
 	 * <p>
-	 * This method assumes {@link Operation#FETCH}.
+	 * This method assumes
+	 * {@link org.eclipse.jgit.transport.Transport.Operation#FETCH}.
 	 *
 	 * @param local
 	 *            existing local repository.
@@ -457,9 +444,9 @@ public abstract class Transport implements AutoCloseable {
 	 *            repository.
 	 * @return the list of new transport instances for every URI in remote
 	 *         configuration.
-	 * @throws NotSupportedException
+	 * @throws org.eclipse.jgit.errors.NotSupportedException
 	 *             the protocol specified is not supported.
-	 * @throws TransportException
+	 * @throws org.eclipse.jgit.errors.TransportException
 	 *             the transport cannot open this URI.
 	 */
 	public static List<Transport> openAll(final Repository local,
@@ -481,9 +468,9 @@ public abstract class Transport implements AutoCloseable {
 	 *            based on the type of connection desired.
 	 * @return the list of new transport instances for every URI in remote
 	 *         configuration.
-	 * @throws NotSupportedException
+	 * @throws org.eclipse.jgit.errors.NotSupportedException
 	 *             the protocol specified is not supported.
-	 * @throws TransportException
+	 * @throws org.eclipse.jgit.errors.TransportException
 	 *             the transport cannot open this URI.
 	 */
 	public static List<Transport> openAll(final Repository local,
@@ -491,7 +478,7 @@ public abstract class Transport implements AutoCloseable {
 			throws NotSupportedException, TransportException {
 		final List<URIish> uris = getURIs(cfg, op);
 		final List<Transport> transports = new ArrayList<>(uris.size());
-		for (final URIish uri : uris) {
+		for (URIish uri : uris) {
 			final Transport tn = open(local, uri, cfg.getName());
 			tn.applyConfig(cfg);
 			transports.add(tn);
@@ -515,7 +502,7 @@ public abstract class Transport implements AutoCloseable {
 		}
 	}
 
-	private static boolean doesNotExist(final RemoteConfig cfg) {
+	private static boolean doesNotExist(RemoteConfig cfg) {
 		return cfg.getURIs().isEmpty() && cfg.getPushURIs().isEmpty();
 	}
 
@@ -527,12 +514,12 @@ public abstract class Transport implements AutoCloseable {
 	 * @param uri
 	 *            location of the remote repository.
 	 * @return the new transport instance. Never null.
-	 * @throws NotSupportedException
+	 * @throws org.eclipse.jgit.errors.NotSupportedException
 	 *             the protocol specified is not supported.
-	 * @throws TransportException
+	 * @throws org.eclipse.jgit.errors.TransportException
 	 *             the transport cannot open this URI.
 	 */
-	public static Transport open(final Repository local, final URIish uri)
+	public static Transport open(Repository local, URIish uri)
 			throws NotSupportedException, TransportException {
 		return open(local, uri, null);
 	}
@@ -548,9 +535,9 @@ public abstract class Transport implements AutoCloseable {
 	 *            name of the remote, if the remote as configured in
 	 *            {@code local}; otherwise null.
 	 * @return the new transport instance. Never null.
-	 * @throws NotSupportedException
+	 * @throws org.eclipse.jgit.errors.NotSupportedException
 	 *             the protocol specified is not supported.
-	 * @throws TransportException
+	 * @throws org.eclipse.jgit.errors.TransportException
 	 *             the transport cannot open this URI.
 	 */
 	public static Transport open(Repository local, URIish uri, String remoteName)
@@ -580,10 +567,10 @@ public abstract class Transport implements AutoCloseable {
 	 * Note that the resulting transport instance can not be used for fetching
 	 * or pushing, but only for reading remote refs.
 	 *
-	 * @param uri
+	 * @param uri a {@link org.eclipse.jgit.transport.URIish} object.
 	 * @return new Transport instance
-	 * @throws NotSupportedException
-	 * @throws TransportException
+	 * @throws org.eclipse.jgit.errors.NotSupportedException
+	 * @throws org.eclipse.jgit.errors.TransportException
 	 */
 	public static Transport open(URIish uri) throws NotSupportedException, TransportException {
 		for (WeakReference<TransportProtocol> ref : protocols) {
@@ -601,12 +588,13 @@ public abstract class Transport implements AutoCloseable {
 	}
 
 	/**
-	 * Convert push remote refs update specification from {@link RefSpec} form
-	 * to {@link RemoteRefUpdate}. Conversion expands wildcards by matching
-	 * source part to local refs. expectedOldObjectId in RemoteRefUpdate is
-	 * set when specified in leases. Tracking branch is configured if RefSpec
-	 * destination matches source of any fetch ref spec for this transport
-	 * remote configuration.
+	 * Convert push remote refs update specification from
+	 * {@link org.eclipse.jgit.transport.RefSpec} form to
+	 * {@link org.eclipse.jgit.transport.RemoteRefUpdate}. Conversion expands
+	 * wildcards by matching source part to local refs. expectedOldObjectId in
+	 * RemoteRefUpdate is set when specified in leases. Tracking branch is
+	 * configured if RefSpec destination matches source of any fetch ref spec
+	 * for this transport remote configuration.
 	 *
 	 * @param db
 	 *            local database.
@@ -617,8 +605,9 @@ public abstract class Transport implements AutoCloseable {
 	 * @param fetchSpecs
 	 *            fetch specifications used for finding localtracking refs. May
 	 *            be null or empty collection.
-	 * @return collection of set up {@link RemoteRefUpdate}.
-	 * @throws IOException
+	 * @return collection of set up
+	 *         {@link org.eclipse.jgit.transport.RemoteRefUpdate}.
+	 * @throws java.io.IOException
 	 *             when problem occurred during conversion or specification set
 	 *             up: most probably, missing objects or refs.
 	 * @since 4.7
@@ -632,7 +621,7 @@ public abstract class Transport implements AutoCloseable {
 		final List<RemoteRefUpdate> result = new LinkedList<>();
 		final Collection<RefSpec> procRefs = expandPushWildcardsFor(db, specs);
 
-		for (final RefSpec spec : procRefs) {
+		for (RefSpec spec : procRefs) {
 			String srcSpec = spec.getSource();
 			final Ref srcRef = db.findRef(srcSpec);
 			if (srcRef != null)
@@ -668,12 +657,13 @@ public abstract class Transport implements AutoCloseable {
 	}
 
 	/**
-	 * Convert push remote refs update specification from {@link RefSpec} form
-	 * to {@link RemoteRefUpdate}. Conversion expands wildcards by matching
-	 * source part to local refs. expectedOldObjectId in RemoteRefUpdate is
-	 * always set as null. Tracking branch is configured if RefSpec destination
-	 * matches source of any fetch ref spec for this transport remote
-	 * configuration.
+	 * Convert push remote refs update specification from
+	 * {@link org.eclipse.jgit.transport.RefSpec} form to
+	 * {@link org.eclipse.jgit.transport.RemoteRefUpdate}. Conversion expands
+	 * wildcards by matching source part to local refs. expectedOldObjectId in
+	 * RemoteRefUpdate is always set as null. Tracking branch is configured if
+	 * RefSpec destination matches source of any fetch ref spec for this
+	 * transport remote configuration.
 	 *
 	 * @param db
 	 *            local database.
@@ -682,8 +672,9 @@ public abstract class Transport implements AutoCloseable {
 	 * @param fetchSpecs
 	 *            fetch specifications used for finding localtracking refs. May
 	 *            be null or empty collection.
-	 * @return collection of set up {@link RemoteRefUpdate}.
-	 * @throws IOException
+	 * @return collection of set up
+	 *         {@link org.eclipse.jgit.transport.RemoteRefUpdate}.
+	 * @throws java.io.IOException
 	 *             when problem occurred during conversion or specification set
 	 *             up: most probably, missing objects or refs.
 	 */
@@ -697,12 +688,12 @@ public abstract class Transport implements AutoCloseable {
 	private static Collection<RefSpec> expandPushWildcardsFor(
 			final Repository db, final Collection<RefSpec> specs)
 			throws IOException {
-		final Map<String, Ref> localRefs = db.getRefDatabase().getRefs(ALL);
-		final Collection<RefSpec> procRefs = new HashSet<>();
+		final List<Ref> localRefs = db.getRefDatabase().getRefs();
+		final Collection<RefSpec> procRefs = new LinkedHashSet<>();
 
-		for (final RefSpec spec : specs) {
+		for (RefSpec spec : specs) {
 			if (spec.isWildcard()) {
-				for (final Ref localRef : localRefs.values()) {
+				for (Ref localRef : localRefs) {
 					if (spec.matchSource(localRef))
 						procRefs.add(spec.expandFromSource(localRef));
 				}
@@ -716,7 +707,7 @@ public abstract class Transport implements AutoCloseable {
 	private static String findTrackingRefName(final String remoteName,
 			final Collection<RefSpec> fetchSpecs) {
 		// try to find matching tracking refs
-		for (final RefSpec fetchSpec : fetchSpecs) {
+		for (RefSpec fetchSpec : fetchSpecs) {
 			if (fetchSpec.matchSource(remoteName)) {
 				if (fetchSpec.isWildcard())
 					return fetchSpec.expandFromSource(remoteName)
@@ -799,6 +790,8 @@ public abstract class Transport implements AutoCloseable {
 	/** Should refs no longer on the source be pruned from the destination? */
 	private boolean removeDeletedRefs;
 
+	private long filterBlobLimit = -1;
+
 	/** Timeout in seconds to wait before aborting an IO read or write. */
 	private int timeout;
 
@@ -825,7 +818,7 @@ public abstract class Transport implements AutoCloseable {
 	 *            the URI used to access the remote repository. This must be the
 	 *            URI passed to {@link #open(Repository, URIish)}.
 	 */
-	protected Transport(final Repository local, final URIish uri) {
+	protected Transport(Repository local, URIish uri) {
 		final TransferConfig tc = local.getConfig().get(TransferConfig.KEY);
 		this.local = local;
 		this.uri = uri;
@@ -838,8 +831,9 @@ public abstract class Transport implements AutoCloseable {
 	 * Create a minimal transport instance not tied to a single repository.
 	 *
 	 * @param uri
+	 *            a {@link org.eclipse.jgit.transport.URIish} object.
 	 */
-	protected Transport(final URIish uri) {
+	protected Transport(URIish uri) {
 		this.uri = uri;
 		this.local = null;
 		this.objectChecker = new ObjectChecker();
@@ -872,7 +866,7 @@ public abstract class Transport implements AutoCloseable {
 	 * @param where
 	 *            name of the executable.
 	 */
-	public void setOptionUploadPack(final String where) {
+	public void setOptionUploadPack(String where) {
 		if (where != null && where.length() > 0)
 			optionUploadPack = where;
 		else
@@ -894,7 +888,7 @@ public abstract class Transport implements AutoCloseable {
 	 * @param option
 	 *            method to use when handling annotated tags.
 	 */
-	public void setTagOpt(final TagOpt option) {
+	public void setTagOpt(TagOpt option) {
 		tagopt = option != null ? option : TagOpt.AUTO_FOLLOW;
 	}
 
@@ -918,11 +912,13 @@ public abstract class Transport implements AutoCloseable {
 	 *            when it shouldn't
 	 * @see PackTransport
 	 */
-	public void setFetchThin(final boolean fetchThin) {
+	public void setFetchThin(boolean fetchThin) {
 		this.fetchThin = fetchThin;
 	}
 
 	/**
+	 * Whether fetch will verify if received objects are formatted correctly.
+	 *
 	 * @return true if fetch will verify received objects are formatted
 	 *         correctly. Validating objects requires more CPU time on the
 	 *         client side of the connection.
@@ -932,12 +928,14 @@ public abstract class Transport implements AutoCloseable {
 	}
 
 	/**
+	 * Configure if checking received objects is enabled
+	 *
 	 * @param check
 	 *            true to enable checking received objects; false to assume all
 	 *            received objects are valid.
 	 * @see #setObjectChecker(ObjectChecker)
 	 */
-	public void setCheckFetchedObjects(final boolean check) {
+	public void setCheckFetchedObjects(boolean check) {
 		if (check && objectChecker == null)
 			setObjectChecker(new ObjectChecker());
 		else if (!check && objectChecker != null)
@@ -945,6 +943,8 @@ public abstract class Transport implements AutoCloseable {
 	}
 
 	/**
+	 * Get configured object checker for received objects
+	 *
 	 * @return configured object checker for received objects, or null.
 	 * @since 3.6
 	 */
@@ -953,6 +953,8 @@ public abstract class Transport implements AutoCloseable {
 	}
 
 	/**
+	 * Set the object checker to verify each received object with
+	 *
 	 * @param impl
 	 *            if non-null the object checking instance to verify each
 	 *            received object with; null to disable object checking.
@@ -963,7 +965,8 @@ public abstract class Transport implements AutoCloseable {
 	}
 
 	/**
-	 * Default setting is: {@link RemoteConfig#DEFAULT_RECEIVE_PACK}
+	 * Default setting is:
+	 * {@link org.eclipse.jgit.transport.RemoteConfig#DEFAULT_RECEIVE_PACK}
 	 *
 	 * @return remote executable providing receive-pack service for pack
 	 *         transports.
@@ -975,7 +978,8 @@ public abstract class Transport implements AutoCloseable {
 
 	/**
 	 * Set remote executable providing receive-pack service for pack transports.
-	 * Default setting is: {@link RemoteConfig#DEFAULT_RECEIVE_PACK}
+	 * Default setting is:
+	 * {@link org.eclipse.jgit.transport.RemoteConfig#DEFAULT_RECEIVE_PACK}
 	 *
 	 * @param optionReceivePack
 	 *            remote executable, if null or empty default one is set;
@@ -1006,7 +1010,7 @@ public abstract class Transport implements AutoCloseable {
 	 *            false when it shouldn't
 	 * @see PackTransport
 	 */
-	public void setPushThin(final boolean pushThin) {
+	public void setPushThin(boolean pushThin) {
 		this.pushThin = pushThin;
 	}
 
@@ -1031,11 +1035,14 @@ public abstract class Transport implements AutoCloseable {
 	 * @see PackTransport
 	 * @since 4.2
 	 */
-	public void setPushAtomic(final boolean atomic) {
+	public void setPushAtomic(boolean atomic) {
 		this.pushAtomic = atomic;
 	}
 
 	/**
+	 * Whether destination refs should be removed if they no longer exist at the
+	 * source repository.
+	 *
 	 * @return true if destination refs should be removed if they no longer
 	 *         exist at the source repository.
 	 */
@@ -1055,8 +1062,25 @@ public abstract class Transport implements AutoCloseable {
 	 *
 	 * @param remove true to remove refs that no longer exist.
 	 */
-	public void setRemoveDeletedRefs(final boolean remove) {
+	public void setRemoveDeletedRefs(boolean remove) {
 		removeDeletedRefs = remove;
+	}
+
+	/**
+	 * @return the last value passed to {@link #setFilterBlobLimit}, or -1 if
+	 *         it was never invoked.
+	 * @since 5.0
+	 */
+	public long getFilterBlobLimit() {
+		return filterBlobLimit;
+	}
+
+	/**
+	 * @param bytes exclude blobs of size greater than this
+	 * @since 5.0
+	 */
+	public void setFilterBlobLimit(long bytes) {
+		filterBlobLimit = bytes;
 	}
 
 	/**
@@ -1065,7 +1089,7 @@ public abstract class Transport implements AutoCloseable {
 	 * @param cfg
 	 *            configuration to apply on this transport.
 	 */
-	public void applyConfig(final RemoteConfig cfg) {
+	public void applyConfig(RemoteConfig cfg) {
 		setOptionUploadPack(cfg.getUploadPack());
 		setOptionReceivePack(cfg.getReceivePack());
 		setTagOpt(cfg.getTagOpt());
@@ -1075,6 +1099,9 @@ public abstract class Transport implements AutoCloseable {
 	}
 
 	/**
+	 * Whether push operation should just check for possible result and not
+	 * really update remote refs
+	 *
 	 * @return true if push operation should just check for possible result and
 	 *         not really update remote refs, false otherwise - when push should
 	 *         act normally.
@@ -1091,11 +1118,15 @@ public abstract class Transport implements AutoCloseable {
 	 *            and not really update remote refs, false otherwise - when push
 	 *            should act normally.
 	 */
-	public void setDryRun(final boolean dryRun) {
+	public void setDryRun(boolean dryRun) {
 		this.dryRun = dryRun;
 	}
 
-	/** @return timeout (in seconds) before aborting an IO operation. */
+	/**
+	 * Get timeout (in seconds) before aborting an IO operation.
+	 *
+	 * @return timeout (in seconds) before aborting an IO operation.
+	 */
 	public int getTimeout() {
 		return timeout;
 	}
@@ -1108,7 +1139,7 @@ public abstract class Transport implements AutoCloseable {
 	 *            before aborting an IO read or write operation with this
 	 *            remote.
 	 */
-	public void setTimeout(final int seconds) {
+	public void setTimeout(int seconds) {
 		timeout = seconds;
 	}
 
@@ -1159,6 +1190,8 @@ public abstract class Transport implements AutoCloseable {
 	}
 
 	/**
+	 * Get the option strings associated with the push operation
+	 *
 	 * @return the option strings associated with the push operation
 	 * @since 4.5
 	 */
@@ -1173,7 +1206,7 @@ public abstract class Transport implements AutoCloseable {
 	 *            null if push options are unsupported
 	 * @since 4.5
 	 */
-	public void setPushOptions(final List<String> pushOptions) {
+	public void setPushOptions(List<String> pushOptions) {
 		this.pushOptions = pushOptions;
 	}
 
@@ -1182,22 +1215,24 @@ public abstract class Transport implements AutoCloseable {
 	 * <p>
 	 * This is a utility function providing standard fetch behavior. Local
 	 * tracking refs associated with the remote repository are automatically
-	 * updated if this transport was created from a {@link RemoteConfig} with
-	 * fetch RefSpecs defined.
+	 * updated if this transport was created from a
+	 * {@link org.eclipse.jgit.transport.RemoteConfig} with fetch RefSpecs
+	 * defined.
 	 *
 	 * @param monitor
 	 *            progress monitor to inform the user about our processing
-	 *            activity. Must not be null. Use {@link NullProgressMonitor} if
-	 *            progress updates are not interesting or necessary.
+	 *            activity. Must not be null. Use
+	 *            {@link org.eclipse.jgit.lib.NullProgressMonitor} if progress
+	 *            updates are not interesting or necessary.
 	 * @param toFetch
 	 *            specification of refs to fetch locally. May be null or the
 	 *            empty collection to use the specifications from the
 	 *            RemoteConfig. Source for each RefSpec can't be null.
 	 * @return information describing the tracking refs updated.
-	 * @throws NotSupportedException
+	 * @throws org.eclipse.jgit.errors.NotSupportedException
 	 *             this transport implementation does not support fetching
 	 *             objects.
-	 * @throws TransportException
+	 * @throws org.eclipse.jgit.errors.TransportException
 	 *             the remote connection could not be established or object
 	 *             copying (if necessary) failed or update specification was
 	 *             incorrect.
@@ -1218,9 +1253,9 @@ public abstract class Transport implements AutoCloseable {
 			// object transfer overheads.
 			//
 			final Collection<RefSpec> tmp = new ArrayList<>(toFetch);
-			for (final RefSpec requested : toFetch) {
+			for (RefSpec requested : toFetch) {
 				final String reqSrc = requested.getSource();
-				for (final RefSpec configured : fetch) {
+				for (RefSpec configured : fetch) {
 					final String cfgSrc = configured.getSource();
 					final String cfgDst = configured.getDestination();
 					if (cfgSrc.equals(reqSrc) && cfgDst != null) {
@@ -1252,17 +1287,18 @@ public abstract class Transport implements AutoCloseable {
 	 * For setting up remote ref update specification from ref spec, see helper
 	 * method {@link #findRemoteRefUpdatesFor(Collection)}, predefined refspecs
 	 * ({@link #REFSPEC_TAGS}, {@link #REFSPEC_PUSH_ALL}) or consider using
-	 * directly {@link RemoteRefUpdate} for more possibilities.
+	 * directly {@link org.eclipse.jgit.transport.RemoteRefUpdate} for more
+	 * possibilities.
 	 * <p>
 	 * When {@link #isDryRun()} is true, result of this operation is just
 	 * estimation of real operation result, no real action is performed.
 	 *
 	 * @see RemoteRefUpdate
-	 *
 	 * @param monitor
 	 *            progress monitor to inform the user about our processing
-	 *            activity. Must not be null. Use {@link NullProgressMonitor} if
-	 *            progress updates are not interesting or necessary.
+	 *            activity. Must not be null. Use
+	 *            {@link org.eclipse.jgit.lib.NullProgressMonitor} if progress
+	 *            updates are not interesting or necessary.
 	 * @param toPush
 	 *            specification of refs to push. May be null or the empty
 	 *            collection to use the specifications from the RemoteConfig
@@ -1273,10 +1309,10 @@ public abstract class Transport implements AutoCloseable {
 	 *            output stream to write messages to
 	 * @return information about results of remote refs updates, tracking refs
 	 *         updates and refs advertised by remote repository.
-	 * @throws NotSupportedException
+	 * @throws org.eclipse.jgit.errors.NotSupportedException
 	 *             this transport implementation does not support pushing
 	 *             objects.
-	 * @throws TransportException
+	 * @throws org.eclipse.jgit.errors.TransportException
 	 *             the remote connection could not be established or object
 	 *             copying (if necessary) failed at I/O or protocol level or
 	 *             update specification was incorrect.
@@ -1322,30 +1358,30 @@ public abstract class Transport implements AutoCloseable {
 	 * For setting up remote ref update specification from ref spec, see helper
 	 * method {@link #findRemoteRefUpdatesFor(Collection)}, predefined refspecs
 	 * ({@link #REFSPEC_TAGS}, {@link #REFSPEC_PUSH_ALL}) or consider using
-	 * directly {@link RemoteRefUpdate} for more possibilities.
+	 * directly {@link org.eclipse.jgit.transport.RemoteRefUpdate} for more
+	 * possibilities.
 	 * <p>
 	 * When {@link #isDryRun()} is true, result of this operation is just
 	 * estimation of real operation result, no real action is performed.
 	 *
 	 * @see RemoteRefUpdate
-	 *
 	 * @param monitor
 	 *            progress monitor to inform the user about our processing
-	 *            activity. Must not be null. Use {@link NullProgressMonitor} if
-	 *            progress updates are not interesting or necessary.
+	 *            activity. Must not be null. Use
+	 *            {@link org.eclipse.jgit.lib.NullProgressMonitor} if progress
+	 *            updates are not interesting or necessary.
 	 * @param toPush
 	 *            specification of refs to push. May be null or the empty
 	 *            collection to use the specifications from the RemoteConfig
 	 *            converted by {@link #findRemoteRefUpdatesFor(Collection)}. No
 	 *            more than 1 RemoteRefUpdate with the same remoteName is
 	 *            allowed. These objects are modified during this call.
-	 *
 	 * @return information about results of remote refs updates, tracking refs
 	 *         updates and refs advertised by remote repository.
-	 * @throws NotSupportedException
+	 * @throws org.eclipse.jgit.errors.NotSupportedException
 	 *             this transport implementation does not support pushing
 	 *             objects.
-	 * @throws TransportException
+	 * @throws org.eclipse.jgit.errors.TransportException
 	 *             the remote connection could not be established or object
 	 *             copying (if necessary) failed at I/O or protocol level or
 	 *             update specification was incorrect.
@@ -1357,20 +1393,22 @@ public abstract class Transport implements AutoCloseable {
 	}
 
 	/**
-	 * Convert push remote refs update specification from {@link RefSpec} form
-	 * to {@link RemoteRefUpdate}. Conversion expands wildcards by matching
-	 * source part to local refs. expectedOldObjectId in RemoteRefUpdate is
-	 * always set as null. Tracking branch is configured if RefSpec destination
-	 * matches source of any fetch ref spec for this transport remote
-	 * configuration.
+	 * Convert push remote refs update specification from
+	 * {@link org.eclipse.jgit.transport.RefSpec} form to
+	 * {@link org.eclipse.jgit.transport.RemoteRefUpdate}. Conversion expands
+	 * wildcards by matching source part to local refs. expectedOldObjectId in
+	 * RemoteRefUpdate is always set as null. Tracking branch is configured if
+	 * RefSpec destination matches source of any fetch ref spec for this
+	 * transport remote configuration.
 	 * <p>
 	 * Conversion is performed for context of this transport (database, fetch
 	 * specifications).
 	 *
 	 * @param specs
 	 *            collection of RefSpec to convert.
-	 * @return collection of set up {@link RemoteRefUpdate}.
-	 * @throws IOException
+	 * @return collection of set up
+	 *         {@link org.eclipse.jgit.transport.RemoteRefUpdate}.
+	 * @throws java.io.IOException
 	 *             when problem occurred during conversion or specification set
 	 *             up: most probably, missing objects or refs.
 	 */
@@ -1381,12 +1419,13 @@ public abstract class Transport implements AutoCloseable {
 	}
 
 	/**
-	 * Convert push remote refs update specification from {@link RefSpec} form
-	 * to {@link RemoteRefUpdate}. Conversion expands wildcards by matching
-	 * source part to local refs. expectedOldObjectId in RemoteRefUpdate is
-	 * set according to leases. Tracking branch is configured if RefSpec destination
-	 * matches source of any fetch ref spec for this transport remote
-	 * configuration.
+	 * Convert push remote refs update specification from
+	 * {@link org.eclipse.jgit.transport.RefSpec} form to
+	 * {@link org.eclipse.jgit.transport.RemoteRefUpdate}. Conversion expands
+	 * wildcards by matching source part to local refs. expectedOldObjectId in
+	 * RemoteRefUpdate is set according to leases. Tracking branch is configured
+	 * if RefSpec destination matches source of any fetch ref spec for this
+	 * transport remote configuration.
 	 * <p>
 	 * Conversion is performed for context of this transport (database, fetch
 	 * specifications).
@@ -1395,8 +1434,9 @@ public abstract class Transport implements AutoCloseable {
 	 *            collection of RefSpec to convert.
 	 * @param leases
 	 *            map from ref to lease (containing expected old object id)
-	 * @return collection of set up {@link RemoteRefUpdate}.
-	 * @throws IOException
+	 * @return collection of set up
+	 *         {@link org.eclipse.jgit.transport.RemoteRefUpdate}.
+	 * @throws java.io.IOException
 	 *             when problem occurred during conversion or specification set
 	 *             up: most probably, missing objects or refs.
 	 * @since 4.7
@@ -1415,9 +1455,9 @@ public abstract class Transport implements AutoCloseable {
 	 * be used for reading remote refs.
 	 *
 	 * @return a fresh connection to fetch from the remote repository.
-	 * @throws NotSupportedException
+	 * @throws org.eclipse.jgit.errors.NotSupportedException
 	 *             the implementation does not support fetching.
-	 * @throws TransportException
+	 * @throws org.eclipse.jgit.errors.TransportException
 	 *             the remote connection could not be established.
 	 */
 	public abstract FetchConnection openFetch() throws NotSupportedException,
@@ -1427,15 +1467,17 @@ public abstract class Transport implements AutoCloseable {
 	 * Begins a new connection for pushing into the remote repository.
 	 *
 	 * @return a fresh connection to push into the remote repository.
-	 * @throws NotSupportedException
+	 * @throws org.eclipse.jgit.errors.NotSupportedException
 	 *             the implementation does not support pushing.
-	 * @throws TransportException
+	 * @throws org.eclipse.jgit.errors.TransportException
 	 *             the remote connection could not be established
 	 */
 	public abstract PushConnection openPush() throws NotSupportedException,
 			TransportException;
 
 	/**
+	 * {@inheritDoc}
+	 * <p>
 	 * Close any resources used by this transport.
 	 * <p>
 	 * If the remote repository is contacted by a network socket this method

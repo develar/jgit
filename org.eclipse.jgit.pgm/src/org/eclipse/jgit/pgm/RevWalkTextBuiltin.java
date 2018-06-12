@@ -47,14 +47,12 @@ import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Map;
 
 import org.eclipse.jgit.diff.DiffConfig;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
-import org.eclipse.jgit.lib.RefDatabase;
 import org.eclipse.jgit.pgm.internal.CLIText;
 import org.eclipse.jgit.pgm.opt.PathTreeFilterHandler;
 import org.eclipse.jgit.revwalk.FollowFilter;
@@ -93,7 +91,7 @@ abstract class RevWalkTextBuiltin extends TextBuiltin {
 
 	private final EnumSet<RevSort> sorting = EnumSet.noneOf(RevSort.class);
 
-	private void enableRevSort(final RevSort type, final boolean on) {
+	private void enableRevSort(RevSort type, boolean on) {
 		if (on)
 			sorting.add(type);
 		else
@@ -101,22 +99,22 @@ abstract class RevWalkTextBuiltin extends TextBuiltin {
 	}
 
 	@Option(name = "--date-order")
-	void enableDateOrder(final boolean on) {
+	void enableDateOrder(boolean on) {
 		enableRevSort(RevSort.COMMIT_TIME_DESC, on);
 	}
 
 	@Option(name = "--topo-order")
-	void enableTopoOrder(final boolean on) {
+	void enableTopoOrder(boolean on) {
 		enableRevSort(RevSort.TOPO, on);
 	}
 
 	@Option(name = "--reverse")
-	void enableReverse(final boolean on) {
+	void enableReverse(boolean on) {
 		enableRevSort(RevSort.REVERSE, on);
 	}
 
 	@Option(name = "--boundary")
-	void enableBoundary(final boolean on) {
+	void enableBoundary(boolean on) {
 		enableRevSort(RevSort.BOUNDARY, on);
 	}
 
@@ -124,35 +122,36 @@ abstract class RevWalkTextBuiltin extends TextBuiltin {
 	private String followPath;
 
 	@Argument(index = 0, metaVar = "metaVar_commitish")
-	private final List<RevCommit> commits = new ArrayList<>();
+	private List<RevCommit> commits = new ArrayList<>();
 
-	@Option(name = "--", metaVar = "metaVar_path", multiValued = true, handler = PathTreeFilterHandler.class)
+	@Option(name = "--", metaVar = "metaVar_path", handler = PathTreeFilterHandler.class)
 	protected TreeFilter pathFilter = TreeFilter.ALL;
 
 	private final List<RevFilter> revLimiter = new ArrayList<>();
 
 	@Option(name = "--author")
-	void addAuthorRevFilter(final String who) {
+	void addAuthorRevFilter(String who) {
 		revLimiter.add(AuthorRevFilter.create(who));
 	}
 
 	@Option(name = "--committer")
-	void addCommitterRevFilter(final String who) {
+	void addCommitterRevFilter(String who) {
 		revLimiter.add(CommitterRevFilter.create(who));
 	}
 
 	@Option(name = "--grep")
-	void addCMessageRevFilter(final String msg) {
+	void addCMessageRevFilter(String msg) {
 		revLimiter.add(MessageRevFilter.create(msg));
 	}
 
 	@Option(name = "--max-count", aliases = "-n", metaVar = "metaVar_n")
 	private int maxCount = -1;
 
+	/** {@inheritDoc} */
 	@Override
 	protected void run() throws Exception {
 		walk = createWalk();
-		for (final RevSort s : sorting)
+		for (RevSort s : sorting)
 			walk.sort(s, true);
 
 		if (pathFilter == TreeFilter.ALL) {
@@ -170,9 +169,7 @@ abstract class RevWalkTextBuiltin extends TextBuiltin {
 			walk.setRevFilter(AndRevFilter.create(revLimiter));
 
 		if (all) {
-			Map<String, Ref> refs =
-				db.getRefDatabase().getRefs(RefDatabase.ALL);
-			for (Ref a : refs.values()) {
+			for (Ref a : db.getRefDatabase().getRefs()) {
 				ObjectId oid = a.getPeeledObjectId();
 				if (oid == null)
 					oid = a.getObjectId();
@@ -190,7 +187,7 @@ abstract class RevWalkTextBuiltin extends TextBuiltin {
 				throw die(MessageFormat.format(CLIText.get().cannotResolve, Constants.HEAD));
 			commits.add(walk.parseCommit(head));
 		}
-		for (final RevCommit c : commits) {
+		for (RevCommit c : commits) {
 			final RevCommit real = argWalk == walk ? c : walk.parseCommit(c);
 			if (c.has(RevFlag.UNINTERESTING))
 				walk.markUninteresting(real);
@@ -210,6 +207,11 @@ abstract class RevWalkTextBuiltin extends TextBuiltin {
 		}
 	}
 
+	/**
+	 * Create RevWalk
+	 *
+	 * @return a {@link org.eclipse.jgit.revwalk.RevWalk} object.
+	 */
 	protected RevWalk createWalk() {
 		RevWalk result;
 		if (objects)
@@ -222,9 +224,16 @@ abstract class RevWalkTextBuiltin extends TextBuiltin {
 		return result;
 	}
 
+	/**
+	 * Loop the walk
+	 *
+	 * @return number of RevCommits walked
+	 * @throws java.lang.Exception
+	 *             if any.
+	 */
 	protected int walkLoop() throws Exception {
 		int n = 0;
-		for (final RevCommit c : walk) {
+		for (RevCommit c : walk) {
 			if (++n > maxCount && maxCount >= 0)
 				break;
 			show(c);
@@ -248,10 +257,10 @@ abstract class RevWalkTextBuiltin extends TextBuiltin {
 	 * RevWalkTextBuiltin.
 	 *
 	 * @param c
-	 *            The current {@link RevCommit}
-	 * @throws Exception
+	 *            The current {@link org.eclipse.jgit.revwalk.RevCommit}
+	 * @throws java.lang.Exception
 	 */
-	protected abstract void show(final RevCommit c) throws Exception;
+	protected abstract void show(RevCommit c) throws Exception;
 
 	/**
 	 * "Show" the current RevCommit when called from the main processing loop.
@@ -260,10 +269,11 @@ abstract class RevWalkTextBuiltin extends TextBuiltin {
 	 * process RevCommits.
 	 *
 	 * @param objectWalk
-	 *            the {@link ObjectWalk} used by {@link #walkLoop()}
+	 *            the {@link org.eclipse.jgit.revwalk.ObjectWalk} used by
+	 *            {@link #walkLoop()}
 	 * @param currentObject
-	 *            The current {@link RevObject}
-	 * @throws Exception
+	 *            The current {@link org.eclipse.jgit.revwalk.RevObject}
+	 * @throws java.lang.Exception
 	 */
 	protected void show(final ObjectWalk objectWalk,
 			final RevObject currentObject) throws Exception {

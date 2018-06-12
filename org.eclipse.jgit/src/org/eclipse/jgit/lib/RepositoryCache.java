@@ -62,29 +62,33 @@ import org.eclipse.jgit.util.RawParseUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Cache of active {@link Repository} instances. */
+/**
+ * Cache of active {@link org.eclipse.jgit.lib.Repository} instances.
+ */
 public class RepositoryCache {
-	private static final RepositoryCache cache = new RepositoryCache();
-
 	private final static Logger LOG = LoggerFactory
 			.getLogger(RepositoryCache.class);
+
+	private static final RepositoryCache cache = new RepositoryCache();
 
 	/**
 	 * Open an existing repository, reusing a cached instance if possible.
 	 * <p>
 	 * When done with the repository, the caller must call
-	 * {@link Repository#close()} to decrement the repository's usage counter.
+	 * {@link org.eclipse.jgit.lib.Repository#close()} to decrement the
+	 * repository's usage counter.
 	 *
 	 * @param location
-	 *            where the local repository is. Typically a {@link FileKey}.
+	 *            where the local repository is. Typically a
+	 *            {@link org.eclipse.jgit.lib.RepositoryCache.FileKey}.
 	 * @return the repository instance requested; caller must close when done.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the repository could not be read (likely its core.version
 	 *             property is not supported).
-	 * @throws RepositoryNotFoundException
+	 * @throws org.eclipse.jgit.errors.RepositoryNotFoundException
 	 *             there is no repository at the given location.
 	 */
-	public static Repository open(final Key location) throws IOException,
+	public static Repository open(Key location) throws IOException,
 			RepositoryNotFoundException {
 		return open(location, true);
 	}
@@ -93,23 +97,25 @@ public class RepositoryCache {
 	 * Open a repository, reusing a cached instance if possible.
 	 * <p>
 	 * When done with the repository, the caller must call
-	 * {@link Repository#close()} to decrement the repository's usage counter.
+	 * {@link org.eclipse.jgit.lib.Repository#close()} to decrement the
+	 * repository's usage counter.
 	 *
 	 * @param location
-	 *            where the local repository is. Typically a {@link FileKey}.
+	 *            where the local repository is. Typically a
+	 *            {@link org.eclipse.jgit.lib.RepositoryCache.FileKey}.
 	 * @param mustExist
 	 *            If true, and the repository is not found, throws {@code
 	 *            RepositoryNotFoundException}. If false, a repository instance
 	 *            is created and registered anyway.
 	 * @return the repository instance requested; caller must close when done.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the repository could not be read (likely its core.version
 	 *             property is not supported).
 	 * @throws RepositoryNotFoundException
 	 *             There is no repository at the given location, only thrown if
 	 *             {@code mustExist} is true.
 	 */
-	public static Repository open(final Key location, final boolean mustExist)
+	public static Repository open(Key location, boolean mustExist)
 			throws IOException {
 		return cache.openRepository(location, mustExist);
 	}
@@ -118,9 +124,10 @@ public class RepositoryCache {
 	 * Register one repository into the cache.
 	 * <p>
 	 * During registration the cache automatically increments the usage counter,
-	 * permitting it to retain the reference. A {@link FileKey} for the
-	 * repository's {@link Repository#getDirectory()} is used to index the
-	 * repository in the cache.
+	 * permitting it to retain the reference. A
+	 * {@link org.eclipse.jgit.lib.RepositoryCache.FileKey} for the repository's
+	 * {@link org.eclipse.jgit.lib.Repository#getDirectory()} is used to index
+	 * the repository in the cache.
 	 * <p>
 	 * If another repository already is registered in the cache at this
 	 * location, the other instance is closed.
@@ -128,7 +135,7 @@ public class RepositoryCache {
 	 * @param db
 	 *            repository to register.
 	 */
-	public static void register(final Repository db) {
+	public static void register(Repository db) {
 		if (db.getDirectory() != null) {
 			FileKey key = FileKey.exact(db.getDirectory(), db.getFS());
 			cache.registerRepository(key, db);
@@ -144,7 +151,7 @@ public class RepositoryCache {
 	 * @param db
 	 *            repository to unregister.
 	 */
-	public static void close(@NonNull final Repository db) {
+	public static void close(@NonNull Repository db) {
 		if (db.getDirectory() != null) {
 			FileKey key = FileKey.exact(db.getDirectory(), db.getFS());
 			cache.unregisterAndCloseRepository(key);
@@ -156,14 +163,14 @@ public class RepositoryCache {
 	 * <p>
 	 * Removes a repository from the cache, if it is still registered here. This
 	 * method will not close the repository, only remove it from the cache. See
-	 * {@link RepositoryCache#close(Repository)} to remove and close the
-	 * repository.
+	 * {@link org.eclipse.jgit.lib.RepositoryCache#close(Repository)} to remove
+	 * and close the repository.
 	 *
 	 * @param db
 	 *            repository to unregister.
 	 * @since 4.3
 	 */
-	public static void unregister(final Repository db) {
+	public static void unregister(Repository db) {
 		if (db.getDirectory() != null) {
 			unregister(FileKey.exact(db.getDirectory(), db.getFS()));
 		}
@@ -174,8 +181,8 @@ public class RepositoryCache {
 	 * <p>
 	 * Removes a repository from the cache, if it is still registered here. This
 	 * method will not close the repository, only remove it from the cache. See
-	 * {@link RepositoryCache#close(Repository)} to remove and close the
-	 * repository.
+	 * {@link org.eclipse.jgit.lib.RepositoryCache#close(Repository)} to remove
+	 * and close the repository.
 	 *
 	 * @param location
 	 *            location of the repository to remove.
@@ -186,6 +193,8 @@ public class RepositoryCache {
 	}
 
 	/**
+	 * Get the locations of all repositories registered in the cache.
+	 *
 	 * @return the locations of all repositories registered in the cache.
 	 * @since 4.1
 	 */
@@ -202,7 +211,9 @@ public class RepositoryCache {
 		return cache.cacheMap.get(key) == repo;
 	}
 
-	/** Unregister all repositories from the cache. */
+	/**
+	 * Unregister all repositories from the cache.
+	 */
 	public static void clear() {
 		cache.clearAll();
 	}
@@ -276,13 +287,13 @@ public class RepositoryCache {
 		return db;
 	}
 
-	private void registerRepository(final Key location, final Repository db) {
-		Repository oldDb = cacheMap.put(location, db);
-		if (oldDb != null)
-			oldDb.close();
+	private void registerRepository(Key location, Repository db) {
+		try (Repository oldDb = cacheMap.put(location, db)) {
+			// oldDb is auto-closed
+		}
 	}
 
-	private Repository unregisterRepository(final Key location) {
+	private Repository unregisterRepository(Key location) {
 		return cacheMap.remove(location);
 	}
 
@@ -291,7 +302,7 @@ public class RepositoryCache {
 			&& (System.currentTimeMillis() - db.closedAt.get() > expireAfter);
 	}
 
-	private void unregisterAndCloseRepository(final Key location) {
+	private void unregisterAndCloseRepository(Key location) {
 		synchronized (lockFor(location)) {
 			Repository oldDb = unregisterRepository(location);
 			if (oldDb != null) {
@@ -318,7 +329,7 @@ public class RepositoryCache {
 		}
 	}
 
-	private Lock lockFor(final Key location) {
+	private Lock lockFor(Key location) {
 		return openLocks[(location.hashCode() >>> 1) % openLocks.length];
 	}
 
@@ -372,7 +383,7 @@ public class RepositoryCache {
 		 * @return a key for the given directory.
 		 * @see #lenient(File, FS)
 		 */
-		public static FileKey exact(final File directory, FS fs) {
+		public static FileKey exact(File directory, FS fs) {
 			return new FileKey(directory, fs);
 		}
 
@@ -395,7 +406,7 @@ public class RepositoryCache {
 		 * @return a key for the given directory.
 		 * @see #exact(File, FS)
 		 */
-		public static FileKey lenient(final File directory, FS fs) {
+		public static FileKey lenient(File directory, FS fs) {
 			final File gitdir = resolve(directory, fs);
 			return new FileKey(gitdir != null ? gitdir : directory, fs);
 		}
@@ -410,12 +421,12 @@ public class RepositoryCache {
 		 *            the file system abstraction which will be necessary to
 		 *            perform certain file system operations.
 		 */
-		protected FileKey(final File directory, FS fs) {
+		protected FileKey(File directory, FS fs) {
 			path = canonical(directory);
 			this.fs = fs;
 		}
 
-		private static File canonical(final File path) {
+		private static File canonical(File path) {
 			try {
 				return path.getCanonicalFile();
 			} catch (IOException e) {
@@ -429,7 +440,7 @@ public class RepositoryCache {
 		}
 
 		@Override
-		public Repository open(final boolean mustExist) throws IOException {
+		public Repository open(boolean mustExist) throws IOException {
 			if (mustExist && !isGitRepository(path, fs))
 				throw new RepositoryNotFoundException(path);
 			return new FileRepository(path);
@@ -441,7 +452,7 @@ public class RepositoryCache {
 		}
 
 		@Override
-		public boolean equals(final Object o) {
+		public boolean equals(Object o) {
 			return o instanceof FileKey && path.equals(((FileKey) o).path);
 		}
 
@@ -465,19 +476,19 @@ public class RepositoryCache {
 		 *         it doesn't look enough like a Git directory to really be a
 		 *         Git directory.
 		 */
-		public static boolean isGitRepository(final File dir, FS fs) {
+		public static boolean isGitRepository(File dir, FS fs) {
 			return fs.resolve(dir, "objects").exists() //$NON-NLS-1$
 					&& fs.resolve(dir, "refs").exists() //$NON-NLS-1$
 					&& isValidHead(new File(dir, Constants.HEAD));
 		}
 
-		private static boolean isValidHead(final File head) {
+		private static boolean isValidHead(File head) {
 			final String ref = readFirstLine(head);
 			return ref != null
 					&& (ref.startsWith("ref: refs/") || ObjectId.isId(ref)); //$NON-NLS-1$
 		}
 
-		private static String readFirstLine(final File head) {
+		private static String readFirstLine(File head) {
 			try {
 				final byte[] buf = IO.readFully(head, 4096);
 				int n = buf.length;
@@ -510,7 +521,7 @@ public class RepositoryCache {
 		 * @return the actual directory location if a better match is found;
 		 *         null if there is no suitable match.
 		 */
-		public static File resolve(final File directory, FS fs) {
+		public static File resolve(File directory, FS fs) {
 			if (isGitRepository(directory, fs))
 				return directory;
 			if (isGitRepository(new File(directory, Constants.DOT_GIT), fs))

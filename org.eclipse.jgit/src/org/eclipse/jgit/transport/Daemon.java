@@ -45,14 +45,17 @@ package org.eclipse.jgit.transport;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InterruptedIOException;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketAddress;
+import java.net.SocketException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Collection;
 
+import org.eclipse.jgit.annotations.Nullable;
 import org.eclipse.jgit.errors.RepositoryNotFoundException;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.PersonIdent;
@@ -64,7 +67,9 @@ import org.eclipse.jgit.transport.resolver.ServiceNotAuthorizedException;
 import org.eclipse.jgit.transport.resolver.ServiceNotEnabledException;
 import org.eclipse.jgit.transport.resolver.UploadPackFactory;
 
-/** Basic daemon for the anonymous <code>git://</code> transport protocol. */
+/**
+ * Basic daemon for the anonymous <code>git://</code> transport protocol.
+ */
 public class Daemon {
 	/** 9418: IANA assigned port number for Git. */
 	public static final int DEFAULT_PORT = 9418;
@@ -77,9 +82,7 @@ public class Daemon {
 
 	private final ThreadGroup processors;
 
-	private boolean run;
-
-	Thread acceptThread;
+	private Acceptor acceptThread;
 
 	private int timeout;
 
@@ -91,7 +94,9 @@ public class Daemon {
 
 	volatile ReceivePackFactory<DaemonClient> receivePackFactory;
 
-	/** Configure a daemon to listen on any available network port. */
+	/**
+	 * Configure a daemon to listen on any available network port.
+	 */
 	public Daemon() {
 		this(null);
 	}
@@ -104,7 +109,7 @@ public class Daemon {
 	 *            port will be chosen on all network interfaces.
 	 */
 	@SuppressWarnings("unchecked")
-	public Daemon(final InetSocketAddress addr) {
+	public Daemon(InetSocketAddress addr) {
 		myAddress = addr;
 		processors = new ThreadGroup("Git-Daemon"); //$NON-NLS-1$
 
@@ -150,12 +155,17 @@ public class Daemon {
 
 					@Override
 					protected void execute(final DaemonClient dc,
-							final Repository db) throws IOException,
+							final Repository db,
+							@Nullable Collection<String> extraParameters)
+							throws IOException,
 							ServiceNotEnabledException,
 							ServiceNotAuthorizedException {
 						UploadPack up = uploadPackFactory.create(dc, db);
 						InputStream in = dc.getInputStream();
 						OutputStream out = dc.getOutputStream();
+						if (extraParameters != null) {
+							up.setExtraParameters(extraParameters);
+						}
 						up.upload(in, out, null);
 					}
 				}, new DaemonService("receive-pack", "receivepack") { //$NON-NLS-1$ //$NON-NLS-2$
@@ -165,7 +175,9 @@ public class Daemon {
 
 					@Override
 					protected void execute(final DaemonClient dc,
-							final Repository db) throws IOException,
+							final Repository db,
+							@Nullable Collection<String> extraParameters)
+							throws IOException,
 							ServiceNotEnabledException,
 							ServiceNotAuthorizedException {
 						ReceivePack rp = receivePackFactory.create(dc, db);
@@ -176,7 +188,11 @@ public class Daemon {
 				} };
 	}
 
-	/** @return the address connections are received on. */
+	/**
+	 * Get the address connections are received on.
+	 *
+	 * @return the address connections are received on.
+	 */
 	public synchronized InetSocketAddress getAddress() {
 		return myAddress;
 	}
@@ -193,14 +209,18 @@ public class Daemon {
 	public synchronized DaemonService getService(String name) {
 		if (!name.startsWith("git-")) //$NON-NLS-1$
 			name = "git-" + name; //$NON-NLS-1$
-		for (final DaemonService s : services) {
+		for (DaemonService s : services) {
 			if (s.getCommandName().equals(name))
 				return s;
 		}
 		return null;
 	}
 
-	/** @return timeout (in seconds) before aborting an IO operation. */
+	/**
+	 * Get timeout (in seconds) before aborting an IO operation.
+	 *
+	 * @return timeout (in seconds) before aborting an IO operation.
+	 */
 	public int getTimeout() {
 		return timeout;
 	}
@@ -213,11 +233,15 @@ public class Daemon {
 	 *            before aborting an IO read or write operation with the
 	 *            connected client.
 	 */
-	public void setTimeout(final int seconds) {
+	public void setTimeout(int seconds) {
 		timeout = seconds;
 	}
 
-	/** @return configuration controlling packing, may be null. */
+	/**
+	 * Get configuration controlling packing, may be null.
+	 *
+	 * @return configuration controlling packing, may be null.
+	 */
 	public PackConfig getPackConfig() {
 		return packConfig;
 	}
@@ -281,65 +305,122 @@ public class Daemon {
 			receivePackFactory = (ReceivePackFactory<DaemonClient>) ReceivePackFactory.DISABLED;
 	}
 
+	private class Acceptor extends Thread {
+
+		private final ServerSocket listenSocket;
+
+		private final AtomicBoolean running = new AtomicBoolean(true);
+
+		public Acceptor(ThreadGroup group, String name, ServerSocket socket) {
+			super(group, name);
+			this.listenSocket = socket;
+		}
+
+		@Override
+		public void run() {
+			setUncaughtExceptionHandler((thread, throwable) -> terminate());
+			while (isRunning()) {
+				try {
+					startClient(listenSocket.accept());
+				} catch (SocketException e) {
+					// Test again to see if we should keep accepting.
+				} catch (IOException e) {
+					break;
+				}
+			}
+
+			terminate();
+		}
+
+		private void terminate() {
+			try {
+				shutDown();
+			} finally {
+				clearThread();
+			}
+		}
+
+		public boolean isRunning() {
+			return running.get();
+		}
+
+		public void shutDown() {
+			running.set(false);
+			try {
+				listenSocket.close();
+			} catch (IOException err) {
+				//
+			}
+		}
+
+	}
+
 	/**
 	 * Start this daemon on a background thread.
 	 *
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the server socket could not be opened.
-	 * @throws IllegalStateException
+	 * @throws java.lang.IllegalStateException
 	 *             the daemon is already running.
 	 */
 	public synchronized void start() throws IOException {
-		if (acceptThread != null)
+		if (acceptThread != null) {
 			throw new IllegalStateException(JGitText.get().daemonAlreadyRunning);
+		}
+		ServerSocket socket = new ServerSocket();
+		socket.setReuseAddress(true);
+		if (myAddress != null) {
+			socket.bind(myAddress, BACKLOG);
+		} else {
+			socket.bind(new InetSocketAddress((InetAddress) null, 0), BACKLOG);
+		}
+		myAddress = (InetSocketAddress) socket.getLocalSocketAddress();
 
-		final ServerSocket listenSock = new ServerSocket(
-				myAddress != null ? myAddress.getPort() : 0, BACKLOG,
-				myAddress != null ? myAddress.getAddress() : null);
-		myAddress = (InetSocketAddress) listenSock.getLocalSocketAddress();
-
-		run = true;
-		acceptThread = new Thread(processors, "Git-Daemon-Accept") { //$NON-NLS-1$
-			@Override
-			public void run() {
-				while (isRunning()) {
-					try {
-						startClient(listenSock.accept());
-					} catch (InterruptedIOException e) {
-						// Test again to see if we should keep accepting.
-					} catch (IOException e) {
-						break;
-					}
-				}
-
-				try {
-					listenSock.close();
-				} catch (IOException err) {
-					//
-				} finally {
-					synchronized (Daemon.this) {
-						acceptThread = null;
-					}
-				}
-			}
-		};
+		acceptThread = new Acceptor(processors, "Git-Daemon-Accept", socket); //$NON-NLS-1$
 		acceptThread.start();
 	}
 
-	/** @return true if this daemon is receiving connections. */
-	public synchronized boolean isRunning() {
-		return run;
+	private synchronized void clearThread() {
+		acceptThread = null;
 	}
 
-	/** Stop this daemon. */
+	/**
+	 * Whether this daemon is receiving connections.
+	 *
+	 * @return {@code true} if this daemon is receiving connections.
+	 */
+	public synchronized boolean isRunning() {
+		return acceptThread != null && acceptThread.isRunning();
+	}
+
+	/**
+	 * Stop this daemon.
+	 */
 	public synchronized void stop() {
 		if (acceptThread != null) {
-			run = false;
-			acceptThread.interrupt();
+			acceptThread.shutDown();
 		}
 	}
 
-	void startClient(final Socket s) {
+	/**
+	 * Stops this daemon and waits until it's acceptor thread has finished.
+	 *
+	 * @throws java.lang.InterruptedException
+	 *             if waiting for the acceptor thread is interrupted
+	 * @since 4.9
+	 */
+	public void stopAndWait() throws InterruptedException {
+		Thread acceptor = null;
+		synchronized (this) {
+			acceptor = acceptThread;
+			stop();
+		}
+		if (acceptor != null) {
+			acceptor.join();
+		}
+	}
+
+	void startClient(Socket s) {
 		final DaemonClient dc = new DaemonClient(this);
 
 		final SocketAddress peer = s.getRemoteSocketAddress();
@@ -373,8 +454,8 @@ public class Daemon {
 		}.start();
 	}
 
-	synchronized DaemonService matchService(final String cmd) {
-		for (final DaemonService d : services) {
+	synchronized DaemonService matchService(String cmd) {
+		for (DaemonService d : services) {
 			if (d.handles(cmd))
 				return d;
 		}

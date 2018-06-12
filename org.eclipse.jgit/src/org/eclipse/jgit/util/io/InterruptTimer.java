@@ -88,7 +88,9 @@ public final class InterruptTimer {
 
 	final AutoKiller autoKiller;
 
-	/** Create a new timer with a default thread name. */
+	/**
+	 * Create a new timer with a default thread name.
+	 */
 	public InterruptTimer() {
 		this("JGit-InterruptTimer"); //$NON-NLS-1$
 	}
@@ -101,7 +103,7 @@ public final class InterruptTimer {
 	 * @param threadName
 	 *            name of the timer thread.
 	 */
-	public InterruptTimer(final String threadName) {
+	public InterruptTimer(String threadName) {
 		state = new AlarmState();
 		autoKiller = new AutoKiller(state);
 		thread = new AlarmThread(threadName, state);
@@ -115,7 +117,7 @@ public final class InterruptTimer {
 	 *            number of milliseconds before the interrupt should trigger.
 	 *            Must be &gt; 0.
 	 */
-	public void begin(final int timeout) {
+	public void begin(int timeout) {
 		if (timeout <= 0)
 			throw new IllegalArgumentException(MessageFormat.format(
 					JGitText.get().invalidTimeout, Integer.valueOf(timeout)));
@@ -123,12 +125,16 @@ public final class InterruptTimer {
 		state.begin(timeout);
 	}
 
-	/** Disable the interrupt timer, as the operation is complete. */
+	/**
+	 * Disable the interrupt timer, as the operation is complete.
+	 */
 	public void end() {
 		state.end();
 	}
 
-	/** Shutdown the timer thread, and wait for it to terminate. */
+	/**
+	 * Shutdown the timer thread, and wait for it to terminate.
+	 */
 	public void terminate() {
 		state.terminate();
 		try {
@@ -139,7 +145,7 @@ public final class InterruptTimer {
 	}
 
 	static final class AlarmThread extends Thread {
-		AlarmThread(final String name, final AlarmState q) {
+		AlarmThread(String name, AlarmState q) {
 			super(q);
 			setName(name);
 			setDaemon(true);
@@ -155,7 +161,7 @@ public final class InterruptTimer {
 	private static final class AutoKiller {
 		private final AlarmState state;
 
-		AutoKiller(final AlarmState s) {
+		AutoKiller(AlarmState s) {
 			state = s;
 		}
 
@@ -197,7 +203,7 @@ public final class InterruptTimer {
 			}
 		}
 
-		synchronized void begin(final int timeout) {
+		synchronized void begin(int timeout) {
 			if (terminated)
 				throw new IllegalStateException(JGitText.get().timerAlreadyTerminated);
 			callingThread = Thread.currentThread();

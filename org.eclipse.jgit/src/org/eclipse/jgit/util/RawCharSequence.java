@@ -68,27 +68,31 @@ public final class RawCharSequence implements CharSequence {
 	 * @param end
 	 *            ending position for the sequence.
 	 */
-	public RawCharSequence(final byte[] buf, final int start, final int end) {
+	public RawCharSequence(byte[] buf, int start, int end) {
 		buffer = buf;
 		startPtr = start;
 		endPtr = end;
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public char charAt(final int index) {
+	public char charAt(int index) {
 		return (char) (buffer[startPtr + index] & 0xff);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public int length() {
 		return endPtr - startPtr;
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public CharSequence subSequence(final int start, final int end) {
+	public CharSequence subSequence(int start, int end) {
 		return new RawCharSequence(buffer, startPtr + start, startPtr + end);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public String toString() {
 		final int n = length();

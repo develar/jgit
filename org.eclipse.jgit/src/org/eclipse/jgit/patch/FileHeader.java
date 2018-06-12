@@ -69,7 +69,9 @@ import org.eclipse.jgit.util.QuotedString;
 import org.eclipse.jgit.util.RawParseUtils;
 import org.eclipse.jgit.util.TemporaryBuffer;
 
-/** Patch header describing an action for a single file path. */
+/**
+ * Patch header describing an action for a single file path.
+ */
 public class FileHeader extends DiffEntry {
 	private static final byte[] OLD_MODE = encodeASCII("old mode "); //$NON-NLS-1$
 
@@ -144,7 +146,7 @@ public class FileHeader extends DiffEntry {
 	 * @param type
 	 *            the type of patch used to modify this file
 	 */
-	public FileHeader(final byte[] headerLines, EditList edits, PatchType type) {
+	public FileHeader(byte[] headerLines, EditList edits, PatchType type) {
 		this(headerLines, 0);
 		endOffset = headerLines.length;
 		int ptr = parseGitFileName(Patch.DIFF_GIT.length, headerLines.length);
@@ -153,7 +155,7 @@ public class FileHeader extends DiffEntry {
 		addHunk(new HunkHeader(this, edits));
 	}
 
-	FileHeader(final byte[] b, final int offset) {
+	FileHeader(byte[] b, int offset) {
 		buf = b;
 		startOffset = offset;
 		changeType = ChangeType.MODIFY; // unless otherwise designated
@@ -164,17 +166,30 @@ public class FileHeader extends DiffEntry {
 		return 1;
 	}
 
-	/** @return the byte array holding this file's patch script. */
+	/**
+	 * Get the byte array holding this file's patch script.
+	 *
+	 * @return the byte array holding this file's patch script.
+	 */
 	public byte[] getBuffer() {
 		return buf;
 	}
 
-	/** @return offset the start of this file's script in {@link #getBuffer()}. */
+	/**
+	 * Get offset of the start of this file's script in {@link #getBuffer()}.
+	 *
+	 * @return offset of the start of this file's script in
+	 *         {@link #getBuffer()}.
+	 */
 	public int getStartOffset() {
 		return startOffset;
 	}
 
-	/** @return offset one past the end of the file script. */
+	/**
+	 * Get offset one past the end of the file script.
+	 *
+	 * @return offset one past the end of the file script.
+	 */
 	public int getEndOffset() {
 		return endOffset;
 	}
@@ -182,8 +197,9 @@ public class FileHeader extends DiffEntry {
 	/**
 	 * Convert the patch script for this file into a string.
 	 * <p>
-	 * The default character encoding ({@link Constants#CHARSET}) is assumed for
-	 * both the old and new files.
+	 * The default character encoding
+	 * ({@link org.eclipse.jgit.lib.Constants#CHARSET}) is assumed for both the
+	 * old and new files.
 	 *
 	 * @return the patch script, as a Unicode string.
 	 */
@@ -248,12 +264,12 @@ public class FileHeader extends DiffEntry {
 
 		final String[] files = extractFileLines(charsetGuess);
 		final int[] offsets = new int[files.length];
-		for (final HunkHeader h : getHunks())
+		for (HunkHeader h : getHunks())
 			h.extractFileLines(r, files, offsets);
 		return r.toString();
 	}
 
-	private static boolean trySimpleConversion(final Charset[] charsetGuess) {
+	private static boolean trySimpleConversion(Charset[] charsetGuess) {
 		if (charsetGuess == null)
 			return true;
 		for (int i = 1; i < charsetGuess.length; i++) {
@@ -263,12 +279,12 @@ public class FileHeader extends DiffEntry {
 		return true;
 	}
 
-	private String[] extractFileLines(final Charset[] csGuess) {
+	private String[] extractFileLines(Charset[] csGuess) {
 		final TemporaryBuffer[] tmp = new TemporaryBuffer[getParentCount() + 1];
 		try {
 			for (int i = 0; i < tmp.length; i++)
 				tmp[i] = new TemporaryBuffer.Heap(Integer.MAX_VALUE);
-			for (final HunkHeader h : getHunks())
+			for (HunkHeader h : getHunks())
 				h.extractFileLines(tmp);
 
 			final String[] r = new String[tmp.length];
@@ -284,24 +300,36 @@ public class FileHeader extends DiffEntry {
 		}
 	}
 
-	/** @return style of patch used to modify this file */
+	/**
+	 * Get style of patch used to modify this file.
+	 *
+	 * @return style of patch used to modify this file.
+	 */
 	public PatchType getPatchType() {
 		return patchType;
 	}
 
-	/** @return true if this patch modifies metadata about a file */
+	/**
+	 * Whether this patch modifies metadata about a file
+	 *
+	 * @return {@code true} if this patch modifies metadata about a file .
+	 */
 	public boolean hasMetaDataChanges() {
 		return changeType != ChangeType.MODIFY || newMode != oldMode;
 	}
 
-	/** @return hunks altering this file; in order of appearance in patch */
+	/**
+	 * Get hunks altering this file; in order of appearance in patch
+	 *
+	 * @return hunks altering this file; in order of appearance in patch.
+	 */
 	public List<? extends HunkHeader> getHunks() {
 		if (hunks == null)
 			return Collections.emptyList();
 		return hunks;
 	}
 
-	void addHunk(final HunkHeader h) {
+	void addHunk(HunkHeader h) {
 		if (h.getFileHeader() != this)
 			throw new IllegalArgumentException(JGitText.get().hunkBelongsToAnotherFile);
 		if (hunks == null)
@@ -309,24 +337,40 @@ public class FileHeader extends DiffEntry {
 		hunks.add(h);
 	}
 
-	HunkHeader newHunkHeader(final int offset) {
+	HunkHeader newHunkHeader(int offset) {
 		return new HunkHeader(this, offset);
 	}
 
-	/** @return if a {@link PatchType#GIT_BINARY}, the new-image delta/literal */
+	/**
+	 * Get the new-image delta/literal if this is a
+	 * {@link PatchType#GIT_BINARY}.
+	 *
+	 * @return the new-image delta/literal if this is a
+	 *         {@link PatchType#GIT_BINARY}.
+	 */
 	public BinaryHunk getForwardBinaryHunk() {
 		return forwardBinaryHunk;
 	}
 
-	/** @return if a {@link PatchType#GIT_BINARY}, the old-image delta/literal */
+	/**
+	 * Get the old-image delta/literal if this is a
+	 * {@link PatchType#GIT_BINARY}.
+	 *
+	 * @return the old-image delta/literal if this is a
+	 *         {@link PatchType#GIT_BINARY}.
+	 */
 	public BinaryHunk getReverseBinaryHunk() {
 		return reverseBinaryHunk;
 	}
 
-	/** @return a list describing the content edits performed on this file. */
+	/**
+	 * Convert to a list describing the content edits performed on this file.
+	 *
+	 * @return a list describing the content edits performed on this file.
+	 */
 	public EditList toEditList() {
 		final EditList r = new EditList();
-		for (final HunkHeader hunk : hunks)
+		for (HunkHeader hunk : hunks)
 			r.addAll(hunk.toEditList());
 		return r;
 	}
@@ -340,7 +384,7 @@ public class FileHeader extends DiffEntry {
 	 *            one past the last position to parse.
 	 * @return first character after the LF at the end of the line; -1 on error.
 	 */
-	int parseGitFileName(int ptr, final int end) {
+	int parseGitFileName(int ptr, int end) {
 		final int eol = nextLF(buf, ptr);
 		final int bol = ptr;
 		if (eol >= end) {
@@ -400,7 +444,7 @@ public class FileHeader extends DiffEntry {
 		return eol;
 	}
 
-	int parseGitHeaders(int ptr, final int end) {
+	int parseGitHeaders(int ptr, int end) {
 		while (ptr < end) {
 			final int eol = nextLF(buf, ptr);
 			if (isHunkHdr(buf, ptr, eol) >= 1) {
@@ -470,25 +514,25 @@ public class FileHeader extends DiffEntry {
 		return ptr;
 	}
 
-	void parseOldName(int ptr, final int eol) {
+	void parseOldName(int ptr, int eol) {
 		oldPath = p1(parseName(oldPath, ptr + OLD_NAME.length, eol));
 		if (oldPath == DEV_NULL)
 			changeType = ChangeType.ADD;
 	}
 
-	void parseNewName(int ptr, final int eol) {
+	void parseNewName(int ptr, int eol) {
 		newPath = p1(parseName(newPath, ptr + NEW_NAME.length, eol));
 		if (newPath == DEV_NULL)
 			changeType = ChangeType.DELETE;
 	}
 
-	void parseNewFileMode(int ptr, final int eol) {
+	void parseNewFileMode(int ptr, int eol) {
 		oldMode = FileMode.MISSING;
 		newMode = parseFileMode(ptr + NEW_FILE_MODE.length, eol);
 		changeType = ChangeType.ADD;
 	}
 
-	int parseTraditionalHeaders(int ptr, final int end) {
+	int parseTraditionalHeaders(int ptr, int end) {
 		while (ptr < end) {
 			final int eol = nextLF(buf, ptr);
 			if (isHunkHdr(buf, ptr, eol) >= 1) {
@@ -511,7 +555,7 @@ public class FileHeader extends DiffEntry {
 		return ptr;
 	}
 
-	private String parseName(final String expect, int ptr, final int end) {
+	private String parseName(String expect, int ptr, int end) {
 		if (ptr == end)
 			return expect;
 
@@ -541,7 +585,7 @@ public class FileHeader extends DiffEntry {
 		return s > 0 ? r.substring(s + 1) : r;
 	}
 
-	FileMode parseFileMode(int ptr, final int end) {
+	FileMode parseFileMode(int ptr, int end) {
 		int tmp = 0;
 		while (ptr < end - 1) {
 			tmp <<= 3;
@@ -550,7 +594,7 @@ public class FileHeader extends DiffEntry {
 		return FileMode.fromBits(tmp);
 	}
 
-	void parseIndexLine(int ptr, final int end) {
+	void parseIndexLine(int ptr, int end) {
 		// "index $asha1..$bsha1[ $mode]" where $asha1 and $bsha1
 		// can be unique abbreviations
 		//
@@ -592,7 +636,7 @@ public class FileHeader extends DiffEntry {
 	 *         for a 3 way-merge returns 3. If this is not a hunk header, 0 is
 	 *         returned instead.
 	 */
-	static int isHunkHdr(final byte[] buf, final int start, final int end) {
+	static int isHunkHdr(byte[] buf, int start, int end) {
 		int ptr = start;
 		while (ptr < end && buf[ptr] == '@')
 			ptr++;

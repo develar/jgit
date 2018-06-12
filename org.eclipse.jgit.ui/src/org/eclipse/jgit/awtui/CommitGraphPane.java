@@ -81,7 +81,9 @@ public class CommitGraphPane extends JTable {
 
 	private final SwingCommitList allCommits;
 
-	/** Create a new empty panel. */
+	/**
+	 * Create a new empty panel.
+	 */
 	public CommitGraphPane() {
 		allCommits = new SwingCommitList();
 		configureHeader();
@@ -110,13 +112,15 @@ public class CommitGraphPane extends JTable {
 		return allCommits;
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public void setModel(final TableModel dataModel) {
+	public void setModel(TableModel dataModel) {
 		if (dataModel != null && !(dataModel instanceof CommitTableModel))
 			throw new ClassCastException(UIText.get().mustBeSpecialTableModel);
 		super.setModel(dataModel);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	protected TableModel createDefaultDataModel() {
 		return new CommitTableModel();
@@ -157,7 +161,7 @@ public class CommitGraphPane extends JTable {
 		}
 
 		@Override
-		public Object getValueAt(final int rowIndex, final int columnIndex) {
+		public Object getValueAt(int rowIndex, int columnIndex) {
 			final PlotCommit<SwingLane> c = allCommits.get(rowIndex);
 			switch (columnIndex) {
 			case 0:
@@ -171,7 +175,7 @@ public class CommitGraphPane extends JTable {
 			}
 		}
 
-		PersonIdent authorFor(final PlotCommit<SwingLane> c) {
+		PersonIdent authorFor(PlotCommit<SwingLane> c) {
 			if (c != lastCommit) {
 				lastCommit = c;
 				lastAuthor = c.getAuthorIdent();
@@ -240,7 +244,7 @@ public class CommitGraphPane extends JTable {
 		}
 
 		@Override
-		protected void paintComponent(final Graphics inputGraphics) {
+		protected void paintComponent(Graphics inputGraphics) {
 			if (inputGraphics == null)
 				return;
 			renderer.paint(inputGraphics, commit);
@@ -255,7 +259,7 @@ public class CommitGraphPane extends JTable {
 			strokeCache[i] = new BasicStroke(i);
 	}
 
-	static Stroke stroke(final int width) {
+	static Stroke stroke(int width) {
 		if (width < strokeCache.length)
 			return strokeCache[width];
 		return new BasicStroke(width);

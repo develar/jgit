@@ -57,7 +57,8 @@ import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.storage.file.WindowCacheConfig;
 
 /**
- * Caches slices of a {@link PackFile} in memory for faster read access.
+ * Caches slices of a {@link org.eclipse.jgit.internal.storage.file.PackFile} in
+ * memory for faster read access.
  * <p>
  * The WindowCache serves as a Java based "buffer cache", loading segments of a
  * PackFile into the JVM heap prior to use. As JGit often wants to do reads of
@@ -111,8 +112,9 @@ import org.eclipse.jgit.storage.file.WindowCacheConfig;
  * {@link #createRef(PackFile, long, ByteWindow)} methods, and matching
  * decrements during {@link #clear(Ref)}. Implementors may need to override
  * {@link #createRef(PackFile, long, ByteWindow)} in order to embed additional
- * accounting information into an implementation specific {@link Ref} subclass,
- * as the cached entity may have already been evicted by the JRE's garbage
+ * accounting information into an implementation specific
+ * {@link org.eclipse.jgit.internal.storage.file.WindowCache.Ref} subclass, as
+ * the cached entity may have already been evicted by the JRE's garbage
  * collector.
  * <p>
  * To maintain higher concurrency workloads, during eviction only one thread
@@ -150,12 +152,12 @@ public class WindowCache {
 	 * @deprecated use {@code cfg.install()} to avoid internal reference.
 	 * @param cfg
 	 *            the new window cache configuration.
-	 * @throws IllegalArgumentException
+	 * @throws java.lang.IllegalArgumentException
 	 *             the cache configuration contains one or more invalid
 	 *             settings, usually too low of a limit.
 	 */
 	@Deprecated
-	public static void reconfigure(final WindowCacheConfig cfg) {
+	public static void reconfigure(WindowCacheConfig cfg) {
 		final WindowCache nc = new WindowCache(cfg);
 		final WindowCache oc = cache;
 		if (oc != null)
@@ -169,11 +171,14 @@ public class WindowCache {
 		return streamFileThreshold;
 	}
 
-	static WindowCache getInstance() {
+	/**
+	 * @return the cached instance.
+	 */
+	public static WindowCache getInstance() {
 		return cache;
 	}
 
-	static final ByteWindow get(final PackFile pack, final long offset)
+	static final ByteWindow get(PackFile pack, long offset)
 			throws IOException {
 		final WindowCache c = cache;
 		final ByteWindow r = c.getOrLoad(pack, c.toStart(offset));
@@ -188,7 +193,7 @@ public class WindowCache {
 		return r;
 	}
 
-	static final void purge(final PackFile pack) {
+	static final void purge(PackFile pack) {
 		cache.removeAll(pack);
 	}
 
@@ -227,7 +232,7 @@ public class WindowCache {
 
 	private final AtomicLong openBytes;
 
-	private WindowCache(final WindowCacheConfig cfg) {
+	private WindowCache(WindowCacheConfig cfg) {
 		tableSize = tableSize(cfg);
 		final int lockCount = lockCount(cfg);
 		if (tableSize < 1)
@@ -267,19 +272,25 @@ public class WindowCache {
 			throw new IllegalArgumentException(JGitText.get().windowSizeMustBeLesserThanLimit);
 	}
 
-	int getOpenFiles() {
+	/**
+	 * @return the number of open files.
+	 */
+	public int getOpenFiles() {
 		return openFiles.get();
 	}
 
-	long getOpenBytes() {
+	/**
+	 * @return the number of open bytes.
+	 */
+	public long getOpenBytes() {
 		return openBytes.get();
 	}
 
-	private int hash(final int packHash, final long off) {
+	private int hash(int packHash, long off) {
 		return packHash + (int) (off >>> windowSizeShift);
 	}
 
-	private ByteWindow load(final PackFile pack, final long offset)
+	private ByteWindow load(PackFile pack, long offset)
 			throws IOException {
 		if (pack.beginWindowCache())
 			openFiles.incrementAndGet();
@@ -299,18 +310,18 @@ public class WindowCache {
 		}
 	}
 
-	private Ref createRef(final PackFile p, final long o, final ByteWindow v) {
+	private Ref createRef(PackFile p, long o, ByteWindow v) {
 		final Ref ref = new Ref(p, o, v, queue);
 		openBytes.addAndGet(ref.size);
 		return ref;
 	}
 
-	private void clear(final Ref ref) {
+	private void clear(Ref ref) {
 		openBytes.addAndGet(-ref.size);
 		close(ref.pack);
 	}
 
-	private void close(final PackFile pack) {
+	private void close(PackFile pack) {
 		if (pack.endWindowCache())
 			openFiles.decrementAndGet();
 	}
@@ -319,11 +330,11 @@ public class WindowCache {
 		return maxFiles < openFiles.get() || maxBytes < openBytes.get();
 	}
 
-	private long toStart(final long offset) {
+	private long toStart(long offset) {
 		return (offset >>> windowSizeShift) << windowSizeShift;
 	}
 
-	private static int tableSize(final WindowCacheConfig cfg) {
+	private static int tableSize(WindowCacheConfig cfg) {
 		final int wsz = cfg.getPackedGitWindowSize();
 		final long limit = cfg.getPackedGitLimit();
 		if (wsz <= 0)
@@ -333,7 +344,7 @@ public class WindowCache {
 		return (int) Math.min(5 * (limit / wsz) / 2, 2000000000);
 	}
 
-	private static int lockCount(final WindowCacheConfig cfg) {
+	private static int lockCount(WindowCacheConfig cfg) {
 		return Math.max(cfg.getPackedGitOpenFiles(), 32);
 	}
 
@@ -349,7 +360,7 @@ public class WindowCache {
 	 *             the object reference was not in the cache and could not be
 	 *             obtained by {@link #load(PackFile, long)}.
 	 */
-	private ByteWindow getOrLoad(final PackFile pack, final long position)
+	private ByteWindow getOrLoad(PackFile pack, long position)
 			throws IOException {
 		final int slot = slot(pack, position);
 		final Entry e1 = table.get(slot);
@@ -388,7 +399,7 @@ public class WindowCache {
 		return v;
 	}
 
-	private ByteWindow scan(Entry n, final PackFile pack, final long position) {
+	private ByteWindow scan(Entry n, PackFile pack, long position) {
 		for (; n != null; n = n.next) {
 			final Ref r = n.ref;
 			if (r.pack == pack && r.position == position) {
@@ -404,7 +415,7 @@ public class WindowCache {
 		return null;
 	}
 
-	private void hit(final Ref r) {
+	private void hit(Ref r) {
 		// We don't need to be 100% accurate here. Its sufficient that at least
 		// one thread performs the increment. Any other concurrent access at
 		// exactly the same time can simply use the same clock value.
@@ -476,7 +487,7 @@ public class WindowCache {
 	 * @param pack
 	 *            the file to purge all entries of.
 	 */
-	private void removeAll(final PackFile pack) {
+	private void removeAll(PackFile pack) {
 		for (int s = 0; s < tableSize; s++) {
 			final Entry e1 = table.get(s);
 			boolean hasDead = false;
@@ -496,40 +507,25 @@ public class WindowCache {
 	private void gc() {
 		Ref r;
 		while ((r = (Ref) queue.poll()) != null) {
-			// Sun's Java 5 and 6 implementation have a bug where a Reference
-			// can be enqueued and dequeued twice on the same reference queue
-			// due to a race condition within ReferenceQueue.enqueue(Reference).
-			//
-			// http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=6837858
-			//
-			// We CANNOT permit a Reference to come through us twice, as it will
-			// skew the resource counters we maintain. Our canClear() check here
-			// provides a way to skip the redundant dequeues, if any.
-			//
-			if (r.canClear()) {
-				clear(r);
+			clear(r);
 
-				boolean found = false;
-				final int s = slot(r.pack, r.position);
-				final Entry e1 = table.get(s);
-				for (Entry n = e1; n != null; n = n.next) {
-					if (n.ref == r) {
-						n.dead = true;
-						found = true;
-						break;
-					}
-				}
-				if (found)
+			final int s = slot(r.pack, r.position);
+			final Entry e1 = table.get(s);
+			for (Entry n = e1; n != null; n = n.next) {
+				if (n.ref == r) {
+					n.dead = true;
 					table.compareAndSet(s, e1, clean(e1));
+					break;
+				}
 			}
 		}
 	}
 
-	private int slot(final PackFile pack, final long position) {
+	private int slot(PackFile pack, long position) {
 		return (hash(pack.hash, position) >>> 1) % tableSize;
 	}
 
-	private Lock lock(final PackFile pack, final long position) {
+	private Lock lock(PackFile pack, long position) {
 		return locks[(hash(pack.hash, position) >>> 1) % locks.length];
 	}
 
@@ -560,7 +556,7 @@ public class WindowCache {
 		 */
 		volatile boolean dead;
 
-		Entry(final Entry n, final Ref r) {
+		Entry(Entry n, Ref r) {
 			next = n;
 			ref = r;
 		}
@@ -581,21 +577,12 @@ public class WindowCache {
 
 		long lastAccess;
 
-		private boolean cleared;
-
 		protected Ref(final PackFile pack, final long position,
 				final ByteWindow v, final ReferenceQueue<ByteWindow> queue) {
 			super(v, queue);
 			this.pack = pack;
 			this.position = position;
 			this.size = v.size();
-		}
-
-		final synchronized boolean canClear() {
-			if (cleared)
-				return false;
-			cleared = true;
-			return true;
 		}
 	}
 

@@ -73,6 +73,7 @@ class RebuildRefTree extends TextBuiltin {
 	private String txnNamespace;
 	private String txnCommitted;
 
+	/** {@inheritDoc} */
 	@Override
 	protected void run() throws Exception {
 		try (ObjectReader reader = db.newObjectReader();
@@ -133,7 +134,7 @@ class RebuildRefTree extends TextBuiltin {
 			if (enable && !(db.getRefDatabase() instanceof RefTreeDatabase)) {
 				StoredConfig cfg = db.getConfig();
 				cfg.setInt("core", null, "repositoryformatversion", 1); //$NON-NLS-1$ //$NON-NLS-2$
-				cfg.setString("extensions", null, "refsStorage", "reftree"); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+				cfg.setString("extensions", null, "refStorage", "reftree"); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
 				cfg.save();
 				errw.println("Enabled reftree."); //$NON-NLS-1$
 				errw.flush();
@@ -153,14 +154,14 @@ class RebuildRefTree extends TextBuiltin {
 					head));
 		}
 
-		for (Ref r : refdb.getRefs(RefDatabase.ALL).values()) {
+		for (Ref r : refdb.getRefs()) {
 			if (r.getName().equals(txnCommitted) || r.getName().equals(HEAD)
 					|| r.getName().startsWith(txnNamespace)) {
 				continue;
 			}
 			cmds.add(new org.eclipse.jgit.internal.storage.reftree.Command(
 					null,
-					db.peel(r)));
+					db.getRefDatabase().peel(r)));
 		}
 		tree.apply(cmds);
 		return tree;

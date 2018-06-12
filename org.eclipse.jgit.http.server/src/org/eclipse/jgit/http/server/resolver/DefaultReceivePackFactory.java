@@ -46,7 +46,6 @@ package org.eclipse.jgit.http.server.resolver;
 import javax.servlet.http.HttpServletRequest;
 
 import org.eclipse.jgit.lib.Config;
-import org.eclipse.jgit.lib.Config.SectionParser;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.transport.ReceivePack;
@@ -55,12 +54,14 @@ import org.eclipse.jgit.transport.resolver.ServiceNotAuthorizedException;
 import org.eclipse.jgit.transport.resolver.ServiceNotEnabledException;
 
 /**
- * Create and configure {@link ReceivePack} service instance.
+ * Create and configure {@link org.eclipse.jgit.transport.ReceivePack} service
+ * instance.
  * <p>
  * Writing by receive-pack is permitted if any of the following is true:
  * <ul>
  * <li>The container has authenticated the user and set
- * {@link HttpServletRequest#getRemoteUser()} to the authenticated name.
+ * {@link javax.servlet.http.HttpServletRequest#getRemoteUser()} to the
+ * authenticated name.
  * <li>The repository configuration file has {@code http.receivepack} explicitly
  * set to true.
  * </ul>
@@ -68,28 +69,22 @@ import org.eclipse.jgit.transport.resolver.ServiceNotEnabledException;
  */
 public class DefaultReceivePackFactory implements
 		ReceivePackFactory<HttpServletRequest> {
-	private static final SectionParser<ServiceConfig> CONFIG = new SectionParser<ServiceConfig>() {
-		@Override
-		public ServiceConfig parse(final Config cfg) {
-			return new ServiceConfig(cfg);
-		}
-	};
-
 	private static class ServiceConfig {
 		final boolean set;
 
 		final boolean enabled;
 
-		ServiceConfig(final Config cfg) {
+		ServiceConfig(Config cfg) {
 			set = cfg.getString("http", null, "receivepack") != null;
 			enabled = cfg.getBoolean("http", "receivepack", false);
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public ReceivePack create(final HttpServletRequest req, final Repository db)
+	public ReceivePack create(HttpServletRequest req, Repository db)
 			throws ServiceNotEnabledException, ServiceNotAuthorizedException {
-		final ServiceConfig cfg = db.getConfig().get(CONFIG);
+		final ServiceConfig cfg = db.getConfig().get(ServiceConfig::new);
 		String user = req.getRemoteUser();
 
 		if (cfg.set) {

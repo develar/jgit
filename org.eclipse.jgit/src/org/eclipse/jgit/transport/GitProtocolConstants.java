@@ -108,6 +108,14 @@ public class GitProtocolConstants {
 	public static final String OPTION_SHALLOW = "shallow"; //$NON-NLS-1$
 
 	/**
+	 * The client wants the "deepen" command to be interpreted as relative to
+	 * the client's shallow commits.
+	 *
+	 * @since 5.0
+	 */
+	public static final String OPTION_DEEPEN_RELATIVE = "deepen-relative"; //$NON-NLS-1$
+
+	/**
 	 * The client does not want progress messages and will ignore them.
 	 *
 	 * @since 3.2
@@ -150,6 +158,13 @@ public class GitProtocolConstants {
 	 * @since 4.0
 	 */
 	public static final String OPTION_PUSH_CERT = "push-cert"; //$NON-NLS-1$
+
+	/**
+	 * The client specified a filter expression.
+	 *
+	 * @since 5.0
+	 */
+	public static final String OPTION_FILTER = "filter"; //$NON-NLS-1$
 
 	/**
 	 * The client supports atomic pushes. If this option is used, the server
@@ -214,6 +229,20 @@ public class GitProtocolConstants {
 	 * @since 4.5
 	 */
 	public static final String CAPABILITY_PUSH_OPTIONS = "push-options"; //$NON-NLS-1$
+
+	/**
+	 * The server supports listing refs using protocol v2.
+	 *
+	 * @since 5.0
+	 */
+	public static final String COMMAND_LS_REFS = "ls-refs"; //$NON-NLS-1$
+
+	/**
+	 * The server supports fetch using protocol v2.
+	 *
+	 * @since 5.0
+	 */
+	public static final String COMMAND_FETCH = "fetch"; //$NON-NLS-1$
 
 	static enum MultiAck {
 		OFF, CONTINUE, DETAILED;

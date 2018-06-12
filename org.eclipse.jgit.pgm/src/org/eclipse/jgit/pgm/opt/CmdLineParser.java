@@ -47,7 +47,6 @@ import java.io.IOException;
 import java.io.Writer;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ResourceBundle;
@@ -62,12 +61,11 @@ import org.eclipse.jgit.revwalk.RevTree;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.transport.RefSpec;
 import org.eclipse.jgit.treewalk.AbstractTreeIterator;
-import org.kohsuke.args4j.Argument;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.IllegalAnnotationError;
 import org.kohsuke.args4j.NamedOptionDef;
-import org.kohsuke.args4j.Option;
 import org.kohsuke.args4j.OptionDef;
+import org.kohsuke.args4j.OptionHandlerRegistry;
 import org.kohsuke.args4j.spi.OptionHandler;
 import org.kohsuke.args4j.spi.RestOfArgumentsHandler;
 import org.kohsuke.args4j.spi.Setter;
@@ -82,13 +80,14 @@ import org.kohsuke.args4j.spi.Setter;
  */
 public class CmdLineParser extends org.kohsuke.args4j.CmdLineParser {
 	static {
-		registerHandler(AbstractTreeIterator.class,
+		OptionHandlerRegistry registry = OptionHandlerRegistry.getRegistry();
+		registry.registerHandler(AbstractTreeIterator.class,
 				AbstractTreeIteratorHandler.class);
-		registerHandler(ObjectId.class, ObjectIdHandler.class);
-		registerHandler(RefSpec.class, RefSpecHandler.class);
-		registerHandler(RevCommit.class, RevCommitHandler.class);
-		registerHandler(RevTree.class, RevTreeHandler.class);
-		registerHandler(List.class, OptionWithValuesListHandler.class);
+		registry.registerHandler(ObjectId.class, ObjectIdHandler.class);
+		registry.registerHandler(RefSpec.class, RefSpecHandler.class);
+		registry.registerHandler(RevCommit.class, RevCommitHandler.class);
+		registry.registerHandler(RevTree.class, RevTreeHandler.class);
+		registry.registerHandler(List.class, OptionWithValuesListHandler.class);
 	}
 
 	private final Repository db;
@@ -104,14 +103,15 @@ public class CmdLineParser extends org.kohsuke.args4j.CmdLineParser {
 	 * them into the given object.
 	 *
 	 * @param bean
-	 *            instance of a class annotated by {@link Option} and
-	 *            {@link Argument}. this object will receive values.
-	 *
+	 *            instance of a class annotated by
+	 *            {@link org.kohsuke.args4j.Option} and
+	 *            {@link org.kohsuke.args4j.Argument}. this object will receive
+	 *            values.
 	 * @throws IllegalAnnotationError
 	 *             if the option bean class is using args4j annotations
 	 *             incorrectly.
 	 */
-	public CmdLineParser(final Object bean) {
+	public CmdLineParser(Object bean) {
 		this(bean, null);
 	}
 
@@ -120,15 +120,17 @@ public class CmdLineParser extends org.kohsuke.args4j.CmdLineParser {
 	 * them into the given object.
 	 *
 	 * @param bean
-	 *            instance of a class annotated by {@link Option} and
-	 *            {@link Argument}. this object will receive values.
+	 *            instance of a class annotated by
+	 *            {@link org.kohsuke.args4j.Option} and
+	 *            {@link org.kohsuke.args4j.Argument}. this object will receive
+	 *            values.
 	 * @param repo
 	 *            repository this parser can translate options through.
 	 * @throws IllegalAnnotationError
 	 *             if the option bean class is using args4j annotations
 	 *             incorrectly.
 	 */
-	public CmdLineParser(final Object bean, Repository repo) {
+	public CmdLineParser(Object bean, Repository repo) {
 		super(bean);
 		if (bean instanceof TextBuiltin) {
 			cmd = (TextBuiltin) bean;
@@ -139,8 +141,9 @@ public class CmdLineParser extends org.kohsuke.args4j.CmdLineParser {
 		this.db = repo;
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public void parseArgument(final String... args) throws CmdLineException {
+	public void parseArgument(String... args) throws CmdLineException {
 		final ArrayList<String> tmp = new ArrayList<>(args.length);
 		for (int argi = 0; argi < args.length; argi++) {
 			final String str = args[argi];
@@ -222,12 +225,14 @@ public class CmdLineParser extends org.kohsuke.args4j.CmdLineParser {
 	}
 
 	/**
+	 * Check if array contains help option
+	 *
 	 * @param args
 	 *            non null
 	 * @return true if the given array contains help option
 	 * @since 4.2
 	 */
-	protected boolean containsHelp(final String... args) {
+	protected boolean containsHelp(String... args) {
 		return TextBuiltin.containsHelp(args);
 	}
 
@@ -267,8 +272,8 @@ public class CmdLineParser extends org.kohsuke.args4j.CmdLineParser {
 	class MyOptionDef extends OptionDef {
 
 		public MyOptionDef(OptionDef o) {
-			super(o.usage(), o.metaVar(), o.required(), o.handler(), o
-					.isMultiValued());
+			super(o.usage(), o.metaVar(), o.required(), o.help(), o.hidden(),
+					o.handler(), o.isMultiValued());
 		}
 
 		@Override
@@ -291,6 +296,7 @@ public class CmdLineParser extends org.kohsuke.args4j.CmdLineParser {
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	protected OptionHandler createOptionHandler(OptionDef o, Setter setter) {
 		if (o instanceof NamedOptionDef)
@@ -300,24 +306,7 @@ public class CmdLineParser extends org.kohsuke.args4j.CmdLineParser {
 
 	}
 
-	@SuppressWarnings("unchecked")
-	private List<OptionHandler> getOptions() {
-		List<OptionHandler> options = null;
-		try {
-			Field field = org.kohsuke.args4j.CmdLineParser.class
-					.getDeclaredField("options"); //$NON-NLS-1$
-			field.setAccessible(true);
-			options = (List<OptionHandler>) field.get(this);
-		} catch (NoSuchFieldException | SecurityException
-				| IllegalArgumentException | IllegalAccessException e) {
-			// ignore
-		}
-		if (options == null) {
-			return Collections.emptyList();
-		}
-		return options;
-	}
-
+	/** {@inheritDoc} */
 	@Override
 	public void printSingleLineUsage(Writer w, ResourceBundle rb) {
 		List<OptionHandler> options = getOptions();

@@ -42,7 +42,7 @@
  */
 package org.eclipse.jgit.hooks;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.eclipse.jgit.lib.Constants.CHARSET;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -79,7 +79,10 @@ abstract class GitHook<T> implements Callable<T> {
 	protected final PrintStream outputStream;
 
 	/**
+	 * Constructor for GitHook
+	 *
 	 * @param repo
+	 *            a {@link org.eclipse.jgit.lib.Repository} object.
 	 * @param outputStream
 	 *            The output stream the hook must use. {@code null} is allowed,
 	 *            in which case the hook will use {@code System.out}.
@@ -90,23 +93,23 @@ abstract class GitHook<T> implements Callable<T> {
 	}
 
 	/**
+	 * {@inheritDoc}
+	 * <p>
 	 * Run the hook.
-	 *
-	 * @throws IOException
-	 *             if IO goes wrong.
-	 * @throws AbortedByHookException
-	 *             If the hook has been run and a returned an exit code
-	 *             different from zero.
 	 */
 	@Override
 	public abstract T call() throws IOException, AbortedByHookException;
 
 	/**
+	 * Get name of the hook
+	 *
 	 * @return The name of the hook, which must not be {@code null}.
 	 */
 	public abstract String getHookName();
 
 	/**
+	 * Get the repository
+	 *
 	 * @return The repository.
 	 */
 	protected Repository getRepository() {
@@ -135,6 +138,8 @@ abstract class GitHook<T> implements Callable<T> {
 	}
 
 	/**
+	 * Get output stream
+	 *
 	 * @return The output stream the hook must use. Never {@code null},
 	 *         {@code System.out} is returned by default.
 	 */
@@ -145,7 +150,7 @@ abstract class GitHook<T> implements Callable<T> {
 	/**
 	 * Runs the hook, without performing any validity checks.
 	 *
-	 * @throws AbortedByHookException
+	 * @throws org.eclipse.jgit.api.errors.AbortedByHookException
 	 *             If the underlying hook script exited with non-zero.
 	 */
 	protected void doRun() throws AbortedByHookException {
@@ -153,7 +158,7 @@ abstract class GitHook<T> implements Callable<T> {
 		PrintStream hookErrRedirect = null;
 		try {
 			hookErrRedirect = new PrintStream(errorByteArray, false,
-					UTF_8.name());
+					CHARSET.name());
 		} catch (UnsupportedEncodingException e) {
 			// UTF-8 is guaranteed to be available
 		}
@@ -162,9 +167,20 @@ abstract class GitHook<T> implements Callable<T> {
 				hookErrRedirect, getStdinArgs());
 		if (result.isExecutedWithError()) {
 			throw new AbortedByHookException(
-					new String(errorByteArray.toByteArray(), UTF_8),
+					new String(errorByteArray.toByteArray(), CHARSET),
 					getHookName(), result.getExitCode());
 		}
+	}
+
+	/**
+	 * Check whether a 'native' (i.e. script) hook is installed in the
+	 * repository.
+	 *
+	 * @return whether a native hook script is installed in the repository.
+	 * @since 4.11
+	 */
+	public boolean isNativeHookPresent() {
+		return FS.DETECTED.findHook(getRepository(), getHookName()) != null;
 	}
 
 }

@@ -50,7 +50,9 @@ import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.treewalk.TreeWalk;
 
-/** Includes an entry only if the subfilter does not include the entry. */
+/**
+ * Includes an entry only if the subfilter does not include the entry.
+ */
 public class NotTreeFilter extends TreeFilter {
 	/**
 	 * Create a filter that negates the result of another filter.
@@ -59,28 +61,31 @@ public class NotTreeFilter extends TreeFilter {
 	 *            filter to negate.
 	 * @return a filter that does the reverse of <code>a</code>.
 	 */
-	public static TreeFilter create(final TreeFilter a) {
+	public static TreeFilter create(TreeFilter a) {
 		return new NotTreeFilter(a);
 	}
 
 	private final TreeFilter a;
 
-	private NotTreeFilter(final TreeFilter one) {
+	private NotTreeFilter(TreeFilter one) {
 		a = one;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public TreeFilter negate() {
 		return a;
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public boolean include(final TreeWalk walker)
+	public boolean include(TreeWalk walker)
 			throws MissingObjectException, IncorrectObjectTypeException,
 			IOException {
 		return matchFilter(walker) == 0;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public int matchFilter(TreeWalk walker)
 			throws MissingObjectException, IncorrectObjectTypeException,
@@ -97,17 +102,20 @@ public class NotTreeFilter extends TreeFilter {
 		return -1;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean shouldBeRecursive() {
 		return a.shouldBeRecursive();
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public TreeFilter clone() {
 		final TreeFilter n = a.clone();
 		return n == a ? this : new NotTreeFilter(n);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public String toString() {
 		return "NOT " + a.toString(); //$NON-NLS-1$

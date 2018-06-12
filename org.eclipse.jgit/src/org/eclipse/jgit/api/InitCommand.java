@@ -53,6 +53,7 @@ import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.RepositoryBuilder;
+import org.eclipse.jgit.util.FS;
 import org.eclipse.jgit.util.SystemReader;
 
 /**
@@ -68,10 +69,15 @@ public class InitCommand implements Callable<Git> {
 
 	private boolean bare;
 
+	private FS fs;
+
 	/**
+	 * {@inheritDoc}
+	 * <p>
 	 * Executes the {@code Init} command.
 	 *
-	 * @return the newly created {@code Git} object with associated repository
+	 * @return a {@code Git} instance that owns the {@code Repository} that it
+	 *         wraps.
 	 */
 	@Override
 	public Git call() throws GitAPIException {
@@ -79,6 +85,9 @@ public class InitCommand implements Callable<Git> {
 			RepositoryBuilder builder = new RepositoryBuilder();
 			if (bare)
 				builder.setBare();
+			if (fs != null) {
+				builder.setFS(fs);
+			}
 			builder.readEnvironment();
 			if (gitDir != null)
 				builder.setGitDir(gitDir);
@@ -114,7 +123,7 @@ public class InitCommand implements Callable<Git> {
 			Repository repository = builder.build();
 			if (!repository.getObjectDatabase().exists())
 				repository.create(bare);
-			return new Git(repository);
+			return new Git(repository, true);
 		} catch (IOException e) {
 			throw new JGitInternalException(e.getMessage(), e);
 		}
@@ -127,7 +136,7 @@ public class InitCommand implements Callable<Git> {
 	 * @param directory
 	 *            the directory to init to
 	 * @return this instance
-	 * @throws IllegalStateException
+	 * @throws java.lang.IllegalStateException
 	 *             if the combination of directory, gitDir and bare is illegal.
 	 *             E.g. if for a non-bare repository directory and gitDir point
 	 *             to the same directory of if for a bare repository both
@@ -141,10 +150,12 @@ public class InitCommand implements Callable<Git> {
 	}
 
 	/**
+	 * Set the repository meta directory (.git)
+	 *
 	 * @param gitDir
 	 *            the repository meta directory
 	 * @return this instance
-	 * @throws IllegalStateException
+	 * @throws java.lang.IllegalStateException
 	 *             if the combination of directory, gitDir and bare is illegal.
 	 *             E.g. if for a non-bare repository directory and gitDir point
 	 *             to the same directory of if for a bare repository both
@@ -176,9 +187,11 @@ public class InitCommand implements Callable<Git> {
 	}
 
 	/**
+	 * Set whether the repository is bare or not
+	 *
 	 * @param bare
 	 *            whether the repository is bare or not
-	 * @throws IllegalStateException
+	 * @throws java.lang.IllegalStateException
 	 *             if the combination of directory, gitDir and bare is illegal.
 	 *             E.g. if for a non-bare repository directory and gitDir point
 	 *             to the same directory of if for a bare repository both
@@ -188,6 +201,20 @@ public class InitCommand implements Callable<Git> {
 	public InitCommand setBare(boolean bare) {
 		validateDirs(directory, gitDir, bare);
 		this.bare = bare;
+		return this;
+	}
+
+	/**
+	 * Set the file system abstraction to be used for repositories created by
+	 * this command.
+	 *
+	 * @param fs
+	 *            the abstraction.
+	 * @return {@code this} (for chaining calls).
+	 * @since 4.10
+	 */
+	public InitCommand setFs(FS fs) {
+		this.fs = fs;
 		return this;
 	}
 }

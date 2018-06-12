@@ -60,14 +60,16 @@ import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.util.Paths;
 
 /**
- * Updates a {@link DirCache} by supplying discrete edit commands.
+ * Updates a {@link org.eclipse.jgit.dircache.DirCache} by supplying discrete
+ * edit commands.
  * <p>
- * An editor updates a DirCache by taking a list of {@link PathEdit} commands
- * and executing them against the entries of the destination cache to produce a
- * new cache. This edit style allows applications to insert a few commands and
- * then have the editor compute the proper entry indexes necessary to perform an
+ * An editor updates a DirCache by taking a list of
+ * {@link org.eclipse.jgit.dircache.DirCacheEditor.PathEdit} commands and
+ * executing them against the entries of the destination cache to produce a new
+ * cache. This edit style allows applications to insert a few commands and then
+ * have the editor compute the proper entry indexes necessary to perform an
  * efficient in-order update of the index records. This can be easier to use
- * than {@link DirCacheBuilder}.
+ * than {@link org.eclipse.jgit.dircache.DirCacheBuilder}.
  * <p>
  *
  * @see DirCacheBuilder
@@ -75,7 +77,7 @@ import org.eclipse.jgit.util.Paths;
 public class DirCacheEditor extends BaseDirCacheEditor {
 	private static final Comparator<PathEdit> EDIT_CMP = new Comparator<PathEdit>() {
 		@Override
-		public int compare(final PathEdit o1, final PathEdit o2) {
+		public int compare(PathEdit o1, PathEdit o2) {
 			final byte[] a = o1.path;
 			final byte[] b = o2.path;
 			return cmp(a, a.length, b, b.length);
@@ -94,7 +96,7 @@ public class DirCacheEditor extends BaseDirCacheEditor {
 	 *            estimated number of entries the editor will have upon
 	 *            completion. This sizes the initial entry table.
 	 */
-	protected DirCacheEditor(final DirCache dc, final int ecnt) {
+	protected DirCacheEditor(DirCache dc, int ecnt) {
 		super(dc, ecnt);
 		edits = new ArrayList<>();
 	}
@@ -109,10 +111,11 @@ public class DirCacheEditor extends BaseDirCacheEditor {
 	 * @param edit
 	 *            another edit command.
 	 */
-	public void add(final PathEdit edit) {
+	public void add(PathEdit edit) {
 		edits.add(edit);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean commit() throws IOException {
 		if (edits.isEmpty()) {
@@ -124,6 +127,7 @@ public class DirCacheEditor extends BaseDirCacheEditor {
 		return super.commit();
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void finish() {
 		if (!edits.isEmpty()) {
@@ -300,7 +304,7 @@ public class DirCacheEditor extends BaseDirCacheEditor {
 		 * @param entryPath
 		 *            path of the file within the repository.
 		 */
-		public PathEdit(final String entryPath) {
+		public PathEdit(String entryPath) {
 			path = Constants.encode(entryPath);
 		}
 
@@ -315,7 +319,7 @@ public class DirCacheEditor extends BaseDirCacheEditor {
 		 *            entry instance to match path of. Only the path of this
 		 *            entry is actually considered during command evaluation.
 		 */
-		public PathEdit(final DirCacheEntry ent) {
+		public PathEdit(DirCacheEntry ent) {
 			path = ent.path;
 		}
 
@@ -370,7 +374,7 @@ public class DirCacheEditor extends BaseDirCacheEditor {
 		 * @param entryPath
 		 *            path of the file within the repository.
 		 */
-		public DeletePath(final String entryPath) {
+		public DeletePath(String entryPath) {
 			super(entryPath);
 		}
 
@@ -381,12 +385,12 @@ public class DirCacheEditor extends BaseDirCacheEditor {
 		 *            entry instance to remove. Only the path of this entry is
 		 *            actually considered during command evaluation.
 		 */
-		public DeletePath(final DirCacheEntry ent) {
+		public DeletePath(DirCacheEntry ent) {
 			super(ent);
 		}
 
 		@Override
-		public void apply(final DirCacheEntry ent) {
+		public void apply(DirCacheEntry ent) {
 			throw new UnsupportedOperationException(JGitText.get().noApplyInDelete);
 		}
 	}
@@ -436,7 +440,7 @@ public class DirCacheEditor extends BaseDirCacheEditor {
 		}
 
 		@Override
-		public void apply(final DirCacheEntry ent) {
+		public void apply(DirCacheEntry ent) {
 			throw new UnsupportedOperationException(JGitText.get().noApplyInDelete);
 		}
 	}

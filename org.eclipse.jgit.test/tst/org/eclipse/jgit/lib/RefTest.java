@@ -57,7 +57,8 @@ import static org.junit.Assert.fail;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.Map;
+import java.util.List;
+import java.util.Optional;
 import java.util.TreeSet;
 
 import org.eclipse.jgit.lib.Ref.Storage;
@@ -147,17 +148,22 @@ public class RefTest extends SampleDataRepositoryTestCase {
 		ObjectId r = db.resolve("refs/remotes/origin/HEAD");
 		assertEquals(masterId, r);
 
-		Map<String, Ref> allRefs = db.getAllRefs();
-		Ref refHEAD = allRefs.get("refs/remotes/origin/HEAD");
-		assertNotNull(refHEAD);
-		assertEquals(masterId, refHEAD.getObjectId());
-		assertFalse(refHEAD.isPeeled());
-		assertNull(refHEAD.getPeeledObjectId());
+		List<Ref> allRefs = db.getRefDatabase().getRefs();
+		Optional<Ref> refHEAD = allRefs.stream()
+				.filter(ref -> ref.getName().equals("refs/remotes/origin/HEAD"))
+				.findAny();
+		assertTrue(refHEAD.isPresent());
+		assertEquals(masterId, refHEAD.get().getObjectId());
+		assertFalse(refHEAD.get().isPeeled());
+		assertNull(refHEAD.get().getPeeledObjectId());
 
-		Ref refmaster = allRefs.get("refs/remotes/origin/master");
-		assertEquals(masterId, refmaster.getObjectId());
-		assertFalse(refmaster.isPeeled());
-		assertNull(refmaster.getPeeledObjectId());
+		Optional<Ref> refmaster = allRefs.stream().filter(
+				ref -> ref.getName().equals("refs/remotes/origin/master"))
+				.findAny();
+		assertTrue(refmaster.isPresent());
+		assertEquals(masterId, refmaster.get().getObjectId());
+		assertFalse(refmaster.get().isPeeled());
+		assertNull(refmaster.get().getPeeledObjectId());
 	}
 
 	@Test
@@ -253,11 +259,11 @@ public class RefTest extends SampleDataRepositoryTestCase {
 			InterruptedException {
 		Ref ref = db.exactRef("refs/heads/master");
 		assertEquals(Storage.PACKED, ref.getStorage());
-		FileOutputStream os = new FileOutputStream(new File(db.getDirectory(),
-				"refs/heads/master"));
-		os.write(ref.getObjectId().name().getBytes());
-		os.write('\n');
-		os.close();
+		try (FileOutputStream os = new FileOutputStream(
+				new File(db.getDirectory(), "refs/heads/master"))) {
+			os.write(ref.getObjectId().name().getBytes());
+			os.write('\n');
+		}
 
 		ref = db.exactRef("refs/heads/master");
 		assertEquals(Storage.LOOSE, ref.getStorage());
@@ -304,5 +310,27 @@ public class RefTest extends SampleDataRepositoryTestCase {
 		assertSame(dst.getObjectId(), ref.getObjectId());
 		assertSame(dst.getPeeledObjectId(), ref.getPeeledObjectId());
 		assertEquals(dst.isPeeled(), ref.isPeeled());
+	}
+
+	private static void checkContainsRef(List<Ref> haystack, Ref needle) {
+		for (Ref ref : haystack) {
+			if (ref.getName().equals(needle.getName()) &&
+					ref.getObjectId().equals(needle.getObjectId())) {
+				return;
+			}
+		}
+		fail("list " + haystack + " does not contain ref " + needle);
+	}
+
+	@Test
+	public void testGetRefsByPrefix() throws IOException {
+		List<Ref> refs = db.getRefDatabase().getRefsByPrefix("refs/heads/g");
+		assertEquals(2, refs.size());
+		checkContainsRef(refs, db.exactRef("refs/heads/g"));
+		checkContainsRef(refs, db.exactRef("refs/heads/gitlink"));
+
+		refs = db.getRefDatabase().getRefsByPrefix("refs/heads/prefix/");
+		assertEquals(1, refs.size());
+		checkContainsRef(refs, db.exactRef("refs/heads/prefix/a"));
 	}
 }

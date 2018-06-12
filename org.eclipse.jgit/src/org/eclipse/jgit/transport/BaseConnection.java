@@ -71,31 +71,34 @@ public abstract class BaseConnection implements Connection {
 
 	private Writer messageWriter;
 
+	/** {@inheritDoc} */
 	@Override
 	public Map<String, Ref> getRefsMap() {
 		return advertisedRefs;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public final Collection<Ref> getRefs() {
 		return advertisedRefs.values();
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public final Ref getRef(final String name) {
+	public final Ref getRef(String name) {
 		return advertisedRefs.get(name);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public String getMessages() {
 		return messageWriter != null ? messageWriter.toString() : ""; //$NON-NLS-1$
 	}
 
 	/**
-	 * User agent advertised by the remote server.
+	 * {@inheritDoc}
 	 *
-	 * @return agent (version of Git) running on the remote server. Null if the
-	 *         server does not advertise this version.
+	 * User agent advertised by the remote server.
 	 * @since 4.0
 	 */
 	@Override
@@ -114,6 +117,7 @@ public abstract class BaseConnection implements Connection {
 		peerUserAgent = agent;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public abstract void close();
 
@@ -128,7 +132,7 @@ public abstract class BaseConnection implements Connection {
 	 *            will be wrapped in an unmodifiable way to protect it, but it
 	 *            does not get copied.
 	 */
-	protected void available(final Map<String, Ref> all) {
+	protected void available(Map<String, Ref> all) {
 		advertisedRefs = Collections.unmodifiableMap(all);
 	}
 
@@ -136,7 +140,7 @@ public abstract class BaseConnection implements Connection {
 	 * Helper method for ensuring one-operation per connection. Check whether
 	 * operation was already marked as started, and mark it as started.
 	 *
-	 * @throws TransportException
+	 * @throws org.eclipse.jgit.errors.TransportException
 	 *             if operation was already marked as started.
 	 */
 	protected void markStartedOperation() throws TransportException {

@@ -81,7 +81,9 @@ public class IgnoreNode {
 	/** The rules that have been parsed into this node. */
 	private final List<FastIgnoreRule> rules;
 
-	/** Create an empty ignore node with no rules. */
+	/**
+	 * Create an empty ignore node with no rules.
+	 */
 	public IgnoreNode() {
 		rules = new ArrayList<>();
 	}
@@ -91,7 +93,7 @@ public class IgnoreNode {
 	 *
 	 * @param rules
 	 *            list of rules.
-	 **/
+	 */
 	public IgnoreNode(List<FastIgnoreRule> rules) {
 		this.rules = rules;
 	}
@@ -102,7 +104,7 @@ public class IgnoreNode {
 	 * @param in
 	 *            input stream holding the standard ignore format. The caller is
 	 *            responsible for closing the stream.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             Error thrown when reading an ignore file.
 	 */
 	public void parse(InputStream in) throws IOException {
@@ -122,7 +124,11 @@ public class IgnoreNode {
 		return new BufferedReader(new InputStreamReader(in, Constants.CHARSET));
 	}
 
-	/** @return list of all ignore rules held by this node. */
+	/**
+	 * Get list of all ignore rules held by this node
+	 *
+	 * @return list of all ignore rules held by this node
+	 */
 	public List<FastIgnoreRule> getRules() {
 		return Collections.unmodifiableList(rules);
 	}
@@ -139,7 +145,13 @@ public class IgnoreNode {
 	 * @return status of the path.
 	 */
 	public MatchResult isIgnored(String entryPath, boolean isDirectory) {
-		return isIgnored(entryPath, isDirectory, false);
+		final Boolean result = checkIgnored(entryPath, isDirectory);
+		if (result == null) {
+			return MatchResult.CHECK_PARENT;
+		}
+
+		return result.booleanValue() ? MatchResult.IGNORED
+				: MatchResult.NOT_IGNORED;
 	}
 
 	/**
@@ -151,49 +163,24 @@ public class IgnoreNode {
 	 *            (uses '/' and not '\').
 	 * @param isDirectory
 	 *            true if the target item is a directory.
-	 * @param negateFirstMatch
-	 *            true if the first match should be negated
-	 * @return status of the path.
-	 * @since 3.6
+	 * @return Boolean.TRUE, if the entry is ignored; Boolean.FALSE, if the
+	 *         entry is forced to be not ignored (negated match); or null, if
+	 *         undetermined
+	 * @since 4.11
 	 */
-	public MatchResult isIgnored(String entryPath, boolean isDirectory,
-			boolean negateFirstMatch) {
-		if (rules.isEmpty())
-			if (negateFirstMatch)
-				return MatchResult.CHECK_PARENT_NEGATE_FIRST_MATCH;
-			else
-				return MatchResult.CHECK_PARENT;
-
-		// Parse rules in the reverse order that they were read
+	public Boolean checkIgnored(String entryPath, boolean isDirectory) {
+		// Parse rules in the reverse order that they were read because later
+		// rules have higher priority
 		for (int i = rules.size() - 1; i > -1; i--) {
 			FastIgnoreRule rule = rules.get(i);
-			if (rule.isMatch(entryPath, isDirectory)) {
-				if (rule.getResult()) {
-					// rule matches: path could be ignored
-					if (negateFirstMatch)
-						// ignore current match, reset "negate" flag, continue
-						negateFirstMatch = false;
-					else
-						// valid match, just return
-						return MatchResult.IGNORED;
-				} else {
-					// found negated rule
-					if (negateFirstMatch)
-						// not possible to re-include excluded ignore rule
-						return MatchResult.NOT_IGNORED;
-					else
-						// set the flag and continue
-						negateFirstMatch = true;
-				}
+			if (rule.isMatch(entryPath, isDirectory, true)) {
+				return Boolean.valueOf(rule.getResult());
 			}
 		}
-		if (negateFirstMatch)
-			// negated rule found but there is no previous rule in *this* file
-			return MatchResult.CHECK_PARENT_NEGATE_FIRST_MATCH;
-		// *this* file has no matching rules
-		return MatchResult.CHECK_PARENT;
+		return null;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public String toString() {
 		return rules.toString();

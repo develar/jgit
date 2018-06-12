@@ -58,16 +58,18 @@ class LocalObjectToPack extends ObjectToPack {
 	/** Length of the data section of the object. */
 	long length;
 
-	LocalObjectToPack(AnyObjectId src, final int type) {
+	LocalObjectToPack(AnyObjectId src, int type) {
 		super(src, type);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	protected void clearReuseAsIs() {
 		super.clearReuseAsIs();
 		pack = null;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void select(StoredObjectRepresentation ref) {
 		LocalObjectRepresentation ptr = (LocalObjectRepresentation) ref;

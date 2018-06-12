@@ -72,6 +72,7 @@ class ShowPackDelta extends TextBuiltin {
 	@Argument(index = 0)
 	private ObjectId objectId;
 
+	/** {@inheritDoc} */
 	@Override
 	protected void run() throws Exception {
 		ObjectReader reader = db.newObjectReader();
@@ -124,12 +125,13 @@ class ShowPackDelta extends TextBuiltin {
 			ptr++;
 		ptr++;
 
-		@SuppressWarnings("resource" /* java 7 */)
-		TemporaryBuffer.Heap raw = new TemporaryBuffer.Heap(bufArray.length);
-		InflaterInputStream inf = new InflaterInputStream(
-				new ByteArrayInputStream(bufArray, ptr, bufArray.length));
-		raw.copy(inf);
-		inf.close();
-		return raw.toByteArray();
+		try (TemporaryBuffer.Heap raw = new TemporaryBuffer.Heap(
+				bufArray.length);
+				InflaterInputStream inf = new InflaterInputStream(
+						new ByteArrayInputStream(bufArray, ptr,
+								bufArray.length))) {
+			raw.copy(inf);
+			return raw.toByteArray();
+		}
 	}
 }

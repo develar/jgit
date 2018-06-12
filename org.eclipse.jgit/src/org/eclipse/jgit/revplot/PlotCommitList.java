@@ -57,13 +57,13 @@ import org.eclipse.jgit.revwalk.RevCommitList;
 import org.eclipse.jgit.revwalk.RevWalk;
 
 /**
- * An ordered list of {@link PlotCommit} subclasses.
+ * An ordered list of {@link org.eclipse.jgit.revplot.PlotCommit} subclasses.
  * <p>
  * Commits are allocated into lanes as they enter the list, based upon their
  * connections between descendant (child) commits and ancestor (parent) commits.
  * <p>
- * The source of the list must be a {@link PlotWalk} and {@link #fillTo(int)}
- * must be used to populate the list.
+ * The source of the list must be a {@link org.eclipse.jgit.revplot.PlotWalk}
+ * and {@link #fillTo(int)} must be used to populate the list.
  *
  * @param <L>
  *            type of lane used by the application.
@@ -82,6 +82,7 @@ public class PlotCommitList<L extends PlotLane> extends
 	private final HashMap<PlotLane, Integer> laneLength = new HashMap<>(
 			32);
 
+	/** {@inheritDoc} */
 	@Override
 	public void clear() {
 		super.clear();
@@ -91,8 +92,9 @@ public class PlotCommitList<L extends PlotLane> extends
 		laneLength.clear();
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public void source(final RevWalk w) {
+	public void source(RevWalk w) {
 		if (!(w instanceof PlotWalk))
 			throw new ClassCastException(MessageFormat.format(JGitText.get().classCastNotA, PlotWalk.class.getName()));
 		super.source(w);
@@ -118,12 +120,13 @@ public class PlotCommitList<L extends PlotLane> extends
 	@SuppressWarnings("unchecked")
 	public void findPassingThrough(final PlotCommit<L> currCommit,
 			final Collection<L> result) {
-		for (final PlotLane p : currCommit.passingLanes)
+		for (PlotLane p : currCommit.passingLanes)
 			result.add((L) p);
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	protected void enter(final int index, final PlotCommit<L> currCommit) {
+	protected void enter(int index, PlotCommit<L> currCommit) {
 		setupChildren(currCommit);
 
 		final int nChildren = currCommit.getChildCount();
@@ -199,7 +202,7 @@ public class PlotCommitList<L extends PlotLane> extends
 			closeLane(currCommit.lane);
 	}
 
-	private void continueActiveLanes(final PlotCommit currCommit) {
+	private void continueActiveLanes(PlotCommit currCommit) {
 		for (PlotLane lane : activeLanes)
 			if (lane != currCommit.lane)
 				currCommit.addPassingLane(lane);
@@ -353,7 +356,7 @@ public class PlotCommitList<L extends PlotLane> extends
 		}
 	}
 
-	private void setupChildren(final PlotCommit<L> currCommit) {
+	private void setupChildren(PlotCommit<L> currCommit) {
 		final int nParents = currCommit.getParentCount();
 		for (int i = 0; i < nParents; i++)
 			((PlotCommit) currCommit.getParent(i)).addChild(currCommit);
@@ -395,7 +398,11 @@ public class PlotCommitList<L extends PlotLane> extends
 	}
 
 	/**
-	 * @return a new Lane appropriate for this particular PlotList.
+	 * Create a new {@link PlotLane} appropriate for this particular
+	 * {@link PlotCommitList}.
+	 *
+	 * @return a new {@link PlotLane} appropriate for this particular
+	 *         {@link PlotCommitList}.
 	 */
 	@SuppressWarnings("unchecked")
 	protected L createLane() {
@@ -407,8 +414,9 @@ public class PlotCommitList<L extends PlotLane> extends
 	 * is no longer needed.
 	 *
 	 * @param lane
+	 *            a lane
 	 */
-	protected void recycleLane(final L lane) {
+	protected void recycleLane(L lane) {
 		// Nothing.
 	}
 }

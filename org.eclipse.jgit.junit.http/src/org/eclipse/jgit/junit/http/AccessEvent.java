@@ -51,7 +51,9 @@ import java.util.TreeMap;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.Response;
 
-/** A single request made through {@link AppServer}. */
+/**
+ * A single request made through {@link org.eclipse.jgit.junit.http.AppServer}.
+ */
 public class AccessEvent {
 	private final String method;
 
@@ -65,7 +67,7 @@ public class AccessEvent {
 
 	private final Map<String, String> responseHeaders;
 
-	AccessEvent(final Request req, final Response rsp) {
+	AccessEvent(Request req, Response rsp) {
 		method = req.getMethod();
 		uri = req.getRequestURI();
 		requestHeaders = cloneHeaders(req);
@@ -75,7 +77,7 @@ public class AccessEvent {
 		responseHeaders = cloneHeaders(rsp);
 	}
 
-	private static Map<String, String> cloneHeaders(final Request req) {
+	private static Map<String, String> cloneHeaders(Request req) {
 		Map<String, String> r = new TreeMap<>();
 		Enumeration hn = req.getHeaderNames();
 		while (hn.hasMoreElements()) {
@@ -87,7 +89,7 @@ public class AccessEvent {
 		return Collections.unmodifiableMap(r);
 	}
 
-	private static Map<String, String> cloneHeaders(final Response rsp) {
+	private static Map<String, String> cloneHeaders(Response rsp) {
 		Map<String, String> r = new TreeMap<>();
 		Enumeration<String> hn = rsp.getHttpFields().getFieldNames();
 		while (hn.hasMoreElements()) {
@@ -105,17 +107,27 @@ public class AccessEvent {
 		return new TreeMap<>(parameterMap);
 	}
 
-	/** @return {@code "GET"} or {@code "POST"} */
+	/**
+	 * Get the <code>method</code>.
+	 *
+	 * @return {@code "GET"} or {@code "POST"}
+	 */
 	public String getMethod() {
 		return method;
 	}
 
-	/** @return path of the file on the server, e.g. {@code /git/HEAD}. */
+	/**
+	 * Get <code>path</code>.
+	 *
+	 * @return path of the file on the server, e.g. {@code /git/HEAD}.
+	 */
 	public String getPath() {
 		return uri;
 	}
 
 	/**
+	 * Get request header
+	 *
 	 * @param name
 	 *            name of the request header to read.
 	 * @return first value of the request header; null if not sent.
@@ -125,6 +137,8 @@ public class AccessEvent {
 	}
 
 	/**
+	 * Get parameter
+	 *
 	 * @param name
 	 *            name of the request parameter to read.
 	 * @return first value of the request parameter; null if not sent.
@@ -134,17 +148,27 @@ public class AccessEvent {
 		return r != null && 1 <= r.length ? r[0] : null;
 	}
 
-	/** @return all parameters in the request. */
+	/**
+	 * Get <code>parameters</code>
+	 *
+	 * @return all parameters in the request.
+	 */
 	public Map<String, String[]> getParameters() {
 		return parameters;
 	}
 
-	/** @return HTTP status code of the response, e.g. 200, 403, 500. */
+	/**
+	 * Get the <code>status</code>.
+	 *
+	 * @return HTTP status code of the response, e.g. 200, 403, 500.
+	 */
 	public int getStatus() {
 		return status;
 	}
 
 	/**
+	 * Get response header.
+	 *
 	 * @param name
 	 *            name of the response header to read.
 	 * @return first value of the response header; null if not sent.
@@ -153,6 +177,7 @@ public class AccessEvent {
 		return responseHeaders.get(name);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public String toString() {
 		StringBuilder b = new StringBuilder();

@@ -52,17 +52,17 @@ import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
-import org.kohsuke.args4j.Option;
 import org.kohsuke.args4j.OptionDef;
 import org.kohsuke.args4j.spi.OptionHandler;
 import org.kohsuke.args4j.spi.Parameters;
 import org.kohsuke.args4j.spi.Setter;
 
 /**
- * Create a {@link TreeFilter} to patch math names.
+ * Create a {@link org.eclipse.jgit.treewalk.filter.TreeFilter} to patch math
+ * names.
  * <p>
  * This handler consumes all arguments to the end of the command line, and is
- * meant to be used on an {@link Option} of name "--".
+ * meant to be used on an {@link org.kohsuke.args4j.Option} of name "--".
  */
 public class PathTreeFilterHandler extends OptionHandler<TreeFilter> {
 	/**
@@ -71,16 +71,20 @@ public class PathTreeFilterHandler extends OptionHandler<TreeFilter> {
 	 * This constructor is used only by args4j.
 	 *
 	 * @param parser
+	 *            a {@link org.kohsuke.args4j.CmdLineParser} object.
 	 * @param option
+	 *            a {@link org.kohsuke.args4j.OptionDef} object.
 	 * @param setter
+	 *            a {@link org.kohsuke.args4j.spi.Setter} object.
 	 */
 	public PathTreeFilterHandler(final CmdLineParser parser,
 			final OptionDef option, final Setter<? super TreeFilter> setter) {
 		super(parser, option, setter);
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public int parseArguments(final Parameters params) throws CmdLineException {
+	public int parseArguments(Parameters params) throws CmdLineException {
 		final List<PathFilter> filters = new ArrayList<>();
 		for (int idx = 0;; idx++) {
 			final String path;
@@ -102,6 +106,7 @@ public class PathTreeFilterHandler extends OptionHandler<TreeFilter> {
 		return filters.size();
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public String getDefaultMetaVariable() {
 		return CLIText.get().metaVar_paths;

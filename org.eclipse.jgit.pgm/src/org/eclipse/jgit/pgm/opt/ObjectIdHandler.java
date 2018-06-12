@@ -45,7 +45,6 @@
 package org.eclipse.jgit.pgm.opt;
 
 import java.io.IOException;
-import java.text.MessageFormat;
 
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.pgm.internal.CLIText;
@@ -57,7 +56,8 @@ import org.kohsuke.args4j.spi.Parameters;
 import org.kohsuke.args4j.spi.Setter;
 
 /**
- * Custom argument handler {@link ObjectId} from string values.
+ * Custom argument handler {@link org.eclipse.jgit.lib.ObjectId} from string
+ * values.
  * <p>
  * Assumes the parser has been initialized with a Repository.
  */
@@ -70,8 +70,11 @@ public class ObjectIdHandler extends OptionHandler<ObjectId> {
 	 * This constructor is used only by args4j.
 	 *
 	 * @param parser
+	 *            a {@link org.kohsuke.args4j.CmdLineParser} object.
 	 * @param option
+	 *            a {@link org.kohsuke.args4j.OptionDef} object.
 	 * @param setter
+	 *            a {@link org.kohsuke.args4j.spi.Setter} object.
 	 */
 	public ObjectIdHandler(final CmdLineParser parser, final OptionDef option,
 			final Setter<? super ObjectId> setter) {
@@ -79,23 +82,26 @@ public class ObjectIdHandler extends OptionHandler<ObjectId> {
 		clp = (org.eclipse.jgit.pgm.opt.CmdLineParser) parser;
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public int parseArguments(final Parameters params) throws CmdLineException {
+	public int parseArguments(Parameters params) throws CmdLineException {
 		final String name = params.getParameter(0);
 		final ObjectId id;
 		try {
 			id = clp.getRepository().resolve(name);
 		} catch (IOException e) {
-			throw new CmdLineException(clp, e.getMessage());
+			throw new CmdLineException(clp, CLIText.format(e.getMessage()));
 		}
 		if (id != null) {
 			setter.addValue(id);
 			return 1;
 		}
 
-		throw new CmdLineException(clp, MessageFormat.format(CLIText.get().notAnObject, name));
+		throw new CmdLineException(clp,
+				CLIText.format(CLIText.get().notAnObject), name);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public String getDefaultMetaVariable() {
 		return CLIText.get().metaVar_object;

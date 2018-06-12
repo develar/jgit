@@ -48,7 +48,9 @@ import java.text.MessageFormat;
 
 import org.eclipse.jgit.internal.JGitText;
 
-/** Indicates a local repository does not exist. */
+/**
+ * Indicates a local repository does not exist.
+ */
 public class RepositoryNotFoundException extends TransportException {
 	private static final long serialVersionUID = 1L;
 
@@ -58,7 +60,7 @@ public class RepositoryNotFoundException extends TransportException {
 	 * @param location
 	 *            description of the repository not found, usually file path.
 	 */
-	public RepositoryNotFoundException(final File location) {
+	public RepositoryNotFoundException(File location) {
 		this(location.getPath());
 	}
 
@@ -70,7 +72,7 @@ public class RepositoryNotFoundException extends TransportException {
 	 * @param why
 	 *            why the repository does not exist.
 	 */
-	public RepositoryNotFoundException(final File location, Throwable why) {
+	public RepositoryNotFoundException(File location, Throwable why) {
 		this(location.getPath(), why);
 	}
 
@@ -80,7 +82,7 @@ public class RepositoryNotFoundException extends TransportException {
 	 * @param location
 	 *            description of the repository not found, usually file path.
 	 */
-	public RepositoryNotFoundException(final String location) {
+	public RepositoryNotFoundException(String location) {
 		super(message(location));
 	}
 
@@ -96,7 +98,7 @@ public class RepositoryNotFoundException extends TransportException {
 		super(message(location), why);
 	}
 
-	private static String message(final String location) {
+	private static String message(String location) {
 		return MessageFormat.format(JGitText.get().repositoryNotFound, location);
 	}
 }

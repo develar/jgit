@@ -58,6 +58,8 @@ import java.security.MessageDigest;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.Deflater;
 
 import org.eclipse.jgit.errors.MissingObjectException;
@@ -134,7 +136,7 @@ public class ReceivePackAdvertiseRefsHookTest extends LocalDiskRepositoryTestCas
 		try (TransportLocal t = new TransportLocal(src, uriOf(dst),
 				dst.getDirectory()) {
 			@Override
-			ReceivePack createReceivePack(final Repository db) {
+			ReceivePack createReceivePack(Repository db) {
 				db.close();
 				dst.incrementOpen();
 
@@ -156,6 +158,62 @@ public class ReceivePackAdvertiseRefsHookTest extends LocalDiskRepositoryTestCas
 		Ref master = refs.get(R_MASTER);
 		assertNotNull("has master", master);
 		assertEquals(B, master.getObjectId());
+	}
+
+	@Test
+	public void resetsHaves() throws Exception {
+		AtomicReference<Set<ObjectId>> haves = new AtomicReference<>();
+		try (TransportLocal t = new TransportLocal(src, uriOf(dst),
+				dst.getDirectory()) {
+			@Override
+			ReceivePack createReceivePack(Repository db) {
+				dst.incrementOpen();
+
+				ReceivePack rp = super.createReceivePack(dst);
+				rp.setAdvertiseRefsHook(new AdvertiseRefsHook() {
+					@Override
+					public void advertiseRefs(BaseReceivePack rp2)
+							throws ServiceMayNotContinueException {
+						rp.setAdvertisedRefs(rp.getRepository().getAllRefs(),
+								null);
+						new HidePrivateHook().advertiseRefs(rp);
+						haves.set(rp.getAdvertisedObjects());
+					}
+
+					@Override
+					public void advertiseRefs(UploadPack uploadPack)
+							throws ServiceMayNotContinueException {
+						throw new UnsupportedOperationException();
+					}
+				});
+				return rp;
+			}
+		}) {
+			try (PushConnection c = t.openPush()) {
+				// Just has to open/close for advertisement.
+			}
+		}
+
+		assertEquals(1, haves.get().size());
+		assertTrue(haves.get().contains(B));
+		assertFalse(haves.get().contains(P));
+	}
+
+	private TransportLocal newTransportLocalWithStrictValidation()
+			throws Exception {
+		return new TransportLocal(src, uriOf(dst), dst.getDirectory()) {
+			@Override
+			ReceivePack createReceivePack(Repository db) {
+				db.close();
+				dst.incrementOpen();
+
+				final ReceivePack rp = super.createReceivePack(dst);
+				rp.setCheckReceivedObjects(true);
+				rp.setCheckReferencedObjectsAreReachable(true);
+				rp.setAdvertiseRefsHook(new HidePrivateHook());
+				return rp;
+			}
+		};
 	}
 
 	@Test
@@ -189,19 +247,7 @@ public class ReceivePackAdvertiseRefsHookTest extends LocalDiskRepositoryTestCas
 
 		// Push this new content to the remote, doing strict validation.
 		//
-		TransportLocal t = new TransportLocal(src, uriOf(dst), dst.getDirectory()) {
-			@Override
-			ReceivePack createReceivePack(final Repository db) {
-				db.close();
-				dst.incrementOpen();
-
-				final ReceivePack rp = super.createReceivePack(dst);
-				rp.setCheckReceivedObjects(true);
-				rp.setCheckReferencedObjectsAreReachable(true);
-				rp.setAdvertiseRefsHook(new HidePrivateHook());
-				return rp;
-			}
-		};
+		PushResult r;
 		RemoteRefUpdate u = new RemoteRefUpdate( //
 				src, //
 				R_MASTER, // src name
@@ -210,12 +256,9 @@ public class ReceivePackAdvertiseRefsHookTest extends LocalDiskRepositoryTestCas
 				null, // local tracking branch
 				null // expected id
 		);
-		PushResult r;
-		try {
+		try (TransportLocal t = newTransportLocalWithStrictValidation()) {
 			t.setPushThin(true);
 			r = t.push(PM, Collections.singleton(u));
-		} finally {
-			t.close();
 		}
 
 		assertNotNull("have result", r);

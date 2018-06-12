@@ -72,12 +72,16 @@ import org.eclipse.jgit.dircache.DirCacheEntry;
 import org.eclipse.jgit.errors.CheckoutConflictException;
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.errors.NoWorkTreeException;
+import org.eclipse.jgit.events.ChangeRecorder;
+import org.eclipse.jgit.events.ListenerHandle;
 import org.eclipse.jgit.junit.RepositoryTestCase;
 import org.eclipse.jgit.junit.TestRepository;
 import org.eclipse.jgit.junit.TestRepository.BranchBuilder;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.treewalk.AbstractTreeIterator;
 import org.eclipse.jgit.treewalk.FileTreeIterator;
 import org.eclipse.jgit.treewalk.TreeWalk;
+import org.eclipse.jgit.treewalk.WorkingTreeIterator;
 import org.eclipse.jgit.util.FS;
 import org.eclipse.jgit.util.FileUtils;
 import org.junit.Assume;
@@ -141,14 +145,19 @@ public class DirCacheCheckoutTest extends RepositoryTestCase {
 	@Test
 	public void testResetHard() throws IOException, NoFilepatternException,
 			GitAPIException {
+		ChangeRecorder recorder = new ChangeRecorder();
+		ListenerHandle handle = null;
 		try (Git git = new Git(db)) {
+			handle = db.getListenerList()
+					.addWorkingTreeModifiedListener(recorder);
 			writeTrashFile("f", "f()");
 			writeTrashFile("D/g", "g()");
 			git.add().addFilepattern(".").call();
 			git.commit().setMessage("inital").call();
 			assertIndex(mkmap("f", "f()", "D/g", "g()"));
-
+			recorder.assertNoEvent();
 			git.branchCreate().setName("topic").call();
+			recorder.assertNoEvent();
 
 			writeTrashFile("f", "f()\nmaster");
 			writeTrashFile("D/g", "g()\ng2()");
@@ -156,9 +165,12 @@ public class DirCacheCheckoutTest extends RepositoryTestCase {
 			git.add().addFilepattern(".").call();
 			RevCommit master = git.commit().setMessage("master-1").call();
 			assertIndex(mkmap("f", "f()\nmaster", "D/g", "g()\ng2()", "E/h", "h()"));
+			recorder.assertNoEvent();
 
 			checkoutBranch("refs/heads/topic");
 			assertIndex(mkmap("f", "f()", "D/g", "g()"));
+			recorder.assertEvent(new String[] { "f", "D/g" },
+					new String[] { "E/h" });
 
 			writeTrashFile("f", "f()\nside");
 			assertTrue(new File(db.getWorkTree(), "D/g").delete());
@@ -167,34 +179,49 @@ public class DirCacheCheckoutTest extends RepositoryTestCase {
 			git.add().addFilepattern(".").setUpdate(true).call();
 			RevCommit topic = git.commit().setMessage("topic-1").call();
 			assertIndex(mkmap("f", "f()\nside", "G/i", "i()"));
+			recorder.assertNoEvent();
 
 			writeTrashFile("untracked", "untracked");
 
 			resetHard(master);
 			assertIndex(mkmap("f", "f()\nmaster", "D/g", "g()\ng2()", "E/h", "h()"));
+			recorder.assertEvent(new String[] { "f", "D/g", "E/h" },
+					new String[] { "G", "G/i" });
+
 			resetHard(topic);
 			assertIndex(mkmap("f", "f()\nside", "G/i", "i()"));
 			assertWorkDir(mkmap("f", "f()\nside", "G/i", "i()", "untracked",
 					"untracked"));
+			recorder.assertEvent(new String[] { "f", "G/i" },
+					new String[] { "D", "D/g", "E", "E/h" });
 
 			assertEquals(MergeStatus.CONFLICTING, git.merge().include(master)
 					.call().getMergeStatus());
 			assertEquals(
 					"[D/g, mode:100644, stage:1][D/g, mode:100644, stage:3][E/h, mode:100644][G/i, mode:100644][f, mode:100644, stage:1][f, mode:100644, stage:2][f, mode:100644, stage:3]",
 					indexState(0));
+			recorder.assertEvent(new String[] { "f", "D/g", "E/h" },
+					ChangeRecorder.EMPTY);
 
 			resetHard(master);
 			assertIndex(mkmap("f", "f()\nmaster", "D/g", "g()\ng2()", "E/h", "h()"));
 			assertWorkDir(mkmap("f", "f()\nmaster", "D/g", "g()\ng2()", "E/h",
 					"h()", "untracked", "untracked"));
+			recorder.assertEvent(new String[] { "f", "D/g" },
+					new String[] { "G", "G/i" });
+
+		} finally {
+			if (handle != null) {
+				handle.remove();
+			}
 		}
 	}
 
 	/**
 	 * Reset hard from unclean condition.
 	 * <p>
-	 * WorkDir: Empty <br/>
-	 * Index: f/g <br/>
+	 * WorkDir: Empty <br>
+	 * Index: f/g <br>
 	 * Merge: x
 	 *
 	 * @throws Exception
@@ -202,13 +229,18 @@ public class DirCacheCheckoutTest extends RepositoryTestCase {
 	@Test
 	public void testResetHardFromIndexEntryWithoutFileToTreeWithoutFile()
 			throws Exception {
+		ChangeRecorder recorder = new ChangeRecorder();
+		ListenerHandle handle = null;
 		try (Git git = new Git(db)) {
+			handle = db.getListenerList()
+					.addWorkingTreeModifiedListener(recorder);
 			writeTrashFile("x", "x");
 			git.add().addFilepattern("x").call();
 			RevCommit id1 = git.commit().setMessage("c1").call();
 
 			writeTrashFile("f/g", "f/g");
 			git.rm().addFilepattern("x").call();
+			recorder.assertEvent(ChangeRecorder.EMPTY, new String[] { "x" });
 			git.add().addFilepattern("f/g").call();
 			git.commit().setMessage("c2").call();
 			deleteTrashFile("f/g");
@@ -217,6 +249,11 @@ public class DirCacheCheckoutTest extends RepositoryTestCase {
 			// The actual test
 			git.reset().setMode(ResetType.HARD).setRef(id1.getName()).call();
 			assertIndex(mkmap("x", "x"));
+			recorder.assertEvent(new String[] { "x" }, ChangeRecorder.EMPTY);
+		} finally {
+			if (handle != null) {
+				handle.remove();
+			}
 		}
 	}
 
@@ -227,13 +264,22 @@ public class DirCacheCheckoutTest extends RepositoryTestCase {
 	 */
 	@Test
 	public void testInitialCheckout() throws Exception {
+		ChangeRecorder recorder = new ChangeRecorder();
+		ListenerHandle handle = null;
 		try (Git git = new Git(db)) {
+			handle = db.getListenerList()
+					.addWorkingTreeModifiedListener(recorder);
 			TestRepository<Repository> db_t = new TestRepository<>(db);
 			BranchBuilder master = db_t.branch("master");
 			master.commit().add("f", "1").message("m0").create();
 			assertFalse(new File(db.getWorkTree(), "f").exists());
 			git.checkout().setName("master").call();
 			assertTrue(new File(db.getWorkTree(), "f").exists());
+			recorder.assertEvent(new String[] { "f" }, ChangeRecorder.EMPTY);
+		} finally {
+			if (handle != null) {
+				handle.remove();
+			}
 		}
 	}
 
@@ -930,120 +976,154 @@ public class DirCacheCheckoutTest extends RepositoryTestCase {
 	public void testCheckoutChangeLinkToEmptyDir() throws Exception {
 		Assume.assumeTrue(FS.DETECTED.supportsSymlinks());
 		String fname = "was_file";
-		Git git = Git.wrap(db);
+		ChangeRecorder recorder = new ChangeRecorder();
+		ListenerHandle handle = null;
+		try (Git git = new Git(db)) {
+			handle = db.getListenerList()
+					.addWorkingTreeModifiedListener(recorder);
+			// Add a file
+			writeTrashFile(fname, "a");
+			git.add().addFilepattern(fname).call();
 
-		// Add a file
-		writeTrashFile(fname, "a");
-		git.add().addFilepattern(fname).call();
+			// Add a link to file
+			String linkName = "link";
+			File link = writeLink(linkName, fname).toFile();
+			git.add().addFilepattern(linkName).call();
+			git.commit().setMessage("Added file and link").call();
 
-		// Add a link to file
-		String linkName = "link";
-		File link = writeLink(linkName, fname).toFile();
-		git.add().addFilepattern(linkName).call();
-		git.commit().setMessage("Added file and link").call();
+			assertWorkDir(mkmap(linkName, "a", fname, "a"));
 
-		assertWorkDir(mkmap(linkName, "a", fname, "a"));
+			// replace link with empty directory
+			FileUtils.delete(link);
+			FileUtils.mkdir(link);
+			assertTrue("Link must be a directory now", link.isDirectory());
 
-		// replace link with empty directory
-		FileUtils.delete(link);
-		FileUtils.mkdir(link);
-		assertTrue("Link must be a directory now", link.isDirectory());
+			// modify file
+			writeTrashFile(fname, "b");
+			assertWorkDir(mkmap(fname, "b", linkName, "/"));
+			recorder.assertNoEvent();
 
-		// modify file
-		writeTrashFile(fname, "b");
-		assertWorkDir(mkmap(fname, "b", linkName, "/"));
+			// revert both paths to HEAD state
+			git.checkout().setStartPoint(Constants.HEAD).addPath(fname)
+					.addPath(linkName).call();
 
-		// revert both paths to HEAD state
-		git.checkout().setStartPoint(Constants.HEAD)
-				.addPath(fname).addPath(linkName).call();
+			assertWorkDir(mkmap(fname, "a", linkName, "a"));
+			recorder.assertEvent(new String[] { fname, linkName },
+					ChangeRecorder.EMPTY);
 
-		assertWorkDir(mkmap(fname, "a", linkName, "a"));
-
-		Status st = git.status().call();
-		assertTrue(st.isClean());
+			Status st = git.status().call();
+			assertTrue(st.isClean());
+		} finally {
+			if (handle != null) {
+				handle.remove();
+			}
+		}
 	}
 
 	@Test
 	public void testCheckoutChangeLinkToEmptyDirs() throws Exception {
 		Assume.assumeTrue(FS.DETECTED.supportsSymlinks());
 		String fname = "was_file";
-		Git git = Git.wrap(db);
+		ChangeRecorder recorder = new ChangeRecorder();
+		ListenerHandle handle = null;
+		try (Git git = new Git(db)) {
+			handle = db.getListenerList()
+					.addWorkingTreeModifiedListener(recorder);
+			// Add a file
+			writeTrashFile(fname, "a");
+			git.add().addFilepattern(fname).call();
 
-		// Add a file
-		writeTrashFile(fname, "a");
-		git.add().addFilepattern(fname).call();
+			// Add a link to file
+			String linkName = "link";
+			File link = writeLink(linkName, fname).toFile();
+			git.add().addFilepattern(linkName).call();
+			git.commit().setMessage("Added file and link").call();
 
-		// Add a link to file
-		String linkName = "link";
-		File link = writeLink(linkName, fname).toFile();
-		git.add().addFilepattern(linkName).call();
-		git.commit().setMessage("Added file and link").call();
+			assertWorkDir(mkmap(linkName, "a", fname, "a"));
 
-		assertWorkDir(mkmap(linkName, "a", fname, "a"));
+			// replace link with directory containing only directories, no files
+			FileUtils.delete(link);
+			FileUtils.mkdirs(new File(link, "dummyDir"));
+			assertTrue("Link must be a directory now", link.isDirectory());
 
-		// replace link with directory containing only directories, no files
-		FileUtils.delete(link);
-		FileUtils.mkdirs(new File(link, "dummyDir"));
-		assertTrue("Link must be a directory now", link.isDirectory());
+			assertFalse("Must not delete non empty directory", link.delete());
 
-		assertFalse("Must not delete non empty directory", link.delete());
+			// modify file
+			writeTrashFile(fname, "b");
+			assertWorkDir(mkmap(fname, "b", linkName + "/dummyDir", "/"));
+			recorder.assertNoEvent();
 
-		// modify file
-		writeTrashFile(fname, "b");
-		assertWorkDir(mkmap(fname, "b", linkName + "/dummyDir", "/"));
+			// revert both paths to HEAD state
+			git.checkout().setStartPoint(Constants.HEAD).addPath(fname)
+					.addPath(linkName).call();
 
-		// revert both paths to HEAD state
-		git.checkout().setStartPoint(Constants.HEAD)
-				.addPath(fname).addPath(linkName).call();
+			assertWorkDir(mkmap(fname, "a", linkName, "a"));
+			recorder.assertEvent(new String[] { fname, linkName },
+					ChangeRecorder.EMPTY);
 
-		assertWorkDir(mkmap(fname, "a", linkName, "a"));
-
-		Status st = git.status().call();
-		assertTrue(st.isClean());
+			Status st = git.status().call();
+			assertTrue(st.isClean());
+		} finally {
+			if (handle != null) {
+				handle.remove();
+			}
+		}
 	}
 
 	@Test
 	public void testCheckoutChangeLinkToNonEmptyDirs() throws Exception {
 		Assume.assumeTrue(FS.DETECTED.supportsSymlinks());
 		String fname = "file";
-		Git git = Git.wrap(db);
+		ChangeRecorder recorder = new ChangeRecorder();
+		ListenerHandle handle = null;
+		try (Git git = new Git(db)) {
+			handle = db.getListenerList()
+					.addWorkingTreeModifiedListener(recorder);
+			// Add a file
+			writeTrashFile(fname, "a");
+			git.add().addFilepattern(fname).call();
 
-		// Add a file
-		writeTrashFile(fname, "a");
-		git.add().addFilepattern(fname).call();
+			// Add a link to file
+			String linkName = "link";
+			File link = writeLink(linkName, fname).toFile();
+			git.add().addFilepattern(linkName).call();
+			git.commit().setMessage("Added file and link").call();
 
-		// Add a link to file
-		String linkName = "link";
-		File link = writeLink(linkName, fname).toFile();
-		git.add().addFilepattern(linkName).call();
-		git.commit().setMessage("Added file and link").call();
+			assertWorkDir(mkmap(linkName, "a", fname, "a"));
 
-		assertWorkDir(mkmap(linkName, "a", fname, "a"));
+			// replace link with directory containing only directories, no files
+			FileUtils.delete(link);
 
-		// replace link with directory containing only directories, no files
-		FileUtils.delete(link);
+			// create but do not add a file in the new directory to the index
+			writeTrashFile(linkName + "/dir1", "file1", "c");
 
-		// create but do not add a file in the new directory to the index
-		writeTrashFile(linkName + "/dir1", "file1", "c");
+			// create but do not add a file in the new directory to the index
+			writeTrashFile(linkName + "/dir2", "file2", "d");
 
-		// create but do not add a file in the new directory to the index
-		writeTrashFile(linkName + "/dir2", "file2", "d");
+			assertTrue("File must be a directory now", link.isDirectory());
+			assertFalse("Must not delete non empty directory", link.delete());
 
-		assertTrue("File must be a directory now", link.isDirectory());
-		assertFalse("Must not delete non empty directory", link.delete());
+			// 2 extra files are created
+			assertWorkDir(mkmap(fname, "a", linkName + "/dir1/file1", "c",
+					linkName + "/dir2/file2", "d"));
+			recorder.assertNoEvent();
 
-		// 2 extra files are created
-		assertWorkDir(mkmap(fname, "a", linkName + "/dir1/file1", "c",
-				linkName + "/dir2/file2", "d"));
+			// revert path to HEAD state
+			git.checkout().setStartPoint(Constants.HEAD).addPath(linkName)
+					.call();
 
-		// revert path to HEAD state
-		git.checkout().setStartPoint(Constants.HEAD).addPath(linkName).call();
+			// expect only the one added to the index
+			assertWorkDir(mkmap(linkName, "a", fname, "a"));
+			recorder.assertEvent(new String[] { linkName },
+					ChangeRecorder.EMPTY);
 
-		// expect only the one added to the index
-		assertWorkDir(mkmap(linkName, "a", fname, "a"));
-
-		Status st = git.status().call();
-		assertTrue(st.isClean());
+			Status st = git.status().call();
+			assertTrue(st.isClean());
+		} finally {
+			if (handle != null) {
+				handle.remove();
+			}
+		}
 	}
 
 	@Test
@@ -1051,174 +1131,222 @@ public class DirCacheCheckoutTest extends RepositoryTestCase {
 			throws Exception {
 		Assume.assumeTrue(FS.DETECTED.supportsSymlinks());
 		String fname = "file";
-		Git git = Git.wrap(db);
+		ChangeRecorder recorder = new ChangeRecorder();
+		ListenerHandle handle = null;
+		try (Git git = new Git(db)) {
+			handle = db.getListenerList()
+					.addWorkingTreeModifiedListener(recorder);
+			// Add a file
+			writeTrashFile(fname, "a");
+			git.add().addFilepattern(fname).call();
 
-		// Add a file
-		writeTrashFile(fname, "a");
-		git.add().addFilepattern(fname).call();
+			// Add a link to file
+			String linkName = "link";
+			File link = writeLink(linkName, fname).toFile();
+			git.add().addFilepattern(linkName).call();
+			git.commit().setMessage("Added file and link").call();
 
-		// Add a link to file
-		String linkName = "link";
-		File link = writeLink(linkName, fname).toFile();
-		git.add().addFilepattern(linkName).call();
-		git.commit().setMessage("Added file and link").call();
+			assertWorkDir(mkmap(linkName, "a", fname, "a"));
 
-		assertWorkDir(mkmap(linkName, "a", fname, "a"));
+			// replace link with directory containing only directories, no files
+			FileUtils.delete(link);
 
-		// replace link with directory containing only directories, no files
-		FileUtils.delete(link);
+			// create and add a file in the new directory to the index
+			writeTrashFile(linkName + "/dir1", "file1", "c");
+			git.add().addFilepattern(linkName + "/dir1/file1").call();
 
-		// create and add a file in the new directory to the index
-		writeTrashFile(linkName + "/dir1", "file1", "c");
-		git.add().addFilepattern(linkName + "/dir1/file1").call();
+			// create but do not add a file in the new directory to the index
+			writeTrashFile(linkName + "/dir2", "file2", "d");
 
-		// create but do not add a file in the new directory to the index
-		writeTrashFile(linkName + "/dir2", "file2", "d");
+			assertTrue("File must be a directory now", link.isDirectory());
+			assertFalse("Must not delete non empty directory", link.delete());
 
-		assertTrue("File must be a directory now", link.isDirectory());
-		assertFalse("Must not delete non empty directory", link.delete());
+			// 2 extra files are created
+			assertWorkDir(mkmap(fname, "a", linkName + "/dir1/file1", "c",
+					linkName + "/dir2/file2", "d"));
+			recorder.assertNoEvent();
 
-		// 2 extra files are created
-		assertWorkDir(mkmap(fname, "a", linkName + "/dir1/file1", "c",
-				linkName + "/dir2/file2", "d"));
+			// revert path to HEAD state
+			git.checkout().setStartPoint(Constants.HEAD).addPath(linkName)
+					.call();
 
-		// revert path to HEAD state
-		git.checkout().setStartPoint(Constants.HEAD).addPath(linkName).call();
+			// original file and link
+			assertWorkDir(mkmap(linkName, "a", fname, "a"));
+			recorder.assertEvent(new String[] { linkName },
+					ChangeRecorder.EMPTY);
 
-		// original file and link
-		assertWorkDir(mkmap(linkName, "a", fname, "a"));
-
-		Status st = git.status().call();
-		assertTrue(st.isClean());
+			Status st = git.status().call();
+			assertTrue(st.isClean());
+		} finally {
+			if (handle != null) {
+				handle.remove();
+			}
+		}
 	}
 
 	@Test
 	public void testCheckoutChangeFileToEmptyDir() throws Exception {
 		String fname = "was_file";
-		Git git = Git.wrap(db);
+		ChangeRecorder recorder = new ChangeRecorder();
+		ListenerHandle handle = null;
+		try (Git git = new Git(db)) {
+			handle = db.getListenerList()
+					.addWorkingTreeModifiedListener(recorder);
+			// Add a file
+			File file = writeTrashFile(fname, "a");
+			git.add().addFilepattern(fname).call();
+			git.commit().setMessage("Added file").call();
 
-		// Add a file
-		File file = writeTrashFile(fname, "a");
-		git.add().addFilepattern(fname).call();
-		git.commit().setMessage("Added file").call();
+			// replace file with empty directory
+			FileUtils.delete(file);
+			FileUtils.mkdir(file);
+			assertTrue("File must be a directory now", file.isDirectory());
+			assertWorkDir(mkmap(fname, "/"));
+			recorder.assertNoEvent();
 
-		// replace file with empty directory
-		FileUtils.delete(file);
-		FileUtils.mkdir(file);
-		assertTrue("File must be a directory now", file.isDirectory());
+			// revert path to HEAD state
+			git.checkout().setStartPoint(Constants.HEAD).addPath(fname).call();
+			assertWorkDir(mkmap(fname, "a"));
+			recorder.assertEvent(new String[] { fname }, ChangeRecorder.EMPTY);
 
-		assertWorkDir(mkmap(fname, "/"));
-
-		// revert path to HEAD state
-		git.checkout().setStartPoint(Constants.HEAD).addPath(fname).call();
-
-		assertWorkDir(mkmap(fname, "a"));
-
-		Status st = git.status().call();
-		assertTrue(st.isClean());
+			Status st = git.status().call();
+			assertTrue(st.isClean());
+		} finally {
+			if (handle != null) {
+				handle.remove();
+			}
+		}
 	}
 
 	@Test
 	public void testCheckoutChangeFileToEmptyDirs() throws Exception {
 		String fname = "was_file";
-		Git git = Git.wrap(db);
+		ChangeRecorder recorder = new ChangeRecorder();
+		ListenerHandle handle = null;
+		try (Git git = new Git(db)) {
+			handle = db.getListenerList()
+					.addWorkingTreeModifiedListener(recorder);
+			// Add a file
+			File file = writeTrashFile(fname, "a");
+			git.add().addFilepattern(fname).call();
+			git.commit().setMessage("Added file").call();
 
-		// Add a file
-		File file = writeTrashFile(fname, "a");
-		git.add().addFilepattern(fname).call();
-		git.commit().setMessage("Added file").call();
+			// replace file with directory containing only directories, no files
+			FileUtils.delete(file);
+			FileUtils.mkdirs(new File(file, "dummyDir"));
+			assertTrue("File must be a directory now", file.isDirectory());
+			assertFalse("Must not delete non empty directory", file.delete());
 
-		// replace file with directory containing only directories, no files
-		FileUtils.delete(file);
-		FileUtils.mkdirs(new File(file, "dummyDir"));
-		assertTrue("File must be a directory now", file.isDirectory());
-		assertFalse("Must not delete non empty directory", file.delete());
+			assertWorkDir(mkmap(fname + "/dummyDir", "/"));
+			recorder.assertNoEvent();
 
-		assertWorkDir(mkmap(fname + "/dummyDir", "/"));
+			// revert path to HEAD state
+			git.checkout().setStartPoint(Constants.HEAD).addPath(fname).call();
+			assertWorkDir(mkmap(fname, "a"));
+			recorder.assertEvent(new String[] { fname }, ChangeRecorder.EMPTY);
 
-		// revert path to HEAD state
-		git.checkout().setStartPoint(Constants.HEAD).addPath(fname).call();
-
-		assertWorkDir(mkmap(fname, "a"));
-
-		Status st = git.status().call();
-		assertTrue(st.isClean());
+			Status st = git.status().call();
+			assertTrue(st.isClean());
+		} finally {
+			if (handle != null) {
+				handle.remove();
+			}
+		}
 	}
 
 	@Test
 	public void testCheckoutChangeFileToNonEmptyDirs() throws Exception {
 		String fname = "was_file";
-		Git git = Git.wrap(db);
+		ChangeRecorder recorder = new ChangeRecorder();
+		ListenerHandle handle = null;
+		try (Git git = new Git(db)) {
+			handle = db.getListenerList()
+					.addWorkingTreeModifiedListener(recorder);
+			// Add a file
+			File file = writeTrashFile(fname, "a");
+			git.add().addFilepattern(fname).call();
+			git.commit().setMessage("Added file").call();
 
-		// Add a file
-		File file = writeTrashFile(fname, "a");
-		git.add().addFilepattern(fname).call();
-		git.commit().setMessage("Added file").call();
+			assertWorkDir(mkmap(fname, "a"));
 
-		assertWorkDir(mkmap(fname, "a"));
+			// replace file with directory containing only directories, no files
+			FileUtils.delete(file);
 
-		// replace file with directory containing only directories, no files
-		FileUtils.delete(file);
+			// create but do not add a file in the new directory to the index
+			writeTrashFile(fname + "/dir1", "file1", "c");
 
-		// create but do not add a file in the new directory to the index
-		writeTrashFile(fname + "/dir1", "file1", "c");
+			// create but do not add a file in the new directory to the index
+			writeTrashFile(fname + "/dir2", "file2", "d");
 
-		// create but do not add a file in the new directory to the index
-		writeTrashFile(fname + "/dir2", "file2", "d");
+			assertTrue("File must be a directory now", file.isDirectory());
+			assertFalse("Must not delete non empty directory", file.delete());
 
-		assertTrue("File must be a directory now", file.isDirectory());
-		assertFalse("Must not delete non empty directory", file.delete());
+			// 2 extra files are created
+			assertWorkDir(mkmap(fname + "/dir1/file1", "c",
+					fname + "/dir2/file2", "d"));
+			recorder.assertNoEvent();
 
-		// 2 extra files are created
-		assertWorkDir(
-				mkmap(fname + "/dir1/file1", "c", fname + "/dir2/file2", "d"));
+			// revert path to HEAD state
+			git.checkout().setStartPoint(Constants.HEAD).addPath(fname).call();
 
-		// revert path to HEAD state
-		git.checkout().setStartPoint(Constants.HEAD).addPath(fname).call();
+			// expect only the one added to the index
+			assertWorkDir(mkmap(fname, "a"));
+			recorder.assertEvent(new String[] { fname }, ChangeRecorder.EMPTY);
 
-		// expect only the one added to the index
-		assertWorkDir(mkmap(fname, "a"));
-
-		Status st = git.status().call();
-		assertTrue(st.isClean());
+			Status st = git.status().call();
+			assertTrue(st.isClean());
+		} finally {
+			if (handle != null) {
+				handle.remove();
+			}
+		}
 	}
 
 	@Test
 	public void testCheckoutChangeFileToNonEmptyDirsAndNewIndexEntry()
 			throws Exception {
 		String fname = "was_file";
-		Git git = Git.wrap(db);
+		ChangeRecorder recorder = new ChangeRecorder();
+		ListenerHandle handle = null;
+		try (Git git = new Git(db)) {
+			handle = db.getListenerList()
+					.addWorkingTreeModifiedListener(recorder);
+			// Add a file
+			File file = writeTrashFile(fname, "a");
+			git.add().addFilepattern(fname).call();
+			git.commit().setMessage("Added file").call();
 
-		// Add a file
-		File file = writeTrashFile(fname, "a");
-		git.add().addFilepattern(fname).call();
-		git.commit().setMessage("Added file").call();
+			assertWorkDir(mkmap(fname, "a"));
 
-		assertWorkDir(mkmap(fname, "a"));
+			// replace file with directory containing only directories, no files
+			FileUtils.delete(file);
 
-		// replace file with directory containing only directories, no files
-		FileUtils.delete(file);
+			// create and add a file in the new directory to the index
+			writeTrashFile(fname + "/dir", "file1", "c");
+			git.add().addFilepattern(fname + "/dir/file1").call();
 
-		// create and add a file in the new directory to the index
-		writeTrashFile(fname + "/dir", "file1", "c");
-		git.add().addFilepattern(fname + "/dir/file1").call();
+			// create but do not add a file in the new directory to the index
+			writeTrashFile(fname + "/dir", "file2", "d");
 
-		// create but do not add a file in the new directory to the index
-		writeTrashFile(fname + "/dir", "file2", "d");
+			assertTrue("File must be a directory now", file.isDirectory());
+			assertFalse("Must not delete non empty directory", file.delete());
 
-		assertTrue("File must be a directory now", file.isDirectory());
-		assertFalse("Must not delete non empty directory", file.delete());
+			// 2 extra files are created
+			assertWorkDir(mkmap(fname + "/dir/file1", "c", fname + "/dir/file2",
+					"d"));
+			recorder.assertNoEvent();
 
-		// 2 extra files are created
-		assertWorkDir(
-				mkmap(fname + "/dir/file1", "c", fname + "/dir/file2", "d"));
-
-		// revert path to HEAD state
-		git.checkout().setStartPoint(Constants.HEAD).addPath(fname).call();
-		assertWorkDir(mkmap(fname, "a"));
-
-		Status st = git.status().call();
-		assertTrue(st.isClean());
+			// revert path to HEAD state
+			git.checkout().setStartPoint(Constants.HEAD).addPath(fname).call();
+			assertWorkDir(mkmap(fname, "a"));
+			recorder.assertEvent(new String[] { fname }, ChangeRecorder.EMPTY);
+			Status st = git.status().call();
+			assertTrue(st.isClean());
+		} finally {
+			if (handle != null) {
+				handle.remove();
+			}
+		}
 	}
 
 	@Test
@@ -1293,76 +1421,100 @@ public class DirCacheCheckoutTest extends RepositoryTestCase {
 	public void testOverwriteUntrackedIgnoredFile() throws IOException,
 			GitAPIException {
 		String fname="file.txt";
-		Git git = Git.wrap(db);
+		ChangeRecorder recorder = new ChangeRecorder();
+		ListenerHandle handle = null;
+		try (Git git = new Git(db)) {
+			handle = db.getListenerList()
+					.addWorkingTreeModifiedListener(recorder);
+			// Add a file
+			writeTrashFile(fname, "a");
+			git.add().addFilepattern(fname).call();
+			git.commit().setMessage("create file").call();
 
-		// Add a file
-		writeTrashFile(fname, "a");
-		git.add().addFilepattern(fname).call();
-		git.commit().setMessage("create file").call();
+			// Create branch
+			git.branchCreate().setName("side").call();
 
-		// Create branch
-		git.branchCreate().setName("side").call();
+			// Modify file
+			writeTrashFile(fname, "b");
+			git.add().addFilepattern(fname).call();
+			git.commit().setMessage("modify file").call();
+			recorder.assertNoEvent();
 
-		// Modify file
-		writeTrashFile(fname, "b");
-		git.add().addFilepattern(fname).call();
-		git.commit().setMessage("modify file").call();
+			// Switch branches
+			git.checkout().setName("side").call();
+			recorder.assertEvent(new String[] { fname }, ChangeRecorder.EMPTY);
+			git.rm().addFilepattern(fname).call();
+			recorder.assertEvent(ChangeRecorder.EMPTY, new String[] { fname });
+			writeTrashFile(".gitignore", fname);
+			git.add().addFilepattern(".gitignore").call();
+			git.commit().setMessage("delete and ignore file").call();
 
-		// Switch branches
-		git.checkout().setName("side").call();
-		git.rm().addFilepattern(fname).call();
-		writeTrashFile(".gitignore", fname);
-		git.add().addFilepattern(".gitignore").call();
-		git.commit().setMessage("delete and ignore file").call();
-
-		writeTrashFile(fname, "Something different");
-		git.checkout().setName("master").call();
-		assertWorkDir(mkmap(fname, "b"));
-		assertTrue(git.status().call().isClean());
+			writeTrashFile(fname, "Something different");
+			recorder.assertNoEvent();
+			git.checkout().setName("master").call();
+			assertWorkDir(mkmap(fname, "b"));
+			recorder.assertEvent(new String[] { fname },
+					new String[] { ".gitignore" });
+			assertTrue(git.status().call().isClean());
+		} finally {
+			if (handle != null) {
+				handle.remove();
+			}
+		}
 	}
 
 	@Test
 	public void testOverwriteUntrackedFileModeChange()
 			throws IOException, GitAPIException {
 		String fname = "file.txt";
-		Git git = Git.wrap(db);
+		ChangeRecorder recorder = new ChangeRecorder();
+		ListenerHandle handle = null;
+		try (Git git = new Git(db)) {
+			handle = db.getListenerList()
+					.addWorkingTreeModifiedListener(recorder);
+			// Add a file
+			File file = writeTrashFile(fname, "a");
+			git.add().addFilepattern(fname).call();
+			git.commit().setMessage("create file").call();
+			assertWorkDir(mkmap(fname, "a"));
 
-		// Add a file
-		File file = writeTrashFile(fname, "a");
-		git.add().addFilepattern(fname).call();
-		git.commit().setMessage("create file").call();
-		assertWorkDir(mkmap(fname, "a"));
+			// Create branch
+			git.branchCreate().setName("side").call();
 
-		// Create branch
-		git.branchCreate().setName("side").call();
+			// Switch branches
+			git.checkout().setName("side").call();
+			recorder.assertNoEvent();
 
-		// Switch branches
-		git.checkout().setName("side").call();
+			// replace file with directory containing files
+			FileUtils.delete(file);
 
-		// replace file with directory containing files
-		FileUtils.delete(file);
+			// create and add a file in the new directory to the index
+			writeTrashFile(fname + "/dir1", "file1", "c");
+			git.add().addFilepattern(fname + "/dir1/file1").call();
 
-		// create and add a file in the new directory to the index
-		writeTrashFile(fname + "/dir1", "file1", "c");
-		git.add().addFilepattern(fname + "/dir1/file1").call();
+			// create but do not add a file in the new directory to the index
+			writeTrashFile(fname + "/dir2", "file2", "d");
 
-		// create but do not add a file in the new directory to the index
-		writeTrashFile(fname + "/dir2", "file2", "d");
+			assertTrue("File must be a directory now", file.isDirectory());
+			assertFalse("Must not delete non empty directory", file.delete());
 
-		assertTrue("File must be a directory now", file.isDirectory());
-		assertFalse("Must not delete non empty directory", file.delete());
-
-		// 2 extra files are created
-		assertWorkDir(
-				mkmap(fname + "/dir1/file1", "c", fname + "/dir2/file2", "d"));
-
-		try {
-			git.checkout().setName("master").call();
-			fail("did not throw exception");
-		} catch (Exception e) {
-			// 2 extra files are still there
+			// 2 extra files are created
 			assertWorkDir(mkmap(fname + "/dir1/file1", "c",
 					fname + "/dir2/file2", "d"));
+
+			try {
+				git.checkout().setName("master").call();
+				fail("did not throw exception");
+			} catch (Exception e) {
+				// 2 extra files are still there
+				assertWorkDir(mkmap(fname + "/dir1/file1", "c",
+						fname + "/dir2/file2", "d"));
+			}
+			recorder.assertNoEvent();
+		} finally {
+			if (handle != null) {
+				handle.remove();
+			}
 		}
 	}
 
@@ -1371,50 +1523,60 @@ public class DirCacheCheckoutTest extends RepositoryTestCase {
 			throws Exception {
 		Assume.assumeTrue(FS.DETECTED.supportsSymlinks());
 		String fname = "file.txt";
-		Git git = Git.wrap(db);
+		ChangeRecorder recorder = new ChangeRecorder();
+		ListenerHandle handle = null;
+		try (Git git = new Git(db)) {
+			handle = db.getListenerList()
+					.addWorkingTreeModifiedListener(recorder);
+			// Add a file
+			writeTrashFile(fname, "a");
+			git.add().addFilepattern(fname).call();
 
-		// Add a file
-		writeTrashFile(fname, "a");
-		git.add().addFilepattern(fname).call();
+			// Add a link to file
+			String linkName = "link";
+			File link = writeLink(linkName, fname).toFile();
+			git.add().addFilepattern(linkName).call();
+			git.commit().setMessage("Added file and link").call();
 
-		// Add a link to file
-		String linkName = "link";
-		File link = writeLink(linkName, fname).toFile();
-		git.add().addFilepattern(linkName).call();
-		git.commit().setMessage("Added file and link").call();
+			assertWorkDir(mkmap(linkName, "a", fname, "a"));
 
-		assertWorkDir(mkmap(linkName, "a", fname, "a"));
+			// Create branch
+			git.branchCreate().setName("side").call();
 
-		// Create branch
-		git.branchCreate().setName("side").call();
+			// Switch branches
+			git.checkout().setName("side").call();
+			recorder.assertNoEvent();
 
-		// Switch branches
-		git.checkout().setName("side").call();
+			// replace link with directory containing files
+			FileUtils.delete(link);
 
-		// replace link with directory containing files
-		FileUtils.delete(link);
+			// create and add a file in the new directory to the index
+			writeTrashFile(linkName + "/dir1", "file1", "c");
+			git.add().addFilepattern(linkName + "/dir1/file1").call();
 
-		// create and add a file in the new directory to the index
-		writeTrashFile(linkName + "/dir1", "file1", "c");
-		git.add().addFilepattern(linkName + "/dir1/file1").call();
+			// create but do not add a file in the new directory to the index
+			writeTrashFile(linkName + "/dir2", "file2", "d");
 
-		// create but do not add a file in the new directory to the index
-		writeTrashFile(linkName + "/dir2", "file2", "d");
+			assertTrue("Link must be a directory now", link.isDirectory());
+			assertFalse("Must not delete non empty directory", link.delete());
 
-		assertTrue("Link must be a directory now", link.isDirectory());
-		assertFalse("Must not delete non empty directory", link.delete());
-
-		// 2 extra files are created
-		assertWorkDir(mkmap(fname, "a", linkName + "/dir1/file1", "c",
-				linkName + "/dir2/file2", "d"));
-
-		try {
-			git.checkout().setName("master").call();
-			fail("did not throw exception");
-		} catch (Exception e) {
-			// 2 extra files are still there
+			// 2 extra files are created
 			assertWorkDir(mkmap(fname, "a", linkName + "/dir1/file1", "c",
 					linkName + "/dir2/file2", "d"));
+
+			try {
+				git.checkout().setName("master").call();
+				fail("did not throw exception");
+			} catch (Exception e) {
+				// 2 extra files are still there
+				assertWorkDir(mkmap(fname, "a", linkName + "/dir1/file1", "c",
+						linkName + "/dir2/file2", "d"));
+			}
+			recorder.assertNoEvent();
+		} finally {
+			if (handle != null) {
+				handle.remove();
+			}
 		}
 	}
 
@@ -1423,36 +1585,47 @@ public class DirCacheCheckoutTest extends RepositoryTestCase {
 		if (!FS.DETECTED.supportsExecute())
 			return;
 
-		Git git = Git.wrap(db);
+		ChangeRecorder recorder = new ChangeRecorder();
+		ListenerHandle handle = null;
+		try (Git git = new Git(db)) {
+			handle = db.getListenerList()
+					.addWorkingTreeModifiedListener(recorder);
+			// Add non-executable file
+			File file = writeTrashFile("file.txt", "a");
+			git.add().addFilepattern("file.txt").call();
+			git.commit().setMessage("commit1").call();
+			assertFalse(db.getFS().canExecute(file));
 
-		// Add non-executable file
-		File file = writeTrashFile("file.txt", "a");
-		git.add().addFilepattern("file.txt").call();
-		git.commit().setMessage("commit1").call();
-		assertFalse(db.getFS().canExecute(file));
+			// Create branch
+			git.branchCreate().setName("b1").call();
 
-		// Create branch
-		git.branchCreate().setName("b1").call();
+			// Make file executable
+			db.getFS().setExecute(file, true);
+			git.add().addFilepattern("file.txt").call();
+			git.commit().setMessage("commit2").call();
+			recorder.assertNoEvent();
 
-		// Make file executable
-		db.getFS().setExecute(file, true);
-		git.add().addFilepattern("file.txt").call();
-		git.commit().setMessage("commit2").call();
+			// Verify executable and working directory is clean
+			Status status = git.status().call();
+			assertTrue(status.getModified().isEmpty());
+			assertTrue(status.getChanged().isEmpty());
+			assertTrue(db.getFS().canExecute(file));
 
-		// Verify executable and working directory is clean
-		Status status = git.status().call();
-		assertTrue(status.getModified().isEmpty());
-		assertTrue(status.getChanged().isEmpty());
-		assertTrue(db.getFS().canExecute(file));
+			// Switch branches
+			git.checkout().setName("b1").call();
 
-		// Switch branches
-		git.checkout().setName("b1").call();
-
-		// Verify not executable and working directory is clean
-		status = git.status().call();
-		assertTrue(status.getModified().isEmpty());
-		assertTrue(status.getChanged().isEmpty());
-		assertFalse(db.getFS().canExecute(file));
+			// Verify not executable and working directory is clean
+			status = git.status().call();
+			assertTrue(status.getModified().isEmpty());
+			assertTrue(status.getChanged().isEmpty());
+			assertFalse(db.getFS().canExecute(file));
+			recorder.assertEvent(new String[] { "file.txt" },
+					ChangeRecorder.EMPTY);
+		} finally {
+			if (handle != null) {
+				handle.remove();
+			}
+		}
 	}
 
 	@Test
@@ -1460,41 +1633,50 @@ public class DirCacheCheckoutTest extends RepositoryTestCase {
 		if (!FS.DETECTED.supportsExecute())
 			return;
 
-		Git git = Git.wrap(db);
+		ChangeRecorder recorder = new ChangeRecorder();
+		ListenerHandle handle = null;
+		try (Git git = new Git(db)) {
+			handle = db.getListenerList()
+					.addWorkingTreeModifiedListener(recorder);
+			// Add non-executable file
+			File file = writeTrashFile("file.txt", "a");
+			git.add().addFilepattern("file.txt").call();
+			git.commit().setMessage("commit1").call();
+			assertFalse(db.getFS().canExecute(file));
 
-		// Add non-executable file
-		File file = writeTrashFile("file.txt", "a");
-		git.add().addFilepattern("file.txt").call();
-		git.commit().setMessage("commit1").call();
-		assertFalse(db.getFS().canExecute(file));
+			// Create branch
+			git.branchCreate().setName("b1").call();
 
-		// Create branch
-		git.branchCreate().setName("b1").call();
+			// Make file executable
+			db.getFS().setExecute(file, true);
+			git.add().addFilepattern("file.txt").call();
+			git.commit().setMessage("commit2").call();
 
-		// Make file executable
-		db.getFS().setExecute(file, true);
-		git.add().addFilepattern("file.txt").call();
-		git.commit().setMessage("commit2").call();
+			// Verify executable and working directory is clean
+			Status status = git.status().call();
+			assertTrue(status.getModified().isEmpty());
+			assertTrue(status.getChanged().isEmpty());
+			assertTrue(db.getFS().canExecute(file));
 
-		// Verify executable and working directory is clean
-		Status status = git.status().call();
-		assertTrue(status.getModified().isEmpty());
-		assertTrue(status.getChanged().isEmpty());
-		assertTrue(db.getFS().canExecute(file));
+			writeTrashFile("file.txt", "b");
 
-		writeTrashFile("file.txt", "b");
-
-		// Switch branches
-		CheckoutCommand checkout = git.checkout().setName("b1");
-		try {
-			checkout.call();
-			fail("Checkout exception not thrown");
-		} catch (org.eclipse.jgit.api.errors.CheckoutConflictException e) {
-			CheckoutResult result = checkout.getResult();
-			assertNotNull(result);
-			assertNotNull(result.getConflictList());
-			assertEquals(1, result.getConflictList().size());
-			assertTrue(result.getConflictList().contains("file.txt"));
+			// Switch branches
+			CheckoutCommand checkout = git.checkout().setName("b1");
+			try {
+				checkout.call();
+				fail("Checkout exception not thrown");
+			} catch (org.eclipse.jgit.api.errors.CheckoutConflictException e) {
+				CheckoutResult result = checkout.getResult();
+				assertNotNull(result);
+				assertNotNull(result.getConflictList());
+				assertEquals(1, result.getConflictList().size());
+				assertTrue(result.getConflictList().contains("file.txt"));
+			}
+			recorder.assertNoEvent();
+		} finally {
+			if (handle != null) {
+				handle.remove();
+			}
 		}
 	}
 
@@ -1504,40 +1686,52 @@ public class DirCacheCheckoutTest extends RepositoryTestCase {
 		if (!FS.DETECTED.supportsExecute())
 			return;
 
-		Git git = Git.wrap(db);
+		ChangeRecorder recorder = new ChangeRecorder();
+		ListenerHandle handle = null;
+		try (Git git = new Git(db)) {
+			handle = db.getListenerList()
+					.addWorkingTreeModifiedListener(recorder);
+			// Add non-executable file
+			File file = writeTrashFile("file.txt", "a");
+			git.add().addFilepattern("file.txt").call();
+			git.commit().setMessage("commit1").call();
+			assertFalse(db.getFS().canExecute(file));
 
-		// Add non-executable file
-		File file = writeTrashFile("file.txt", "a");
-		git.add().addFilepattern("file.txt").call();
-		git.commit().setMessage("commit1").call();
-		assertFalse(db.getFS().canExecute(file));
+			// Create branch
+			git.branchCreate().setName("b1").call();
 
-		// Create branch
-		git.branchCreate().setName("b1").call();
+			// Create second commit and don't touch file
+			writeTrashFile("file2.txt", "");
+			git.add().addFilepattern("file2.txt").call();
+			git.commit().setMessage("commit2").call();
 
-		// Create second commit and don't touch file
-		writeTrashFile("file2.txt", "");
-		git.add().addFilepattern("file2.txt").call();
-		git.commit().setMessage("commit2").call();
+			// stage a mode change
+			writeTrashFile("file.txt", "a");
+			db.getFS().setExecute(file, true);
+			git.add().addFilepattern("file.txt").call();
 
-		// stage a mode change
-		writeTrashFile("file.txt", "a");
-		db.getFS().setExecute(file, true);
-		git.add().addFilepattern("file.txt").call();
+			// dirty the file
+			writeTrashFile("file.txt", "b");
 
-		// dirty the file
-		writeTrashFile("file.txt", "b");
+			assertEquals(
+					"[file.txt, mode:100755, content:a][file2.txt, mode:100644, content:]",
+					indexState(CONTENT));
+			assertWorkDir(mkmap("file.txt", "b", "file2.txt", ""));
+			recorder.assertNoEvent();
 
-		assertEquals(
-				"[file.txt, mode:100755, content:a][file2.txt, mode:100644, content:]",
-				indexState(CONTENT));
-		assertWorkDir(mkmap("file.txt", "b", "file2.txt", ""));
-
-		// Switch branches and check that the dirty file survived in worktree
-		// and index
-		git.checkout().setName("b1").call();
-		assertEquals("[file.txt, mode:100755, content:a]", indexState(CONTENT));
-		assertWorkDir(mkmap("file.txt", "b"));
+			// Switch branches and check that the dirty file survived in
+			// worktree and index
+			git.checkout().setName("b1").call();
+			assertEquals("[file.txt, mode:100755, content:a]",
+					indexState(CONTENT));
+			assertWorkDir(mkmap("file.txt", "b"));
+			recorder.assertEvent(ChangeRecorder.EMPTY,
+					new String[] { "file2.txt" });
+		} finally {
+			if (handle != null) {
+				handle.remove();
+			}
+		}
 	}
 
 	@Test
@@ -1546,40 +1740,53 @@ public class DirCacheCheckoutTest extends RepositoryTestCase {
 		if (!FS.DETECTED.supportsExecute())
 			return;
 
-		Git git = Git.wrap(db);
+		ChangeRecorder recorder = new ChangeRecorder();
+		ListenerHandle handle = null;
+		try (Git git = new Git(db)) {
+			handle = db.getListenerList()
+					.addWorkingTreeModifiedListener(recorder);
+			// Add non-executable file
+			File file = writeTrashFile("file.txt", "a");
+			git.add().addFilepattern("file.txt").call();
+			git.commit().setMessage("commit1").call();
+			assertFalse(db.getFS().canExecute(file));
 
-		// Add non-executable file
-		File file = writeTrashFile("file.txt", "a");
-		git.add().addFilepattern("file.txt").call();
-		git.commit().setMessage("commit1").call();
-		assertFalse(db.getFS().canExecute(file));
+			// Create branch
+			git.branchCreate().setName("b1").call();
 
-		// Create branch
-		git.branchCreate().setName("b1").call();
+			// Create second commit with executable file
+			file = writeTrashFile("file.txt", "b");
+			db.getFS().setExecute(file, true);
+			git.add().addFilepattern("file.txt").call();
+			git.commit().setMessage("commit2").call();
 
-		// Create second commit with executable file
-		file = writeTrashFile("file.txt", "b");
-		db.getFS().setExecute(file, true);
-		git.add().addFilepattern("file.txt").call();
-		git.commit().setMessage("commit2").call();
+			// stage the same content as in the branch we want to switch to
+			writeTrashFile("file.txt", "a");
+			db.getFS().setExecute(file, false);
+			git.add().addFilepattern("file.txt").call();
 
-		// stage the same content as in the branch we want to switch to
-		writeTrashFile("file.txt", "a");
-		db.getFS().setExecute(file, false);
-		git.add().addFilepattern("file.txt").call();
+			// dirty the file
+			writeTrashFile("file.txt", "c");
+			db.getFS().setExecute(file, true);
 
-		// dirty the file
-		writeTrashFile("file.txt", "c");
-		db.getFS().setExecute(file, true);
+			assertEquals("[file.txt, mode:100644, content:a]",
+					indexState(CONTENT));
+			assertWorkDir(mkmap("file.txt", "c"));
+			recorder.assertNoEvent();
 
-		assertEquals("[file.txt, mode:100644, content:a]", indexState(CONTENT));
-		assertWorkDir(mkmap("file.txt", "c"));
-
-		// Switch branches and check that the dirty file survived in worktree
-		// and index
-		git.checkout().setName("b1").call();
-		assertEquals("[file.txt, mode:100644, content:a]", indexState(CONTENT));
-		assertWorkDir(mkmap("file.txt", "c"));
+			// Switch branches and check that the dirty file survived in
+			// worktree
+			// and index
+			git.checkout().setName("b1").call();
+			assertEquals("[file.txt, mode:100644, content:a]",
+					indexState(CONTENT));
+			assertWorkDir(mkmap("file.txt", "c"));
+			recorder.assertNoEvent();
+		} finally {
+			if (handle != null) {
+				handle.remove();
+			}
+		}
 	}
 
 	@Test
@@ -1587,31 +1794,44 @@ public class DirCacheCheckoutTest extends RepositoryTestCase {
 		if (!FS.DETECTED.supportsExecute())
 			return;
 
-		Git git = Git.wrap(db);
+		ChangeRecorder recorder = new ChangeRecorder();
+		ListenerHandle handle = null;
+		try (Git git = new Git(db)) {
+			handle = db.getListenerList()
+					.addWorkingTreeModifiedListener(recorder);
+			// Add first file
+			File file1 = writeTrashFile("file1.txt", "a");
+			git.add().addFilepattern("file1.txt").call();
+			git.commit().setMessage("commit1").call();
+			assertFalse(db.getFS().canExecute(file1));
 
-		// Add first file
-		File file1 = writeTrashFile("file1.txt", "a");
-		git.add().addFilepattern("file1.txt").call();
-		git.commit().setMessage("commit1").call();
-		assertFalse(db.getFS().canExecute(file1));
+			// Add second file
+			File file2 = writeTrashFile("file2.txt", "b");
+			git.add().addFilepattern("file2.txt").call();
+			git.commit().setMessage("commit2").call();
+			assertFalse(db.getFS().canExecute(file2));
+			recorder.assertNoEvent();
 
-		// Add second file
-		File file2 = writeTrashFile("file2.txt", "b");
-		git.add().addFilepattern("file2.txt").call();
-		git.commit().setMessage("commit2").call();
-		assertFalse(db.getFS().canExecute(file2));
+			// Create branch from first commit
+			assertNotNull(git.checkout().setCreateBranch(true).setName("b1")
+					.setStartPoint(Constants.HEAD + "~1").call());
+			recorder.assertEvent(ChangeRecorder.EMPTY,
+					new String[] { "file2.txt" });
 
-		// Create branch from first commit
-		assertNotNull(git.checkout().setCreateBranch(true).setName("b1")
-				.setStartPoint(Constants.HEAD + "~1").call());
+			// Change content and file mode in working directory and index
+			file1 = writeTrashFile("file1.txt", "c");
+			db.getFS().setExecute(file1, true);
+			git.add().addFilepattern("file1.txt").call();
 
-		// Change content and file mode in working directory and index
-		file1 = writeTrashFile("file1.txt", "c");
-		db.getFS().setExecute(file1, true);
-		git.add().addFilepattern("file1.txt").call();
-
-		// Switch back to 'master'
-		assertNotNull(git.checkout().setName(Constants.MASTER).call());
+			// Switch back to 'master'
+			assertNotNull(git.checkout().setName(Constants.MASTER).call());
+			recorder.assertEvent(new String[] { "file2.txt" },
+					ChangeRecorder.EMPTY);
+		} finally {
+			if (handle != null) {
+				handle.remove();
+			}
+		}
 	}
 
 	@Test(expected = CheckoutConflictException.class)
@@ -1686,6 +1906,117 @@ public class DirCacheCheckoutTest extends RepositoryTestCase {
 		assertUpdated(longFileName);
 	}
 
+	@Test
+	public void testIgnoredDirectory() throws Exception {
+		writeTrashFile(".gitignore", "src/ignored");
+		writeTrashFile("src/ignored/sub/foo.txt", "1");
+		try (Git git = new Git(db)) {
+			git.add().addFilepattern(".").call();
+			RevCommit commit = git.commit().setMessage("adding .gitignore")
+					.call();
+			writeTrashFile("foo.txt", "2");
+			writeTrashFile("zzz.txt", "3");
+			git.add().addFilepattern("foo.txt").call();
+			git.commit().setMessage("add file").call();
+			assertEquals("Should not have entered ignored directory", 1,
+					resetHardAndCount(commit));
+		}
+	}
+
+	@Test
+	public void testIgnoredDirectoryWithTrackedContent() throws Exception {
+		writeTrashFile("src/ignored/sub/foo.txt", "1");
+		try (Git git = new Git(db)) {
+			git.add().addFilepattern(".").call();
+			git.commit().setMessage("adding foo.txt").call();
+			writeTrashFile(".gitignore", "src/ignored");
+			writeTrashFile("src/ignored/sub/foo.txt", "2");
+			writeTrashFile("src/ignored/other/bar.txt", "3");
+			git.add().addFilepattern(".").call();
+			RevCommit commit = git.commit().setMessage("adding .gitignore")
+					.call();
+			writeTrashFile("foo.txt", "2");
+			writeTrashFile("zzz.txt", "3");
+			git.add().addFilepattern("foo.txt").call();
+			git.commit().setMessage("add file").call();
+			File file = writeTrashFile("src/ignored/sub/foo.txt", "3");
+			assertEquals("Should have entered ignored directory", 3,
+					resetHardAndCount(commit));
+			checkFile(file, "2");
+		}
+	}
+
+	@Test
+	public void testResetWithChangeInGitignore() throws Exception {
+		writeTrashFile(".gitignore", "src/ignored");
+		writeTrashFile("src/ignored/sub/foo.txt", "1");
+		try (Git git = new Git(db)) {
+			git.add().addFilepattern(".").call();
+			RevCommit initial = git.commit().setMessage("initial").call();
+			writeTrashFile("src/newignored/foo.txt", "2");
+			writeTrashFile("src/.gitignore", "newignored");
+			git.add().addFilepattern(".").call();
+			RevCommit commit = git.commit().setMessage("newignored").call();
+			assertEquals("Should not have entered src/newignored directory", 1,
+					resetHardAndCount(initial));
+			assertEquals("Should have entered src/newignored directory", 2,
+					resetHardAndCount(commit));
+			deleteTrashFile("src/.gitignore");
+			git.rm().addFilepattern("src/.gitignore").call();
+			RevCommit top = git.commit().setMessage("Unignore newignore")
+					.call();
+			assertEquals("Should have entered src/newignored directory", 2,
+					resetHardAndCount(initial));
+			assertEquals("Should have entered src/newignored directory", 2,
+					resetHardAndCount(commit));
+			assertEquals("Should not have entered src/newignored directory", 1,
+					resetHardAndCount(top));
+
+		}
+	}
+
+	private static class TestFileTreeIterator extends FileTreeIterator {
+
+		// For assertions only
+		private final int[] count;
+
+		public TestFileTreeIterator(Repository repo, int[] count) {
+			super(repo);
+			this.count = count;
+		}
+
+		protected TestFileTreeIterator(final WorkingTreeIterator p,
+				final File root, FS fs, FileModeStrategy fileModeStrategy,
+				int[] count) {
+			super(p, root, fs, fileModeStrategy);
+			this.count = count;
+		}
+
+		@Override
+		protected AbstractTreeIterator enterSubtree() {
+			count[0] += 1;
+			return new TestFileTreeIterator(this,
+					((FileEntry) current()).getFile(), fs, fileModeStrategy,
+					count);
+		}
+	}
+
+	private int resetHardAndCount(RevCommit commit) throws Exception {
+		int[] callCount = { 0 };
+		DirCache cache = db.lockDirCache();
+		FileTreeIterator workingTreeIterator = new TestFileTreeIterator(db,
+				callCount);
+		try {
+			DirCacheCheckout checkout = new DirCacheCheckout(db, null, cache,
+					commit.getTree().getId(), workingTreeIterator);
+			checkout.setFailOnConflict(false);
+			checkout.checkout();
+		} finally {
+			cache.unlock();
+		}
+		return callCount[0];
+	}
+
 	public void assertWorkDir(Map<String, String> i)
 			throws CorruptObjectException,
 			IOException {
@@ -1705,18 +2036,20 @@ public class DirCacheCheckoutTest extends RepositoryTestCase {
 				if (file.isFile()) {
 					assertNotNull("found unexpected file for path " + path
 							+ " in workdir", expectedValue);
-					FileInputStream is = new FileInputStream(file);
-					byte[] buffer = new byte[(int) file.length()];
-					int offset = 0;
-					int numRead = 0;
-					while (offset < buffer.length
-							&& (numRead = is.read(buffer, offset, buffer.length
-									- offset)) >= 0) {
-						offset += numRead;
+					try (FileInputStream is = new FileInputStream(file)) {
+						byte[] buffer = new byte[(int) file.length()];
+						int offset = 0;
+						int numRead = 0;
+						while (offset < buffer.length
+								&& (numRead = is.read(buffer, offset,
+										buffer.length - offset)) >= 0) {
+							offset += numRead;
+						}
+						assertArrayEquals(
+								"unexpected content for path " + path
+										+ " in workDir. ",
+								buffer, i.get(path).getBytes());
 					}
-					is.close();
-					assertArrayEquals("unexpected content for path " + path
-							+ " in workDir. ", buffer, i.get(path).getBytes());
 					nrFiles++;
 				} else if (file.isDirectory()) {
 					String[] files = file.list();

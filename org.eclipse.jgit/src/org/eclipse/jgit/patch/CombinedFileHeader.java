@@ -69,23 +69,33 @@ public class CombinedFileHeader extends FileHeader {
 
 	private FileMode[] oldModes;
 
-	CombinedFileHeader(final byte[] b, final int offset) {
+	CombinedFileHeader(byte[] b, int offset) {
 		super(b, offset);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	@SuppressWarnings("unchecked")
 	public List<? extends CombinedHunkHeader> getHunks() {
 		return (List<CombinedHunkHeader>) super.getHunks();
 	}
 
-	/** @return number of ancestor revisions mentioned in this diff. */
+	/**
+	 * {@inheritDoc}
+	 * <p>
+	 *
+	 * @return number of ancestor revisions mentioned in this diff.
+	 */
 	@Override
 	public int getParentCount() {
 		return oldIds.length;
 	}
 
-	/** @return get the file mode of the first parent. */
+	/**
+	 * {@inheritDoc}
+	 * <p>
+	 * @return get the file mode of the first parent.
+	 */
 	@Override
 	public FileMode getOldMode() {
 		return getOldMode(0);
@@ -98,11 +108,16 @@ public class CombinedFileHeader extends FileHeader {
 	 *            the ancestor to get the mode of
 	 * @return the mode of the requested ancestor.
 	 */
-	public FileMode getOldMode(final int nthParent) {
+	public FileMode getOldMode(int nthParent) {
 		return oldModes[nthParent];
 	}
 
-	/** @return get the object id of the first parent. */
+	/**
+	 * {@inheritDoc}
+	 * <p>
+	 *
+	 * @return get the object id of the first parent.
+	 */
 	@Override
 	public AbbreviatedObjectId getOldId() {
 		return getOldId(0);
@@ -115,12 +130,13 @@ public class CombinedFileHeader extends FileHeader {
 	 *            the ancestor to get the object id of
 	 * @return the id of the requested ancestor.
 	 */
-	public AbbreviatedObjectId getOldId(final int nthParent) {
+	public AbbreviatedObjectId getOldId(int nthParent) {
 		return oldIds[nthParent];
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public String getScriptText(final Charset ocs, final Charset ncs) {
+	public String getScriptText(Charset ocs, Charset ncs) {
 		final Charset[] cs = new Charset[getParentCount() + 1];
 		Arrays.fill(cs, ocs);
 		cs[getParentCount()] = ncs;
@@ -128,23 +144,17 @@ public class CombinedFileHeader extends FileHeader {
 	}
 
 	/**
+	 * {@inheritDoc}
+	 * <p>
 	 * Convert the patch script for this file into a string.
-	 *
-	 * @param charsetGuess
-	 *            optional array to suggest the character set to use when
-	 *            decoding each file's line. If supplied the array must have a
-	 *            length of <code>{@link #getParentCount()} + 1</code>
-	 *            representing the old revision character sets and the new
-	 *            revision character set.
-	 * @return the patch script, as a Unicode string.
 	 */
 	@Override
-	public String getScriptText(final Charset[] charsetGuess) {
+	public String getScriptText(Charset[] charsetGuess) {
 		return super.getScriptText(charsetGuess);
 	}
 
 	@Override
-	int parseGitHeaders(int ptr, final int end) {
+	int parseGitHeaders(int ptr, int end) {
 		while (ptr < end) {
 			final int eol = nextLF(buf, ptr);
 			if (isHunkHdr(buf, ptr, end) >= 1) {
@@ -179,8 +189,9 @@ public class CombinedFileHeader extends FileHeader {
 		return ptr;
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	protected void parseIndexLine(int ptr, final int eol) {
+	protected void parseIndexLine(int ptr, int eol) {
 		// "index $asha1,$bsha1..$csha1"
 		//
 		final List<AbbreviatedObjectId> ids = new ArrayList<>();
@@ -200,19 +211,20 @@ public class CombinedFileHeader extends FileHeader {
 		oldModes = new FileMode[oldIds.length];
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	protected void parseNewFileMode(final int ptr, final int eol) {
+	protected void parseNewFileMode(int ptr, int eol) {
 		for (int i = 0; i < oldModes.length; i++)
 			oldModes[i] = FileMode.MISSING;
 		super.parseNewFileMode(ptr, eol);
 	}
 
 	@Override
-	HunkHeader newHunkHeader(final int offset) {
+	HunkHeader newHunkHeader(int offset) {
 		return new CombinedHunkHeader(this, offset);
 	}
 
-	private void parseModeLine(int ptr, final int eol) {
+	private void parseModeLine(int ptr, int eol) {
 		// "mode $amode,$bmode..$cmode"
 		//
 		int n = 0;
@@ -228,7 +240,7 @@ public class CombinedFileHeader extends FileHeader {
 		newMode = parseFileMode(dot2 + 1, eol);
 	}
 
-	private void parseDeletedFileMode(int ptr, final int eol) {
+	private void parseDeletedFileMode(int ptr, int eol) {
 		// "deleted file mode $amode,$bmode"
 		//
 		changeType = ChangeType.DELETE;

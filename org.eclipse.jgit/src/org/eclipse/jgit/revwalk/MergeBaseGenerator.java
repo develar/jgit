@@ -84,12 +84,12 @@ class MergeBaseGenerator extends Generator {
 
 	private CarryStack stack;
 
-	MergeBaseGenerator(final RevWalk w) {
+	MergeBaseGenerator(RevWalk w) {
 		walker = w;
 		pending = new DateRevQueue();
 	}
 
-	void init(final AbstractRevQueue p) throws IOException {
+	void init(AbstractRevQueue p) throws IOException {
 		try {
 			for (;;) {
 				final RevCommit c = p.next();
@@ -119,7 +119,7 @@ class MergeBaseGenerator extends Generator {
 		}
 	}
 
-	private void add(final RevCommit c) {
+	private void add(RevCommit c) {
 		final int flag = walker.allocFlag();
 		branchMask |= flag;
 		if ((c.flags & branchMask) != 0) {
@@ -146,7 +146,7 @@ class MergeBaseGenerator extends Generator {
 				return null;
 			}
 
-			for (final RevCommit p : c.parents) {
+			for (RevCommit p : c.parents) {
 				if ((p.flags & IN_PENDING) != 0)
 					continue;
 				if ((p.flags & PARSED) == 0)

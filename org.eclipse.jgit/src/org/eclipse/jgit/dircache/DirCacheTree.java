@@ -62,13 +62,14 @@ import org.eclipse.jgit.util.MutableInteger;
 import org.eclipse.jgit.util.RawParseUtils;
 
 /**
- * Single tree record from the 'TREE' {@link DirCache} extension.
+ * Single tree record from the 'TREE' {@link org.eclipse.jgit.dircache.DirCache}
+ * extension.
  * <p>
  * A valid cache tree record contains the object id of a tree object and the
- * total number of {@link DirCacheEntry} instances (counted recursively) from
- * the DirCache contained within the tree. This information facilitates faster
- * traversal of the index and quicker generation of tree objects prior to
- * creating a new commit.
+ * total number of {@link org.eclipse.jgit.dircache.DirCacheEntry} instances
+ * (counted recursively) from the DirCache contained within the tree. This
+ * information facilitates faster traversal of the index and quicker generation
+ * of tree objects prior to creating a new commit.
  * <p>
  * An invalid cache tree record indicates a known subtree whose file entries
  * have changed in ways that cause the tree to no longer have a known object id.
@@ -81,7 +82,7 @@ public class DirCacheTree {
 
 	private static final Comparator<DirCacheTree> TREE_CMP = new Comparator<DirCacheTree>() {
 		@Override
-		public int compare(final DirCacheTree o1, final DirCacheTree o2) {
+		public int compare(DirCacheTree o1, DirCacheTree o2) {
 			final byte[] a = o1.encodedName;
 			final byte[] b = o2.encodedName;
 			final int aLen = a.length;
@@ -184,7 +185,7 @@ public class DirCacheTree {
 		childCnt = subcnt;
 	}
 
-	void write(final byte[] tmp, final OutputStream os) throws IOException {
+	void write(byte[] tmp, OutputStream os) throws IOException {
 		int ptr = tmp.length;
 		tmp[--ptr] = '\n';
 		ptr = RawParseUtils.formatBase10(tmp, ptr, childCnt);
@@ -205,10 +206,11 @@ public class DirCacheTree {
 	/**
 	 * Determine if this cache is currently valid.
 	 * <p>
-	 * A valid cache tree knows how many {@link DirCacheEntry} instances from
-	 * the parent {@link DirCache} reside within this tree (recursively
-	 * enumerated). It also knows the object id of the tree, as the tree should
-	 * be readily available from the repository's object database.
+	 * A valid cache tree knows how many
+	 * {@link org.eclipse.jgit.dircache.DirCacheEntry} instances from the parent
+	 * {@link org.eclipse.jgit.dircache.DirCache} reside within this tree
+	 * (recursively enumerated). It also knows the object id of the tree, as the
+	 * tree should be readily available from the repository's object database.
 	 *
 	 * @return true if this tree is knows key details about itself; false if the
 	 *         tree needs to be regenerated.
@@ -246,7 +248,7 @@ public class DirCacheTree {
 	 *            index of the child to obtain.
 	 * @return the child tree.
 	 */
-	public DirCacheTree getChild(final int i) {
+	public DirCacheTree getChild(int i) {
 		return children[i];
 	}
 
@@ -387,7 +389,7 @@ public class DirCacheTree {
 		return size;
 	}
 
-	private void appendName(final StringBuilder r) {
+	private void appendName(StringBuilder r) {
 		if (parent != null) {
 			parent.appendName(r);
 			r.append(getNameString());
@@ -402,7 +404,7 @@ public class DirCacheTree {
 		return encodedName.length;
 	}
 
-	final boolean contains(final byte[] a, int aOff, final int aLen) {
+	final boolean contains(byte[] a, int aOff, int aLen) {
 		final byte[] e = encodedName;
 		final int eLen = e.length;
 		for (int eOff = 0; eOff < eLen && aOff < aLen; eOff++, aOff++)
@@ -501,7 +503,7 @@ public class DirCacheTree {
 			removeChild(childCnt - 1);
 	}
 
-	private void insertChild(final int stIdx, final DirCacheTree st) {
+	private void insertChild(int stIdx, DirCacheTree st) {
 		final DirCacheTree[] c = children;
 		if (childCnt + 1 <= c.length) {
 			if (stIdx < childCnt)
@@ -522,14 +524,14 @@ public class DirCacheTree {
 		childCnt++;
 	}
 
-	private void removeChild(final int stIdx) {
+	private void removeChild(int stIdx) {
 		final int n = --childCnt;
 		if (stIdx < n)
 			System.arraycopy(children, stIdx + 1, children, stIdx, n - stIdx);
 		children[n] = null;
 	}
 
-	static boolean peq(final byte[] a, final byte[] b, int aLen) {
+	static boolean peq(byte[] a, byte[] b, int aLen) {
 		if (b.length < aLen)
 			return false;
 		for (aLen--; aLen >= 0; aLen--)
@@ -538,7 +540,7 @@ public class DirCacheTree {
 		return true;
 	}
 
-	private static int namecmp(final byte[] a, int aPos, final DirCacheTree ct) {
+	private static int namecmp(byte[] a, int aPos, DirCacheTree ct) {
 		if (ct == null)
 			return -1;
 		final byte[] b = ct.encodedName;
@@ -555,7 +557,7 @@ public class DirCacheTree {
 		return aLen - bLen;
 	}
 
-	private static int slash(final byte[] a, int aPos) {
+	private static int slash(byte[] a, int aPos) {
 		final int aLen = a.length;
 		for (; aPos < aLen; aPos++)
 			if (a[aPos] == '/')
@@ -563,6 +565,7 @@ public class DirCacheTree {
 		return -1;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public String toString() {
 		return getNameString();

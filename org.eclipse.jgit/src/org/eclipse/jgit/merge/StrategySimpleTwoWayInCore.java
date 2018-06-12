@@ -69,30 +69,33 @@ import org.eclipse.jgit.treewalk.NameConflictTreeWalk;
  * file contents.
  */
 public class StrategySimpleTwoWayInCore extends ThreeWayMergeStrategy {
-	/** Create a new instance of the strategy. */
+	/**
+	 * Create a new instance of the strategy.
+	 */
 	protected StrategySimpleTwoWayInCore() {
 		//
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public String getName() {
 		return "simple-two-way-in-core"; //$NON-NLS-1$
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public ThreeWayMerger newMerger(final Repository db) {
+	public ThreeWayMerger newMerger(Repository db) {
 		return new InCoreMerger(db);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public ThreeWayMerger newMerger(Repository db, boolean inCore) {
 		// This class is always inCore, so ignore the parameter
 		return newMerger(db);
 	}
 
-	/**
-	 * @since 4.8
-	 */
+	/** {@inheritDoc} */
 	@Override
 	public ThreeWayMerger newMerger(ObjectInserter inserter, Config config) {
 		return new InCoreMerger(inserter);
@@ -113,13 +116,13 @@ public class StrategySimpleTwoWayInCore extends ThreeWayMergeStrategy {
 
 		private ObjectId resultTree;
 
-		InCoreMerger(final Repository local) {
+		InCoreMerger(Repository local) {
 			super(local);
 			tw = new NameConflictTreeWalk(local, reader);
 			cache = DirCache.newInCore();
 		}
 
-		InCoreMerger(final ObjectInserter inserter) {
+		InCoreMerger(ObjectInserter inserter) {
 			super(inserter);
 			tw = new NameConflictTreeWalk(null, reader);
 			cache = DirCache.newInCore();
@@ -179,11 +182,11 @@ public class StrategySimpleTwoWayInCore extends ThreeWayMergeStrategy {
 			}
 		}
 
-		private static boolean nonTree(final int mode) {
+		private static boolean nonTree(int mode) {
 			return mode != 0 && !FileMode.TREE.equals(mode);
 		}
 
-		private void add(final int tree, final int stage) throws IOException {
+		private void add(int tree, int stage) throws IOException {
 			final AbstractTreeIterator i = getTree(tree);
 			if (i != null) {
 				if (FileMode.TREE.equals(tw.getRawMode(tree))) {
@@ -200,7 +203,7 @@ public class StrategySimpleTwoWayInCore extends ThreeWayMergeStrategy {
 			}
 		}
 
-		private AbstractTreeIterator getTree(final int tree) {
+		private AbstractTreeIterator getTree(int tree) {
 			return tw.getTree(tree, AbstractTreeIterator.class);
 		}
 

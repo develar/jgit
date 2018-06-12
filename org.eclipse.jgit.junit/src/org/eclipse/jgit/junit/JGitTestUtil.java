@@ -45,6 +45,8 @@
 
 package org.eclipse.jgit.junit;
 
+import static org.eclipse.jgit.lib.Constants.CHARSET;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -64,13 +66,22 @@ import org.eclipse.jgit.util.RawParseUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
+/**
+ * Abstract test util class
+ */
 public abstract class JGitTestUtil {
+	/** Constant <code>CLASSPATH_TO_RESOURCES="org/eclipse/jgit/test/resources/"</code> */
 	public static final String CLASSPATH_TO_RESOURCES = "org/eclipse/jgit/test/resources/";
 
 	private JGitTestUtil() {
 		throw new UnsupportedOperationException();
 	}
 
+	/**
+	 * Get name of current test by inspecting stack trace
+	 *
+	 * @return the name
+	 */
 	public static String getName() {
 		GatherStackTrace stack;
 		try {
@@ -109,6 +120,14 @@ public abstract class JGitTestUtil {
 		// Thrown above to collect the stack frame.
 	}
 
+	/**
+	 * Assert byte arrays are equal
+	 *
+	 * @param exp
+	 *            expected value
+	 * @param act
+	 *            actual value
+	 */
 	public static void assertEquals(byte[] exp, byte[] act) {
 		Assert.assertEquals(s(exp), s(act));
 	}
@@ -117,7 +136,13 @@ public abstract class JGitTestUtil {
 		return RawParseUtils.decode(raw);
 	}
 
-	public static File getTestResourceFile(final String fileName) {
+	/**
+	 * Get test resource file.
+	 *
+	 * @param fileName
+	 * @return the test resource file
+	 */
+	public static File getTestResourceFile(String fileName) {
 		if (fileName == null || fileName.length() <= 0) {
 			return null;
 		}
@@ -145,23 +170,23 @@ public abstract class JGitTestUtil {
 		}
 	}
 
+	/**
+	 * Copy test resource.
+	 *
+	 * @param name
+	 * @param dest
+	 * @throws IOException
+	 */
 	public static void copyTestResource(String name, File dest)
 			throws IOException {
 		URL url = cl().getResource(CLASSPATH_TO_RESOURCES + name);
 		if (url == null)
 			throw new FileNotFoundException(name);
-		InputStream in = url.openStream();
-		try {
-			FileOutputStream out = new FileOutputStream(dest);
-			try {
-				byte[] buf = new byte[4096];
-				for (int n; (n = in.read(buf)) > 0;)
-					out.write(buf, 0, n);
-			} finally {
-				out.close();
-			}
-		} finally {
-			in.close();
+		try (InputStream in = url.openStream();
+				FileOutputStream out = new FileOutputStream(dest)) {
+			byte[] buf = new byte[4096];
+			for (int n; (n = in.read(buf)) > 0;)
+				out.write(buf, 0, n);
 		}
 	}
 
@@ -169,6 +194,15 @@ public abstract class JGitTestUtil {
 		return JGitTestUtil.class.getClassLoader();
 	}
 
+	/**
+	 * Write a trash file.
+	 *
+	 * @param db
+	 * @param name
+	 * @param data
+	 * @return the trash file
+	 * @throws IOException
+	 */
 	public static File writeTrashFile(final Repository db,
 			final String name, final String data) throws IOException {
 		File path = new File(db.getWorkTree(), name);
@@ -176,6 +210,16 @@ public abstract class JGitTestUtil {
 		return path;
 	}
 
+	/**
+	 * Write a trash file.
+	 *
+	 * @param db
+	 * @param subdir
+	 * @param name
+	 * @param data
+	 * @return the trash file
+	 * @throws IOException
+	 */
 	public static File writeTrashFile(final Repository db,
 			final String subdir,
 			final String name, final String data) throws IOException {
@@ -198,14 +242,12 @@ public abstract class JGitTestUtil {
 	 * @throws IOException
 	 *             the file could not be written.
 	 */
-	public static void write(final File f, final String body)
+	public static void write(File f, String body)
 			throws IOException {
 		FileUtils.mkdirs(f.getParentFile(), true);
-		Writer w = new OutputStreamWriter(new FileOutputStream(f), "UTF-8");
-		try {
+		try (Writer w = new OutputStreamWriter(new FileOutputStream(f),
+				CHARSET)) {
 			w.write(body);
-		} finally {
-			w.close();
 		}
 	}
 
@@ -219,22 +261,45 @@ public abstract class JGitTestUtil {
 	 * @throws IOException
 	 *             the file does not exist, or could not be read.
 	 */
-	public static String read(final File file) throws IOException {
+	public static String read(File file) throws IOException {
 		final byte[] body = IO.readFully(file);
-		return new String(body, 0, body.length, "UTF-8");
+		return new String(body, 0, body.length, CHARSET);
 	}
 
-	public static String read(final Repository db, final String name)
+	/**
+	 * Read a file's content
+	 *
+	 * @param db
+	 * @param name
+	 * @return the content of the file
+	 * @throws IOException
+	 */
+	public static String read(Repository db, String name)
 			throws IOException {
 		File file = new File(db.getWorkTree(), name);
 		return read(file);
 	}
 
-	public static boolean check(final Repository db, final String name) {
+	/**
+	 * Check if file exists
+	 *
+	 * @param db
+	 * @param name
+	 *            name of the file
+	 * @return {@code true} if the file exists
+	 */
+	public static boolean check(Repository db, String name) {
 		File file = new File(db.getWorkTree(), name);
 		return file.exists();
 	}
 
+	/**
+	 * Delete a trash file.
+	 *
+	 * @param db
+	 * @param name
+	 * @throws IOException
+	 */
 	public static void deleteTrashFile(final Repository db,
 			final String name) throws IOException {
 		File path = new File(db.getWorkTree(), name);
@@ -242,6 +307,8 @@ public abstract class JGitTestUtil {
 	}
 
 	/**
+	 * Write a symbolic link
+	 *
 	 * @param db
 	 *            the repository
 	 * @param link
@@ -258,4 +325,27 @@ public abstract class JGitTestUtil {
 				target);
 	}
 
+	/**
+	 * Concatenate byte arrays.
+	 *
+	 * @param b
+	 *            byte arrays to combine together.
+	 * @return a single byte array that contains all bytes copied from input
+	 *         byte arrays.
+	 * @since 4.9
+	 */
+	public static byte[] concat(byte[]... b) {
+		int n = 0;
+		for (byte[] a : b) {
+			n += a.length;
+		}
+
+		byte[] data = new byte[n];
+		n = 0;
+		for (byte[] a : b) {
+			System.arraycopy(a, 0, data, n, a.length);
+			n += a.length;
+		}
+		return data;
+	}
 }

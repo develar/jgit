@@ -45,7 +45,9 @@ package org.eclipse.jgit.errors;
 
 import java.io.IOException;
 
-/** Thrown when a PackFile no longer matches the PackIndex. */
+/**
+ * Thrown when a PackFile no longer matches the PackIndex.
+ */
 public class PackMismatchException extends IOException {
 	private static final long serialVersionUID = 1L;
 
@@ -55,7 +57,7 @@ public class PackMismatchException extends IOException {
 	 * @param why
 	 *            description of the type of error.
 	 */
-	public PackMismatchException(final String why) {
+	public PackMismatchException(String why) {
 		super(why);
 	}
 }

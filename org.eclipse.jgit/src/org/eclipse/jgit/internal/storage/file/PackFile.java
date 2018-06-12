@@ -103,7 +103,7 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 	/** Sorts PackFiles to be most recently created to least recently created. */
 	public static final Comparator<PackFile> SORT = new Comparator<PackFile>() {
 		@Override
-		public int compare(final PackFile a, final PackFile b) {
+		public int compare(PackFile a, PackFile b) {
 			return b.packLastModified - a.packLastModified;
 		}
 	};
@@ -162,7 +162,7 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 	 * @param extensions
 	 *            additional pack file extensions with the same base as the pack
 	 */
-	public PackFile(final File packFile, int extensions) {
+	public PackFile(File packFile, int extensions) {
 		this.packFile = packFile;
 		this.packLastModified = (int) (packFile.lastModified() >> 10);
 		this.extensions = extensions;
@@ -201,20 +201,30 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 		return loadedIdx;
 	}
 
-	/** @return the File object which locates this pack on disk. */
+	/**
+	 * Get the File object which locates this pack on disk.
+	 *
+	 * @return the File object which locates this pack on disk.
+	 */
 	public File getPackFile() {
 		return packFile;
 	}
 
 	/**
+	 * Get the index for this pack file.
+	 *
 	 * @return the index for this pack file.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
 	public PackIndex getIndex() throws IOException {
 		return idx();
 	}
 
-	/** @return name extracted from {@code pack-*.pack} pattern. */
+	/**
+	 * Get name extracted from {@code pack-*.pack} pattern.
+	 *
+	 * @return name extracted from {@code pack-*.pack} pattern.
+	 */
 	public String getPackName() {
 		String name = packName;
 		if (name == null) {
@@ -238,10 +248,10 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 	 * @param id
 	 *            the object to look for. Must not be null.
 	 * @return true if the object is in this pack; false otherwise.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the index file cannot be loaded into memory.
 	 */
-	public boolean hasObject(final AnyObjectId id) throws IOException {
+	public boolean hasObject(AnyObjectId id) throws IOException {
 		final long offset = idx().findOffset(id);
 		return 0 < offset && !isCorrupt(offset);
 	}
@@ -269,7 +279,7 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 	 * @throws IOException
 	 *             the pack file or the index could not be read.
 	 */
-	ObjectLoader get(final WindowCursor curs, final AnyObjectId id)
+	ObjectLoader get(WindowCursor curs, AnyObjectId id)
 			throws IOException {
 		final long offset = idx().findOffset(id);
 		return 0 < offset && !isCorrupt(offset) ? load(curs, offset) : null;
@@ -292,14 +302,14 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 	}
 
 	/**
+	 * {@inheritDoc}
+	 * <p>
 	 * Provide iterator over entries in associated pack index, that should also
 	 * exist in this pack file. Objects returned by such iterator are mutable
 	 * during iteration.
 	 * <p>
 	 * Iterator returns objects in SHA-1 lexicographical order.
 	 * </p>
-	 *
-	 * @return iterator over entries of associated pack index
 	 *
 	 * @see PackIndex#iterator()
 	 */
@@ -334,7 +344,7 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 	 * @throws IOException
 	 *             the index file cannot be loaded into memory.
 	 */
-	ObjectId findObjectForOffset(final long offset) throws IOException {
+	ObjectId findObjectForOffset(long offset) throws IOException {
 		return getReverseIdx().findObject(offset);
 	}
 
@@ -505,19 +515,15 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 			CorruptObjectException corruptObject = new CorruptObjectException(
 					MessageFormat.format(
 							JGitText.get().objectAtHasBadZlibStream,
-							Long.valueOf(src.offset), getPackFile()));
-			corruptObject.initCause(dataFormat);
+							Long.valueOf(src.offset), getPackFile()),
+					dataFormat);
 
-			StoredObjectRepresentationNotAvailableException gone;
-			gone = new StoredObjectRepresentationNotAvailableException(src);
-			gone.initCause(corruptObject);
-			throw gone;
+			throw new StoredObjectRepresentationNotAvailableException(src,
+					corruptObject);
 
 		} catch (IOException ioError) {
-			StoredObjectRepresentationNotAvailableException gone;
-			gone = new StoredObjectRepresentationNotAvailableException(src);
-			gone.initCause(ioError);
-			throw gone;
+			throw new StoredObjectRepresentationNotAvailableException(src,
+					ioError);
 		}
 
 		if (quickCopy != null) {
@@ -602,11 +608,8 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 			try {
 				doOpen();
 			} catch (IOException thisPackNotValid) {
-				StoredObjectRepresentationNotAvailableException gone;
-
-				gone = new StoredObjectRepresentationNotAvailableException(otp);
-				gone.initCause(thisPackNotValid);
-				throw gone;
+				throw new StoredObjectRepresentationNotAvailableException(otp,
+						thisPackNotValid);
 			}
 		}
 	}
@@ -689,7 +692,7 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 		}
 	}
 
-	ByteArrayWindow read(final long pos, int size) throws IOException {
+	ByteArrayWindow read(long pos, int size) throws IOException {
 		synchronized (readLock) {
 			if (length < pos + size)
 				size = (int) (length - pos);
@@ -700,7 +703,7 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 		}
 	}
 
-	ByteWindow mmap(final long pos, int size) throws IOException {
+	ByteWindow mmap(long pos, int size) throws IOException {
 		synchronized (readLock) {
 			if (length < pos + size)
 				size = (int) (length - pos);
@@ -757,7 +760,7 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 		}
 	}
 
-	ObjectLoader load(final WindowCursor curs, long pos)
+	ObjectLoader load(WindowCursor curs, long pos)
 			throws IOException, LargeObjectException {
 		try {
 			final byte[] ib = curs.tempId;
@@ -892,12 +895,11 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 			return new ObjectLoader.SmallObject(type, data);
 
 		} catch (DataFormatException dfe) {
-			CorruptObjectException coe = new CorruptObjectException(
+			throw new CorruptObjectException(
 					MessageFormat.format(
 							JGitText.get().objectAtHasBadZlibStream,
-							Long.valueOf(pos), getPackFile()));
-			coe.initCause(dfe);
-			throw coe;
+							Long.valueOf(pos), getPackFile()),
+					dfe);
 		}
 	}
 
@@ -947,7 +949,7 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 		return hdr;
 	}
 
-	int getObjectType(final WindowCursor curs, long pos) throws IOException {
+	int getObjectType(WindowCursor curs, long pos) throws IOException {
 		final byte[] ib = curs.tempId;
 		for (;;) {
 			readFully(pos, ib, 0, 20, curs);
@@ -994,13 +996,13 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 		}
 	}
 
-	long getObjectSize(final WindowCursor curs, final AnyObjectId id)
+	long getObjectSize(WindowCursor curs, AnyObjectId id)
 			throws IOException {
 		final long offset = idx().findOffset(id);
 		return 0 < offset ? getObjectSize(curs, offset) : -1;
 	}
 
-	long getObjectSize(final WindowCursor curs, final long pos)
+	long getObjectSize(WindowCursor curs, long pos)
 			throws IOException {
 		final byte[] ib = curs.tempId;
 		readFully(pos, ib, 0, 20, curs);
@@ -1098,7 +1100,7 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 		}
 	}
 
-	private long findEndOffset(final long startOffset)
+	private long findEndOffset(long startOffset)
 			throws IOException, CorruptObjectException {
 		final long maxOffset = length - 20;
 		return getReverseIdx().findNextOffset(startOffset, maxOffset);
@@ -1108,8 +1110,17 @@ public class PackFile implements Iterable<PackIndex.MutableEntry> {
 		if (invalid || invalidBitmap)
 			return null;
 		if (bitmapIdx == null && hasExt(BITMAP_INDEX)) {
-			final PackBitmapIndex idx = PackBitmapIndex.open(
-					extFile(BITMAP_INDEX), idx(), getReverseIdx());
+			final PackBitmapIndex idx;
+			try {
+				idx = PackBitmapIndex.open(extFile(BITMAP_INDEX), idx(),
+						getReverseIdx());
+			} catch (FileNotFoundException e) {
+				// Once upon a time this bitmap file existed. Now it
+				// has been removed. Most likely an external gc  has
+				// removed this packfile and the bitmap
+				 invalidBitmap = true;
+				 return null;
+			}
 
 			// At this point, idx() will have set packChecksum.
 			if (Arrays.equals(packChecksum, idx.packChecksum))

@@ -65,8 +65,8 @@ import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
  * This will set the remote URL in a submodule's repository to the current value
  * in the .gitmodules file.
  *
- * @see <a
- *      href="http://www.kernel.org/pub/software/scm/git/docs/git-submodule.html"
+ * @see <a href=
+ *      "http://www.kernel.org/pub/software/scm/git/docs/git-submodule.html"
  *      >Git documentation about submodules</a>
  */
 public class SubmoduleSyncCommand extends GitCommand<Map<String, String>> {
@@ -74,9 +74,12 @@ public class SubmoduleSyncCommand extends GitCommand<Map<String, String>> {
 	private final Collection<String> paths;
 
 	/**
+	 * Constructor for SubmoduleSyncCommand.
+	 *
 	 * @param repo
+	 *            a {@link org.eclipse.jgit.lib.Repository} object.
 	 */
-	public SubmoduleSyncCommand(final Repository repo) {
+	public SubmoduleSyncCommand(Repository repo) {
 		super(repo);
 		paths = new ArrayList<>();
 	}
@@ -88,7 +91,7 @@ public class SubmoduleSyncCommand extends GitCommand<Map<String, String>> {
 	 *            (with <code>/</code> as separator)
 	 * @return this command
 	 */
-	public SubmoduleSyncCommand addPath(final String path) {
+	public SubmoduleSyncCommand addPath(String path) {
 		paths.add(path);
 		return this;
 	}
@@ -97,10 +100,11 @@ public class SubmoduleSyncCommand extends GitCommand<Map<String, String>> {
 	 * Get branch that HEAD currently points to
 	 *
 	 * @param subRepo
+	 *            a {@link org.eclipse.jgit.lib.Repository} object.
 	 * @return shortened branch name, null on failures
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
-	protected String getHeadBranch(final Repository subRepo) throws IOException {
+	protected String getHeadBranch(Repository subRepo) throws IOException {
 		Ref head = subRepo.exactRef(Constants.HEAD);
 		if (head != null && head.isSymbolic())
 			return Repository.shortenRefName(head.getLeaf().getName());
@@ -108,6 +112,7 @@ public class SubmoduleSyncCommand extends GitCommand<Map<String, String>> {
 			return null;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public Map<String, String> call() throws GitAPIException {
 		checkCallable();
@@ -127,30 +132,31 @@ public class SubmoduleSyncCommand extends GitCommand<Map<String, String>> {
 						path, ConfigConstants.CONFIG_KEY_URL, remoteUrl);
 				synced.put(path, remoteUrl);
 
-				Repository subRepo = generator.getRepository();
-				if (subRepo == null)
-					continue;
+				try (Repository subRepo = generator.getRepository()) {
+					if (subRepo == null) {
+						continue;
+					}
 
-				StoredConfig subConfig;
-				String branch;
-				try {
+					StoredConfig subConfig;
+					String branch;
+
 					subConfig = subRepo.getConfig();
 					// Get name of remote associated with current branch and
 					// fall back to default remote name as last resort
 					branch = getHeadBranch(subRepo);
 					String remote = null;
-					if (branch != null)
+					if (branch != null) {
 						remote = subConfig.getString(
 								ConfigConstants.CONFIG_BRANCH_SECTION, branch,
 								ConfigConstants.CONFIG_KEY_REMOTE);
-					if (remote == null)
+					}
+					if (remote == null) {
 						remote = Constants.DEFAULT_REMOTE_NAME;
+					}
 
 					subConfig.setString(ConfigConstants.CONFIG_REMOTE_SECTION,
 							remote, ConfigConstants.CONFIG_KEY_URL, remoteUrl);
 					subConfig.save();
-				} finally {
-					subRepo.close();
 				}
 			}
 			if (!synced.isEmpty())

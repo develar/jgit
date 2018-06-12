@@ -631,7 +631,7 @@ public class RefTreeDatabaseTest {
 				name);
 	}
 
-	private void symref(final String name, final String dst)
+	private void symref(String name, String dst)
 			throws IOException {
 		commit(new Function() {
 			@Override
@@ -648,7 +648,7 @@ public class RefTreeDatabaseTest {
 		});
 	}
 
-	private void update(final String name, final ObjectId id)
+	private void update(String name, ObjectId id)
 			throws IOException {
 		commit(new Function() {
 			@Override
@@ -657,7 +657,8 @@ public class RefTreeDatabaseTest {
 				Ref old = tree.exactRef(reader, name);
 				Command n;
 				try (RevWalk rw = new RevWalk(repo)) {
-					n = new Command(old, Command.toRef(rw, id, name, true));
+					n = new Command(old,
+							Command.toRef(rw, id, null, name, true));
 				}
 				return tree.apply(Collections.singleton(n));
 			}

@@ -43,6 +43,7 @@
 
 package org.eclipse.jgit.patch;
 
+import static java.nio.charset.StandardCharsets.ISO_8859_1;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -84,7 +85,7 @@ public class EGitPatchHistoryTest {
 
 		int errors;
 
-		PatchReader(final HashMap<String, HashMap<String, StatInfo>> s)
+		PatchReader(HashMap<String, HashMap<String, StatInfo>> s)
 				throws IOException {
 			super(new String[] { "-p" });
 			stats = s;
@@ -102,7 +103,7 @@ public class EGitPatchHistoryTest {
 			p.parse(buf, 0, buf.length - 1);
 			assertEquals("File count " + cid, files.size(), p.getFiles().size());
 			if (!p.getErrors().isEmpty()) {
-				for (final FormatError e : p.getErrors()) {
+				for (FormatError e : p.getErrors()) {
 					System.out.println("error " + e.getMessage());
 					System.out.println("  at " + e.getLineText());
 				}
@@ -110,7 +111,7 @@ public class EGitPatchHistoryTest {
 				fail("Unexpected error in " + cid);
 			}
 
-			for (final FileHeader fh : p.getFiles()) {
+			for (FileHeader fh : p.getFiles()) {
 				final String fileName;
 				if (fh.getChangeType() != FileHeader.ChangeType.DELETE)
 					fileName = fh.getNewPath();
@@ -120,7 +121,7 @@ public class EGitPatchHistoryTest {
 				final String nid = fileName + " in " + cid;
 				assertNotNull("No " + nid, s);
 				int added = 0, deleted = 0;
-				for (final HunkHeader h : fh.getHunks()) {
+				for (HunkHeader h : fh.getHunks()) {
 					added += h.getOldImage().getLinesAdded();
 					deleted += h.getOldImage().getLinesDeleted();
 				}
@@ -146,7 +147,7 @@ public class EGitPatchHistoryTest {
 			assertTrue("Missed files in " + cid, files.isEmpty());
 		}
 
-		private static void dump(final byte[] buf) {
+		private static void dump(byte[] buf) {
 			String str;
 			try {
 				str = new String(buf, 0, buf.length - 1, "ISO-8859-1");
@@ -187,7 +188,7 @@ public class EGitPatchHistoryTest {
 	static abstract class CommitReader {
 		private Process proc;
 
-		CommitReader(final String[] args) throws IOException {
+		CommitReader(String[] args) throws IOException {
 			final String[] realArgs = new String[3 + args.length + 1];
 			realArgs[0] = "git";
 			realArgs[1] = "log";
@@ -201,28 +202,28 @@ public class EGitPatchHistoryTest {
 		}
 
 		void read() throws IOException, InterruptedException {
-			final BufferedReader in = new BufferedReader(new InputStreamReader(
-					proc.getInputStream(), "ISO-8859-1"));
-			String commitId = null;
-			TemporaryBuffer buf = null;
-			for (;;) {
-				String line = in.readLine();
-				if (line == null)
-					break;
-				if (line.startsWith("commit ")) {
-					if (buf != null) {
-						buf.close();
-						onCommit(commitId, buf.toByteArray());
-						buf.destroy();
+			try (BufferedReader in = new BufferedReader(
+					new InputStreamReader(proc.getInputStream(), ISO_8859_1))) {
+				String commitId = null;
+				TemporaryBuffer buf = null;
+				for (;;) {
+					String line = in.readLine();
+					if (line == null)
+						break;
+					if (line.startsWith("commit ")) {
+						if (buf != null) {
+							buf.close();
+							onCommit(commitId, buf.toByteArray());
+							buf.destroy();
+						}
+						commitId = line.substring("commit ".length());
+						buf = new TemporaryBuffer.LocalFile(null);
+					} else if (buf != null) {
+						buf.write(line.getBytes(ISO_8859_1));
+						buf.write('\n');
 					}
-					commitId = line.substring("commit ".length());
-					buf = new TemporaryBuffer.LocalFile(null);
-				} else if (buf != null) {
-					buf.write(line.getBytes("ISO-8859-1"));
-					buf.write('\n');
 				}
 			}
-			in.close();
 			assertEquals(0, proc.waitFor());
 			proc = null;
 		}

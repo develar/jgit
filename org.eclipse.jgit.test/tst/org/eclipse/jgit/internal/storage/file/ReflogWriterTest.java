@@ -61,7 +61,8 @@ public class ReflogWriterTest extends SampleDataRepositoryTestCase {
 
 	@Test
 	public void shouldFilterLineFeedFromMessage() throws Exception {
-		ReflogWriter writer = new ReflogWriter(db);
+		ReflogWriter writer =
+				new ReflogWriter((RefDirectory) db.getRefDatabase());
 		PersonIdent ident = new PersonIdent("John Doe", "john@doe.com",
 				1243028200000L, 120);
 		ObjectId oldId = ObjectId
@@ -86,11 +87,8 @@ public class ReflogWriterTest extends SampleDataRepositoryTestCase {
 					"oops, cannot create the directory for the test reflog file"
 							+ logfile);
 		}
-		FileInputStream fileInputStream = new FileInputStream(logfile);
-		try {
+		try (FileInputStream fileInputStream = new FileInputStream(logfile)) {
 			fileInputStream.read(buffer);
-		} finally {
-			fileInputStream.close();
 		}
 	}
 }

@@ -42,6 +42,9 @@
  */
 package org.eclipse.jgit.pgm;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.eclipse.jgit.api.DescribeCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.RefNotFoundException;
@@ -59,6 +62,10 @@ class Describe extends TextBuiltin {
 	@Option(name = "--long", usage = "usage_LongFormat")
 	private boolean longDesc;
 
+	@Option(name = "--match", usage = "usage_Match", metaVar = "metaVar_pattern")
+	private List<String> patterns = new ArrayList<>();
+
+	/** {@inheritDoc} */
 	@Override
 	protected void run() throws Exception {
 		try (Git git = new Git(db)) {
@@ -66,6 +73,7 @@ class Describe extends TextBuiltin {
 			if (tree != null)
 				cmd.setTarget(tree);
 			cmd.setLong(longDesc);
+			cmd.setMatch(patterns.toArray(new String[patterns.size()]));
 			String result = null;
 			try {
 				result = cmd.call();

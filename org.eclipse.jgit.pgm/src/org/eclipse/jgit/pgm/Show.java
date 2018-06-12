@@ -87,7 +87,7 @@ class Show extends TextBuiltin {
 	@Argument(index = 0, metaVar = "metaVar_object")
 	private String objectName;
 
-	@Option(name = "--", metaVar = "metaVar_path", multiValued = true, handler = PathTreeFilterHandler.class)
+	@Option(name = "--", metaVar = "metaVar_path", handler = PathTreeFilterHandler.class)
 	protected TreeFilter pathFilter = TreeFilter.ALL;
 
 	// BEGIN -- Options shared with Diff
@@ -165,12 +165,14 @@ class Show extends TextBuiltin {
 		fmt = new SimpleDateFormat("EEE MMM dd HH:mm:ss yyyy ZZZZZ", Locale.US); //$NON-NLS-1$
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	protected void init(final Repository repository, final String gitDir) {
+	protected void init(Repository repository, String gitDir) {
 		super.init(repository, gitDir);
 		diffFmt = new DiffFormatter(new BufferedOutputStream(outs));
 	}
 
+	/** {@inheritDoc} */
 	@SuppressWarnings("boxing")
 	@Override
 	protected void run() throws Exception {
@@ -246,7 +248,7 @@ class Show extends TextBuiltin {
 
 		outw.println();
 		final String[] lines = tag.getFullMessage().split("\n"); //$NON-NLS-1$
-		for (final String s : lines) {
+		for (String s : lines) {
 			outw.print("    "); //$NON-NLS-1$
 			outw.print(s);
 			outw.println();
@@ -257,7 +259,7 @@ class Show extends TextBuiltin {
 
 	private void show(RevTree obj) throws MissingObjectException,
 			IncorrectObjectTypeException, CorruptObjectException, IOException {
-		try (final TreeWalk walk = new TreeWalk(db)) {
+		try (TreeWalk walk = new TreeWalk(db)) {
 			walk.reset();
 			walk.addTree(obj);
 
@@ -271,7 +273,7 @@ class Show extends TextBuiltin {
 		}
 	}
 
-	private void show(RevWalk rw, final RevCommit c) throws Exception {
+	private void show(RevWalk rw, RevCommit c) throws Exception {
 		char[] outbuffer = new char[Constants.OBJECT_ID_LENGTH * 2];
 
 		outw.print(CLIText.get().commitLabel);
@@ -290,7 +292,7 @@ class Show extends TextBuiltin {
 
 		outw.println();
 		final String[] lines = c.getFullMessage().split("\n"); //$NON-NLS-1$
-		for (final String s : lines) {
+		for (String s : lines) {
 			outw.print("    "); //$NON-NLS-1$
 			outw.print(s);
 			outw.println();

@@ -75,7 +75,7 @@ abstract class ObjectFileServlet extends HttpServlet {
 		}
 
 		@Override
-		String etag(final FileSender sender) throws IOException {
+		String etag(FileSender sender) throws IOException {
 			return Long.toHexString(sender.getLastModified());
 		}
 	}
@@ -88,7 +88,7 @@ abstract class ObjectFileServlet extends HttpServlet {
 		}
 
 		@Override
-		String etag(final FileSender sender) throws IOException {
+		String etag(FileSender sender) throws IOException {
 			return sender.getTailChecksum();
 		}
 	}
@@ -111,18 +111,20 @@ abstract class ObjectFileServlet extends HttpServlet {
 
 	private final String contentType;
 
-	ObjectFileServlet(final String contentType) {
+	ObjectFileServlet(String contentType) {
 		this.contentType = contentType;
 	}
 
 	abstract String etag(FileSender sender) throws IOException;
 
+	/** {@inheritDoc} */
 	@Override
 	public void doGet(final HttpServletRequest req,
 			final HttpServletResponse rsp) throws IOException {
 		serve(req, rsp, true);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	protected void doHead(final HttpServletRequest req,
 			final HttpServletResponse rsp) throws ServletException, IOException {
@@ -168,7 +170,7 @@ abstract class ObjectFileServlet extends HttpServlet {
 		}
 	}
 
-	private static File objects(final HttpServletRequest req) {
+	private static File objects(HttpServletRequest req) {
 		final Repository db = getRepository(req);
 		return ((ObjectDirectory) db.getObjectDatabase()).getDirectory();
 	}

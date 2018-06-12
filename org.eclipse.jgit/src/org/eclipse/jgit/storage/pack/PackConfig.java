@@ -260,7 +260,11 @@ public class PackConfig {
 
 	private boolean cutDeltaChains;
 
-	/** Create a default configuration. */
+	private boolean singlePack;
+
+	/**
+	 * Create a default configuration.
+	 */
 	public PackConfig() {
 		// Fields are initialized to defaults.
 	}
@@ -278,7 +282,8 @@ public class PackConfig {
 	}
 
 	/**
-	 * Create a configuration honoring settings in a {@link Config}.
+	 * Create a configuration honoring settings in a
+	 * {@link org.eclipse.jgit.lib.Config}.
 	 *
 	 * @param cfg
 	 *            the source to read settings from. The source is not retained
@@ -320,6 +325,7 @@ public class PackConfig {
 		this.bitmapExcessiveBranchCount = cfg.bitmapExcessiveBranchCount;
 		this.bitmapInactiveBranchAgeInDays = cfg.bitmapInactiveBranchAgeInDays;
 		this.cutDeltaChains = cfg.cutDeltaChains;
+		this.singlePack = cfg.singlePack;
 	}
 
 	/**
@@ -528,6 +534,9 @@ public class PackConfig {
 	}
 
 	/**
+	 * Whether existing delta chains should be cut at
+	 * {@link #getMaxDeltaDepth()}.
+	 *
 	 * @return true if existing delta chains should be cut at
 	 *         {@link #getMaxDeltaDepth()}. Default is false, allowing existing
 	 *         chains to be of any length.
@@ -552,6 +561,32 @@ public class PackConfig {
 	 */
 	public void setCutDeltaChains(boolean cut) {
 		cutDeltaChains = cut;
+	}
+
+	/**
+	 * Whether all of refs/* should be packed in a single pack.
+	 *
+	 * @return true if all of refs/* should be packed in a single pack. Default
+	 *         is false, packing a separate GC_REST pack for references outside
+	 *         of refs/heads/* and refs/tags/*.
+	 * @since 4.9
+	 */
+	public boolean getSinglePack() {
+		return singlePack;
+	}
+
+	/**
+	 * If {@code true}, packs a single GC pack for all objects reachable from
+	 * refs/*. Otherwise packs the GC pack with objects reachable from
+	 * refs/heads/* and refs/tags/*, and a GC_REST pack with the remaining
+	 * reachable objects. Disabled by default, packing GC and GC_REST.
+	 *
+	 * @param single
+	 *            true to pack a single GC pack rather than GC and GC_REST packs
+	 * @since 4.9
+	 */
+	public void setSinglePack(boolean single) {
+		singlePack = single;
 	}
 
 	/**
@@ -758,7 +793,11 @@ public class PackConfig {
 		this.threads = threads;
 	}
 
-	/** @return the preferred thread pool to execute delta search on. */
+	/**
+	 * Get the preferred thread pool to execute delta search on.
+	 *
+	 * @return the preferred thread pool to execute delta search on.
+	 */
 	public Executor getExecutor() {
 		return executor;
 	}
@@ -1000,7 +1039,7 @@ public class PackConfig {
 	 * @param rc
 	 *            configuration to read properties from.
 	 */
-	public void fromConfig(final Config rc) {
+	public void fromConfig(Config rc) {
 		setMaxDeltaDepth(rc.getInt("pack", "depth", getMaxDeltaDepth())); //$NON-NLS-1$ //$NON-NLS-2$
 		setDeltaSearchWindowSize(rc.getInt(
 				"pack", "window", getDeltaSearchWindowSize())); //$NON-NLS-1$ //$NON-NLS-2$
@@ -1026,6 +1065,8 @@ public class PackConfig {
 				rc.getBoolean("pack", "deltacompression", isDeltaCompress())); //$NON-NLS-1$ //$NON-NLS-2$
 		setCutDeltaChains(
 				rc.getBoolean("pack", "cutdeltachains", getCutDeltaChains())); //$NON-NLS-1$ //$NON-NLS-2$
+		setSinglePack(
+				rc.getBoolean("pack", "singlepack", getSinglePack())); //$NON-NLS-1$ //$NON-NLS-2$
 		setBuildBitmaps(
 				rc.getBoolean("pack", "buildbitmaps", isBuildBitmaps())); //$NON-NLS-1$ //$NON-NLS-2$
 		setBitmapContiguousCommitCount(
@@ -1044,6 +1085,7 @@ public class PackConfig {
 						getBitmapInactiveBranchAgeInDays()));
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public String toString() {
 		final StringBuilder b = new StringBuilder();
@@ -1073,6 +1115,7 @@ public class PackConfig {
 				.append(getBitmapExcessiveBranchCount());
 		b.append(", bitmapInactiveBranchAge=") //$NON-NLS-1$
 				.append(getBitmapInactiveBranchAgeInDays());
+		b.append(", singlePack=").append(getSinglePack()); //$NON-NLS-1$
 		return b.toString();
 	}
 }

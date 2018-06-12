@@ -6,8 +6,8 @@
 
 package org.eclipse.jgit.util;
 
-import java.io.UnsupportedEncodingException;
-import java.nio.charset.StandardCharsets;
+import static org.eclipse.jgit.lib.Constants.CHARSET;
+
 import java.text.MessageFormat;
 import java.util.Arrays;
 
@@ -18,14 +18,13 @@ import org.eclipse.jgit.internal.JGitText;
  * <p>
  * I am placing this code in the Public Domain. Do with it as you will. This
  * software comes with no guarantees or warranties but with plenty of
- * well-wishing instead! Please visit <a
- * href="http://iharder.net/base64">http://iharder.net/base64</a> periodically
- * to check for updates or to contribute improvements.
+ * well-wishing instead! Please visit
+ * <a href="http://iharder.net/base64">http://iharder.net/base64</a>
+ * periodically to check for updates or to contribute improvements.
  * </p>
  *
  * @author Robert Harder
  * @author rob@iharder.net
- * @version 2.1, stripped to minimum feature set used by JGit.
  */
 public class Base64 {
 	/** The equals sign (=) as a byte. */
@@ -40,9 +39,6 @@ public class Base64 {
 	/** Indicates an invalid byte during decoding. */
 	private final static byte INVALID_DEC = -3;
 
-	/** Preferred encoding. */
-	private final static String UTF_8 = "UTF-8"; //$NON-NLS-1$
-
 	/** The 64 valid Base64 values. */
 	private final static byte[] ENC;
 
@@ -54,15 +50,11 @@ public class Base64 {
 	private final static byte[] DEC;
 
 	static {
-		try {
-			ENC = ("ABCDEFGHIJKLMNOPQRSTUVWXYZ" // //$NON-NLS-1$
-					+ "abcdefghijklmnopqrstuvwxyz" // //$NON-NLS-1$
-					+ "0123456789" // //$NON-NLS-1$
-					+ "+/" // //$NON-NLS-1$
-			).getBytes(UTF_8);
-		} catch (UnsupportedEncodingException uee) {
-			throw new RuntimeException(uee.getMessage(), uee);
-		}
+		ENC = ("ABCDEFGHIJKLMNOPQRSTUVWXYZ" // //$NON-NLS-1$
+				+ "abcdefghijklmnopqrstuvwxyz" // //$NON-NLS-1$
+				+ "0123456789" // //$NON-NLS-1$
+				+ "+/" // //$NON-NLS-1$
+		).getBytes(CHARSET);
 
 		DEC = new byte[128];
 		Arrays.fill(DEC, INVALID_DEC);
@@ -185,7 +177,7 @@ public class Base64 {
 			e += 4;
 		}
 
-		return new String(outBuff, 0, e, StandardCharsets.UTF_8);
+		return new String(outBuff, 0, e, CHARSET);
 	}
 
 	/**
@@ -254,7 +246,7 @@ public class Base64 {
 	 * @param len
 	 *            The length of characters to decode
 	 * @return decoded data
-	 * @throws IllegalArgumentException
+	 * @throws java.lang.IllegalArgumentException
 	 *             the input is not a valid Base64 sequence.
 	 */
 	public static byte[] decode(byte[] source, int off, int len) {
@@ -301,7 +293,7 @@ public class Base64 {
 	 * @return the decoded data
 	 */
 	public static byte[] decode(String s) {
-		byte[] bytes = s.getBytes(StandardCharsets.UTF_8);
+		byte[] bytes = s.getBytes(CHARSET);
 		return decode(bytes, 0, bytes.length);
 	}
 }

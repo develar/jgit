@@ -44,8 +44,10 @@ package org.eclipse.jgit.api;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedList;
+import java.util.List;
 
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.JGitInternalException;
@@ -53,6 +55,7 @@ import org.eclipse.jgit.api.errors.NoFilepatternException;
 import org.eclipse.jgit.dircache.DirCache;
 import org.eclipse.jgit.dircache.DirCacheBuildIterator;
 import org.eclipse.jgit.dircache.DirCacheBuilder;
+import org.eclipse.jgit.events.WorkingTreeModifiedEvent;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
@@ -69,7 +72,7 @@ import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
  * class should only be used for one invocation of the command (means: one call
  * to {@link #call()}).
  * <p>
- * Examples (<code>git</code> is a {@link Git} instance):
+ * Examples (<code>git</code> is a {@link org.eclipse.jgit.api.Git} instance):
  * <p>
  * Remove file "test.txt" from both index and working directory:
  *
@@ -94,8 +97,10 @@ public class RmCommand extends GitCommand<DirCache> {
 	private boolean cached = false;
 
 	/**
+	 * Constructor for RmCommand.
 	 *
 	 * @param repo
+	 *            the {@link org.eclipse.jgit.lib.Repository}
 	 */
 	public RmCommand(Repository repo) {
 		super(repo);
@@ -103,6 +108,8 @@ public class RmCommand extends GitCommand<DirCache> {
 	}
 
 	/**
+	 * Add file name pattern of files to be removed
+	 *
 	 * @param filepattern
 	 *            repository-relative path of file to remove (with
 	 *            <code>/</code> as separator)
@@ -118,8 +125,9 @@ public class RmCommand extends GitCommand<DirCache> {
 	 * Only remove the specified files from the index.
 	 *
 	 * @param cached
-	 *            true if files should only be removed from index, false if
-	 *            files should also be deleted from the working directory
+	 *            {@code true} if files should only be removed from index,
+	 *            {@code false} if files should also be deleted from the working
+	 *            directory
 	 * @return {@code this}
 	 * @since 2.2
 	 */
@@ -130,11 +138,11 @@ public class RmCommand extends GitCommand<DirCache> {
 	}
 
 	/**
+	 * {@inheritDoc}
+	 * <p>
 	 * Executes the {@code Rm} command. Each instance of this class should only
 	 * be used for one invocation of the command. Don't call this method twice
 	 * on an instance.
-	 *
-	 * @return the DirCache after Rm
 	 */
 	@Override
 	public DirCache call() throws GitAPIException,
@@ -145,7 +153,8 @@ public class RmCommand extends GitCommand<DirCache> {
 		checkCallable();
 		DirCache dc = null;
 
-		try (final TreeWalk tw = new TreeWalk(repo)) {
+		List<String> actuallyDeletedFiles = new ArrayList<>();
+		try (TreeWalk tw = new TreeWalk(repo)) {
 			dc = repo.lockDirCache();
 			DirCacheBuilder builder = dc.builder();
 			tw.reset(); // drop the first empty tree, which we do not need here
@@ -157,11 +166,14 @@ public class RmCommand extends GitCommand<DirCache> {
 				if (!cached) {
 					final FileMode mode = tw.getFileMode(0);
 					if (mode.getObjectType() == Constants.OBJ_BLOB) {
+						String relativePath = tw.getPathString();
 						final File path = new File(repo.getWorkTree(),
-								tw.getPathString());
+								relativePath);
 						// Deleting a blob is simply a matter of removing
 						// the file or symlink named by the tree entry.
-						delete(path);
+						if (delete(path)) {
+							actuallyDeletedFiles.add(relativePath);
+						}
 					}
 				}
 			}
@@ -171,16 +183,28 @@ public class RmCommand extends GitCommand<DirCache> {
 			throw new JGitInternalException(
 					JGitText.get().exceptionCaughtDuringExecutionOfRmCommand, e);
 		} finally {
-			if (dc != null)
-				dc.unlock();
+			try {
+				if (dc != null) {
+					dc.unlock();
+				}
+			} finally {
+				if (!actuallyDeletedFiles.isEmpty()) {
+					repo.fireEvent(new WorkingTreeModifiedEvent(null,
+							actuallyDeletedFiles));
+				}
+			}
 		}
 
 		return dc;
 	}
 
-	private void delete(File p) {
-		while (p != null && !p.equals(repo.getWorkTree()) && p.delete())
+	private boolean delete(File p) {
+		boolean deleted = false;
+		while (p != null && !p.equals(repo.getWorkTree()) && p.delete()) {
+			deleted = true;
 			p = p.getParentFile();
+		}
+		return deleted;
 	}
 
 }

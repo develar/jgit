@@ -84,6 +84,7 @@ class Remote extends TextBuiltin {
 	@Argument(index = 2, metaVar = "metaVar_uriish")
 	private String uri;
 
+	/** {@inheritDoc} */
 	@Override
 	protected void run() throws Exception {
 		try (Git git = new Git(db)) {
@@ -143,8 +144,9 @@ class Remote extends TextBuiltin {
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public void printUsage(final String message, final CmdLineParser clp)
+	public void printUsage(String message, CmdLineParser clp)
 			throws IOException {
 		errw.println(message);
 		errw.println("jgit remote [--verbose (-v)] [--help (-h)]"); //$NON-NLS-1$

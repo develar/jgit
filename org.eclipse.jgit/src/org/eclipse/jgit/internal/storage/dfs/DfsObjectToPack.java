@@ -60,7 +60,7 @@ class DfsObjectToPack extends ObjectToPack {
 	/** Length of the data section of the object. */
 	long length;
 
-	DfsObjectToPack(AnyObjectId src, final int type) {
+	DfsObjectToPack(AnyObjectId src, int type) {
 		super(src, type);
 	}
 
@@ -72,12 +72,14 @@ class DfsObjectToPack extends ObjectToPack {
 		setExtendedFlag(FLAG_FOUND);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	protected void clearReuseAsIs() {
 		super.clearReuseAsIs();
 		pack = null;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void select(StoredObjectRepresentation ref) {
 		DfsObjectRepresentation ptr = (DfsObjectRepresentation) ref;

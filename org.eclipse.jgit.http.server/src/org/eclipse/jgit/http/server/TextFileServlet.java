@@ -64,10 +64,11 @@ class TextFileServlet extends HttpServlet {
 
 	private final String fileName;
 
-	TextFileServlet(final String name) {
+	TextFileServlet(String name) {
 		this.fileName = name;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void doGet(final HttpServletRequest req,
 			final HttpServletResponse rsp) throws IOException {
@@ -79,7 +80,7 @@ class TextFileServlet extends HttpServlet {
 		}
 	}
 
-	private byte[] read(final HttpServletRequest req) throws IOException {
+	private byte[] read(HttpServletRequest req) throws IOException {
 		final File gitdir = getRepository(req).getDirectory();
 		if (gitdir == null)
 			throw new FileNotFoundException(fileName);

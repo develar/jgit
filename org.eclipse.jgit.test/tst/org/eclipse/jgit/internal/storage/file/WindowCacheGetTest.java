@@ -74,11 +74,10 @@ public class WindowCacheGetTest extends SampleDataRepositoryTestCase {
 		super.setUp();
 
 		toLoad = new ArrayList<>();
-		final BufferedReader br = new BufferedReader(new InputStreamReader(
+		try (BufferedReader br = new BufferedReader(new InputStreamReader(
 				new FileInputStream(JGitTestUtil
 						.getTestResourceFile("all_packed_objects.txt")),
-				Constants.CHARSET));
-		try {
+				Constants.CHARSET))) {
 			String line;
 			while ((line = br.readLine()) != null) {
 				final String[] parts = line.split(" {1,}");
@@ -90,8 +89,6 @@ public class WindowCacheGetTest extends SampleDataRepositoryTestCase {
 				// parts[4] is the offset in the pack
 				toLoad.add(o);
 			}
-		} finally {
-			br.close();
 		}
 		assertEquals(96, toLoad.size());
 	}
@@ -127,7 +124,7 @@ public class WindowCacheGetTest extends SampleDataRepositoryTestCase {
 		checkLimits(cfg);
 	}
 
-	private static void checkLimits(final WindowCacheConfig cfg) {
+	private static void checkLimits(WindowCacheConfig cfg) {
 		final WindowCache cache = WindowCache.getInstance();
 		assertTrue(cache.getOpenFiles() <= cfg.getPackedGitOpenFiles());
 		assertTrue(cache.getOpenBytes() <= cfg.getPackedGitLimit());
@@ -136,7 +133,7 @@ public class WindowCacheGetTest extends SampleDataRepositoryTestCase {
 	}
 
 	private void doCacheTests() throws IOException {
-		for (final TestObject o : toLoad) {
+		for (TestObject o : toLoad) {
 			final ObjectLoader or = db.open(o.id, o.type);
 			assertNotNull(or);
 			assertEquals(o.type, or.getType());
@@ -148,7 +145,7 @@ public class WindowCacheGetTest extends SampleDataRepositoryTestCase {
 
 		int type;
 
-		void setType(final String typeStr) throws CorruptObjectException {
+		void setType(String typeStr) throws CorruptObjectException {
 			final byte[] typeRaw = Constants.encode(typeStr + " ");
 			final MutableInteger ptr = new MutableInteger();
 			type = Constants.decodeTypeString(id, typeRaw, (byte) ' ', ptr);

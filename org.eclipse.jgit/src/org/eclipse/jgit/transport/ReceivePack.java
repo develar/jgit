@@ -88,7 +88,7 @@ public class ReceivePack extends BaseReceivePack {
 	 * @param into
 	 *            the destination repository.
 	 */
-	public ReceivePack(final Repository into) {
+	public ReceivePack(Repository into) {
 		super(into);
 		preReceive = PreReceiveHook.NULL;
 		postReceive = PostReceiveHook.NULL;
@@ -130,7 +130,11 @@ public class ReceivePack extends BaseReceivePack {
 		pushOptions = options;
 	}
 
-	/** @return the hook invoked before updates occur. */
+	/**
+	 * Get the hook invoked before updates occur.
+	 *
+	 * @return the hook invoked before updates occur.
+	 */
 	public PreReceiveHook getPreReceiveHook() {
 		return preReceive;
 	}
@@ -141,7 +145,8 @@ public class ReceivePack extends BaseReceivePack {
 	 * Only valid commands (those which have no obvious errors according to the
 	 * received input and this instance's configuration) are passed into the
 	 * hook. The hook may mark a command with a result of any value other than
-	 * {@link Result#NOT_ATTEMPTED} to block its execution.
+	 * {@link org.eclipse.jgit.transport.ReceiveCommand.Result#NOT_ATTEMPTED} to
+	 * block its execution.
 	 * <p>
 	 * The hook may be called with an empty command collection if the current
 	 * set is completely invalid.
@@ -149,11 +154,15 @@ public class ReceivePack extends BaseReceivePack {
 	 * @param h
 	 *            the hook instance; may be null to disable the hook.
 	 */
-	public void setPreReceiveHook(final PreReceiveHook h) {
+	public void setPreReceiveHook(PreReceiveHook h) {
 		preReceive = h != null ? h : PreReceiveHook.NULL;
 	}
 
-	/** @return the hook invoked after updates occur. */
+	/**
+	 * Get the hook invoked after updates occur.
+	 *
+	 * @return the hook invoked after updates occur.
+	 */
 	public PostReceiveHook getPostReceiveHook() {
 		return postReceive;
 	}
@@ -161,18 +170,22 @@ public class ReceivePack extends BaseReceivePack {
 	/**
 	 * Set the hook which is invoked after commands are executed.
 	 * <p>
-	 * Only successful commands (type is {@link Result#OK}) are passed into the
-	 * hook. The hook may be called with an empty command collection if the
-	 * current set all resulted in an error.
+	 * Only successful commands (type is
+	 * {@link org.eclipse.jgit.transport.ReceiveCommand.Result#OK}) are passed
+	 * into the hook. The hook may be called with an empty command collection if
+	 * the current set all resulted in an error.
 	 *
 	 * @param h
 	 *            the hook instance; may be null to disable the hook.
 	 */
-	public void setPostReceiveHook(final PostReceiveHook h) {
+	public void setPostReceiveHook(PostReceiveHook h) {
 		postReceive = h != null ? h : PostReceiveHook.NULL;
 	}
 
 	/**
+	 * Set whether this class will report command failures as warning messages
+	 * before sending the command results.
+	 *
 	 * @param echo
 	 *            if true this class will report command failures as warning
 	 *            messages before sending the command results. This is usually
@@ -199,7 +212,7 @@ public class ReceivePack extends BaseReceivePack {
 	 *            through. When run over SSH this should be tied back to the
 	 *            standard error channel of the command execution. For most
 	 *            other network connections this should be null.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
 	public void receive(final InputStream input, final OutputStream output,
 			final OutputStream messages) throws IOException {
@@ -215,6 +228,7 @@ public class ReceivePack extends BaseReceivePack {
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	protected void enableCapabilities() {
 		reportStatus = isCapabilityEnabled(CAPABILITY_REPORT_STATUS);
@@ -274,7 +288,7 @@ public class ReceivePack extends BaseReceivePack {
 				if (echoCommandFailures && msgOut != null) {
 					sendStatusReport(false, unpackError, new Reporter() {
 						@Override
-						void sendString(final String s) throws IOException {
+						void sendString(String s) throws IOException {
 							msgOut.write(Constants.encode(s + "\n")); //$NON-NLS-1$
 						}
 					});
@@ -287,7 +301,7 @@ public class ReceivePack extends BaseReceivePack {
 				}
 				sendStatusReport(true, unpackError, new Reporter() {
 					@Override
-					void sendString(final String s) throws IOException {
+					void sendString(String s) throws IOException {
 						pckOut.writeString(s + "\n"); //$NON-NLS-1$
 					}
 				});
@@ -295,7 +309,7 @@ public class ReceivePack extends BaseReceivePack {
 			} else if (msgOut != null) {
 				sendStatusReport(false, unpackError, new Reporter() {
 					@Override
-					void sendString(final String s) throws IOException {
+					void sendString(String s) throws IOException {
 						msgOut.write(Constants.encode(s + "\n")); //$NON-NLS-1$
 					}
 				});
@@ -325,6 +339,7 @@ public class ReceivePack extends BaseReceivePack {
 		repo.autoGC(NullProgressMonitor.INSTANCE);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	protected String getLockMessageProcessName() {
 		return "jgit receive-pack"; //$NON-NLS-1$

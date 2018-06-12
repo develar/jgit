@@ -43,10 +43,9 @@
 
 package org.eclipse.jgit.diff;
 
+import static org.eclipse.jgit.lib.Constants.CHARSET;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-
-import java.io.UnsupportedEncodingException;
 
 import org.junit.Test;
 
@@ -241,10 +240,6 @@ public abstract class AbstractDiffTestCase {
 			r.append(text.charAt(i));
 			r.append('\n');
 		}
-		try {
-			return new RawText(r.toString().getBytes("UTF-8"));
-		} catch (UnsupportedEncodingException e) {
-			throw new RuntimeException(e);
-		}
+		return new RawText(r.toString().getBytes(CHARSET));
 	}
 }

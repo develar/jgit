@@ -53,6 +53,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import org.eclipse.jgit.annotations.Nullable;
 import org.eclipse.jgit.api.MergeResult.MergeStatus;
 import org.eclipse.jgit.api.errors.CheckoutConflictException;
 import org.eclipse.jgit.api.errors.ConcurrentRefUpdateException;
@@ -63,6 +64,7 @@ import org.eclipse.jgit.api.errors.NoHeadException;
 import org.eclipse.jgit.api.errors.NoMessageException;
 import org.eclipse.jgit.api.errors.WrongRepositoryStateException;
 import org.eclipse.jgit.dircache.DirCacheCheckout;
+import org.eclipse.jgit.events.WorkingTreeModifiedEvent;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.Config.ConfigEnum;
@@ -109,6 +111,8 @@ public class MergeCommand extends GitCommand<MergeResult> {
 	private FastForwardMode fastForwardMode;
 
 	private String message;
+
+	private boolean insertChangeId;
 
 	private ProgressMonitor monitor = NullProgressMonitor.INSTANCE;
 
@@ -209,19 +213,22 @@ public class MergeCommand extends GitCommand<MergeResult> {
 	private Boolean commit;
 
 	/**
+	 * Constructor for MergeCommand.
+	 *
 	 * @param repo
+	 *            the {@link org.eclipse.jgit.lib.Repository}
 	 */
 	protected MergeCommand(Repository repo) {
 		super(repo);
 	}
 
 	/**
-	 * Executes the {@code Merge} command with all the options and parameters
+	 * {@inheritDoc}
+	 * <p>
+	 * Execute the {@code Merge} command with all the options and parameters
 	 * collected by the setter methods (e.g. {@link #include(Ref)}) of this
 	 * class. Each instance of this class should only be used for one invocation
 	 * of the command. Don't call this method twice on an instance.
-	 *
-	 * @return the result of the merge
 	 */
 	@Override
 	@SuppressWarnings("boxing")
@@ -232,9 +239,8 @@ public class MergeCommand extends GitCommand<MergeResult> {
 		fallBackToConfiguration();
 		checkParameters();
 
-		RevWalk revWalk = null;
 		DirCacheCheckout dco = null;
-		try {
+		try (RevWalk revWalk = new RevWalk(repo)) {
 			Ref head = repo.exactRef(Constants.HEAD);
 			if (head == null)
 				throw new NoHeadException(
@@ -242,7 +248,6 @@ public class MergeCommand extends GitCommand<MergeResult> {
 			StringBuilder refLogMessage = new StringBuilder("merge "); //$NON-NLS-1$
 
 			// Check for FAST_FORWARD, ALREADY_UP_TO_DATE
-			revWalk = new RevWalk(repo);
 
 			// we know for now there is only one commit
 			Ref ref = commits.get(0);
@@ -250,7 +255,7 @@ public class MergeCommand extends GitCommand<MergeResult> {
 			refLogMessage.append(ref.getName());
 
 			// handle annotated tags
-			ref = repo.peel(ref);
+			ref = repo.getRefDatabase().peel(ref);
 			ObjectId objectId = ref.getPeeledObjectId();
 			if (objectId == null)
 				objectId = ref.getObjectId();
@@ -263,6 +268,7 @@ public class MergeCommand extends GitCommand<MergeResult> {
 				dco = new DirCacheCheckout(repo,
 						repo.lockDirCache(), srcCommit.getTree());
 				dco.setFailOnConflict(true);
+				dco.setProgressMonitor(monitor);
 				dco.checkout();
 				RefUpdate refUpdate = repo
 						.updateRef(head.getTarget().getName());
@@ -293,6 +299,7 @@ public class MergeCommand extends GitCommand<MergeResult> {
 				dco = new DirCacheCheckout(repo,
 						headCommit.getTree(), repo.lockDirCache(),
 						srcCommit.getTree());
+				dco.setProgressMonitor(monitor);
 				dco.setFailOnConflict(true);
 				dco.checkout();
 				String msg = null;
@@ -354,6 +361,10 @@ public class MergeCommand extends GitCommand<MergeResult> {
 							.getMergeResults();
 					failingPaths = resolveMerger.getFailingPaths();
 					unmergedPaths = resolveMerger.getUnmergedPaths();
+					if (!resolveMerger.getModifiedFiles().isEmpty()) {
+						repo.fireEvent(new WorkingTreeModifiedEvent(
+								resolveMerger.getModifiedFiles(), null));
+					}
 				} else
 					noProblems = merger.merge(headCommit, srcCommit);
 				refLogMessage.append(": Merge made by "); //$NON-NLS-1$
@@ -367,6 +378,7 @@ public class MergeCommand extends GitCommand<MergeResult> {
 							headCommit.getTree(), repo.lockDirCache(),
 							merger.getResultTreeId());
 					dco.setFailOnConflict(true);
+					dco.setProgressMonitor(monitor);
 					dco.checkout();
 
 					String msg = null;
@@ -382,6 +394,7 @@ public class MergeCommand extends GitCommand<MergeResult> {
 						try (Git git = new Git(getRepository())) {
 							newHeadId = git.commit()
 									.setReflogComment(refLogMessage.toString())
+									.setInsertChangeId(insertChangeId)
 									.call().getId();
 						}
 						mergeStatus = MergeStatus.MERGED;
@@ -427,9 +440,6 @@ public class MergeCommand extends GitCommand<MergeResult> {
 					MessageFormat.format(
 							JGitText.get().exceptionCaughtDuringExecutionOfMergeCommand,
 							e), e);
-		} finally {
-			if (revWalk != null)
-				revWalk.close();
 		}
 	}
 
@@ -486,9 +496,10 @@ public class MergeCommand extends GitCommand<MergeResult> {
 	}
 
 	/**
+	 * Set merge strategy
 	 *
 	 * @param mergeStrategy
-	 *            the {@link MergeStrategy} to be used
+	 *            the {@link org.eclipse.jgit.merge.MergeStrategy} to be used
 	 * @return {@code this}
 	 */
 	public MergeCommand setStrategy(MergeStrategy mergeStrategy) {
@@ -498,6 +509,8 @@ public class MergeCommand extends GitCommand<MergeResult> {
 	}
 
 	/**
+	 * Reference to a commit to be merged with the current head
+	 *
 	 * @param aCommit
 	 *            a reference to a commit which is merged with the current head
 	 * @return {@code this}
@@ -509,6 +522,8 @@ public class MergeCommand extends GitCommand<MergeResult> {
 	}
 
 	/**
+	 * Id of a commit which is to be merged with the current head
+	 *
 	 * @param aCommit
 	 *            the Id of a commit which is merged with the current head
 	 * @return {@code this}
@@ -518,8 +533,10 @@ public class MergeCommand extends GitCommand<MergeResult> {
 	}
 
 	/**
+	 * Include a commit
+	 *
 	 * @param name
-	 *            a name given to the commit
+	 *            a name of a {@code Ref} pointing to the commit
 	 * @param aCommit
 	 *            the Id of a commit which is merged with the current head
 	 * @return {@code this}
@@ -535,9 +552,10 @@ public class MergeCommand extends GitCommand<MergeResult> {
 	 * HEAD. Otherwise, perform the merge and commit the result.
 	 * <p>
 	 * In case the merge was successful but this flag was set to
-	 * <code>true</code> a {@link MergeResult} with status
-	 * {@link MergeStatus#MERGED_SQUASHED} or
-	 * {@link MergeStatus#FAST_FORWARD_SQUASHED} is returned.
+	 * <code>true</code> a {@link org.eclipse.jgit.api.MergeResult} with status
+	 * {@link org.eclipse.jgit.api.MergeResult.MergeStatus#MERGED_SQUASHED} or
+	 * {@link org.eclipse.jgit.api.MergeResult.MergeStatus#FAST_FORWARD_SQUASHED}
+	 * is returned.
 	 *
 	 * @param squash
 	 *            whether to squash commits or not
@@ -554,12 +572,15 @@ public class MergeCommand extends GitCommand<MergeResult> {
 	 * Sets the fast forward mode.
 	 *
 	 * @param fastForwardMode
-	 *            corresponds to the --ff/--no-ff/--ff-only options. --ff is the
-	 *            default option.
+	 *            corresponds to the --ff/--no-ff/--ff-only options. If
+	 *            {@code null} use the value of the {@code merge.ff} option
+	 *            configured in git config. If this option is not configured
+	 *            --ff is the built-in default.
 	 * @return {@code this}
 	 * @since 2.2
 	 */
-	public MergeCommand setFastForward(FastForwardMode fastForwardMode) {
+	public MergeCommand setFastForward(
+			@Nullable FastForwardMode fastForwardMode) {
 		checkCallable();
 		this.fastForwardMode = fastForwardMode;
 		return this;
@@ -573,9 +594,11 @@ public class MergeCommand extends GitCommand<MergeResult> {
 	 *            <code>true</code> if this command should commit (this is the
 	 *            default behavior). <code>false</code> if this command should
 	 *            not commit. In case the merge was successful but this flag was
-	 *            set to <code>false</code> a {@link MergeResult} with type
-	 *            {@link MergeResult} with status
-	 *            {@link MergeStatus#MERGED_NOT_COMMITTED} is returned
+	 *            set to <code>false</code> a
+	 *            {@link org.eclipse.jgit.api.MergeResult} with type
+	 *            {@link org.eclipse.jgit.api.MergeResult} with status
+	 *            {@link org.eclipse.jgit.api.MergeResult.MergeStatus#MERGED_NOT_COMMITTED}
+	 *            is returned
 	 * @return {@code this}
 	 * @since 3.0
 	 */
@@ -599,11 +622,27 @@ public class MergeCommand extends GitCommand<MergeResult> {
 	}
 
 	/**
+	 * If set to true a change id will be inserted into the commit message
+	 *
+	 * An existing change id is not replaced. An initial change id (I000...)
+	 * will be replaced by the change id.
+	 *
+	 * @param insertChangeId
+	 *            whether to insert a change id
+	 * @return {@code this}
+	 * @since 5.0
+	 */
+	public MergeCommand setInsertChangeId(boolean insertChangeId) {
+		checkCallable();
+		this.insertChangeId = insertChangeId;
+		return this;
+	}
+
+	/**
 	 * The progress monitor associated with the diff operation. By default, this
 	 * is set to <code>NullProgressMonitor</code>
 	 *
 	 * @see NullProgressMonitor
-	 *
 	 * @param monitor
 	 *            A progress monitor
 	 * @return this instance

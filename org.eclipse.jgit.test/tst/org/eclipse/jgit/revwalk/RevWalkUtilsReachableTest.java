@@ -109,13 +109,13 @@ public class RevWalkUtilsReachableTest extends RevWalkTestCase {
 		}
 	}
 
-	private Ref branch(final String name, final RevCommit dst) throws Exception {
+	private Ref branch(String name, RevCommit dst) throws Exception {
 		return Git.wrap(db).branchCreate().setName(name)
 				.setStartPoint(dst.name()).call();
 	}
 
 	private void assertContains(RevCommit commit, Collection<Ref> refsThatShouldContainCommit) throws Exception {
-		Collection<Ref> allRefs = db.getAllRefs().values();
+		Collection<Ref> allRefs = db.getRefDatabase().getRefs();
 		Collection<Ref> sortedRefs = RefComparator.sort(allRefs);
 		List<Ref> actual = RevWalkUtils.findBranchesReachableFrom(commit,
 				rw, sortedRefs);

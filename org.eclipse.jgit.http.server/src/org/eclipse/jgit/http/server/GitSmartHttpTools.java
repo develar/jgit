@@ -154,9 +154,9 @@ public class GitSmartHttpTools {
 	 * an HTTP response code is returned instead.
 	 * <p>
 	 * This method may only be called before handing off the request to
-	 * {@link UploadPack#upload(java.io.InputStream, OutputStream, OutputStream)}
+	 * {@link org.eclipse.jgit.transport.UploadPack#upload(java.io.InputStream, OutputStream, OutputStream)}
 	 * or
-	 * {@link ReceivePack#receive(java.io.InputStream, OutputStream, OutputStream)}.
+	 * {@link org.eclipse.jgit.transport.ReceivePack#receive(java.io.InputStream, OutputStream, OutputStream)}.
 	 *
 	 * @param req
 	 *            current request.
@@ -201,7 +201,7 @@ public class GitSmartHttpTools {
 		} else {
 			if (httpStatus < 400)
 				ServletUtils.consumeRequestBody(req);
-			res.sendError(httpStatus);
+			res.sendError(httpStatus, textForGit);
 		}
 	}
 
@@ -314,11 +314,8 @@ public class GitSmartHttpTools {
 		res.setStatus(HttpServletResponse.SC_OK);
 		res.setContentType(type);
 		res.setContentLength(buf.length);
-		OutputStream os = res.getOutputStream();
-		try {
+		try (OutputStream os = res.getOutputStream()) {
 			os.write(buf);
-		} finally {
-			os.close();
 		}
 	}
 

@@ -76,6 +76,7 @@ import org.eclipse.jgit.submodule.SubmoduleStatusType;
 import org.eclipse.jgit.submodule.SubmoduleWalk;
 import org.eclipse.jgit.transport.RefSpec;
 import org.eclipse.jgit.transport.RemoteConfig;
+import org.eclipse.jgit.transport.URIish;
 import org.eclipse.jgit.util.SystemReader;
 import org.junit.Test;
 
@@ -145,13 +146,33 @@ public class CloneCommandTest extends RepositoryTestCase {
 		File directory = createTempDirectory("testCloneRepository");
 		CloneCommand command = Git.cloneRepository();
 		command.setDirectory(directory);
-		command.setGitDir(new File(directory, ".git"));
+		command.setGitDir(new File(directory, Constants.DOT_GIT));
 		command.setURI(fileUri());
 		Git git2 = command.call();
 		addRepoToClose(git2.getRepository());
 		assertEquals(directory, git2.getRepository().getWorkTree());
-		assertEquals(new File(directory, ".git"), git2.getRepository()
+		assertEquals(new File(directory, Constants.DOT_GIT), git2.getRepository()
 				.getDirectory());
+	}
+
+	@Test
+	public void testCloneRepositoryDefaultDirectory()
+			throws URISyntaxException, JGitInternalException {
+		CloneCommand command = Git.cloneRepository().setURI(fileUri());
+
+		command.verifyDirectories(new URIish(fileUri()));
+		File directory = command.getDirectory();
+		assertEquals(git.getRepository().getWorkTree().getName(), directory.getName());
+	}
+
+	@Test
+	public void testCloneBareRepositoryDefaultDirectory()
+			throws URISyntaxException, JGitInternalException {
+		CloneCommand command = Git.cloneRepository().setURI(fileUri()).setBare(true);
+
+		command.verifyDirectories(new URIish(fileUri()));
+		File directory = command.getDirectory();
+		assertEquals(git.getRepository().getWorkTree().getName() + Constants.DOT_GIT_EXT, directory.getName());
 	}
 
 	@Test
@@ -168,8 +189,8 @@ public class CloneCommandTest extends RepositoryTestCase {
 		assertEquals(directory, git2.getRepository().getWorkTree());
 		assertEquals(gDir, git2.getRepository()
 				.getDirectory());
-		assertTrue(new File(directory, ".git").isFile());
-		assertFalse(new File(gDir, ".git").exists());
+		assertTrue(new File(directory, Constants.DOT_GIT).isFile());
+		assertFalse(new File(gDir, Constants.DOT_GIT).exists());
 	}
 
 	@Test
@@ -580,17 +601,17 @@ public class CloneCommandTest extends RepositoryTestCase {
 
 		SubmoduleWalk walk = SubmoduleWalk.forIndex(git2.getRepository());
 		assertTrue(walk.next());
-		Repository clonedSub1 = walk.getRepository();
-		assertNotNull(clonedSub1);
-		assertEquals(
-				new File(git2.getRepository().getWorkTree(), walk.getPath()),
-				clonedSub1.getWorkTree());
-		assertEquals(new File(new File(git2.getRepository().getDirectory(),
-				"modules"), walk.getPath()),
-				clonedSub1.getDirectory());
-		status = new SubmoduleStatusCommand(clonedSub1);
-		statuses = status.call();
-		clonedSub1.close();
+		try (Repository clonedSub1 = walk.getRepository()) {
+			assertNotNull(clonedSub1);
+			assertEquals(new File(git2.getRepository().getWorkTree(),
+					walk.getPath()), clonedSub1.getWorkTree());
+			assertEquals(
+					new File(new File(git2.getRepository().getDirectory(),
+							"modules"), walk.getPath()),
+					clonedSub1.getDirectory());
+			status = new SubmoduleStatusCommand(clonedSub1);
+			statuses = status.call();
+		}
 		pathStatus = statuses.get(path);
 		assertNotNull(pathStatus);
 		assertEquals(SubmoduleStatusType.INITIALIZED, pathStatus.getType());

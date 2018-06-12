@@ -66,11 +66,11 @@ final class AWTPlotRenderer extends AbstractPlotRenderer<SwingLane, Color>
 
 	transient Graphics2D g;
 
-	AWTPlotRenderer(final GraphCellRender c) {
+	AWTPlotRenderer(GraphCellRender c) {
 		cell = c;
 	}
 
-	void paint(final Graphics in, final PlotCommit<SwingLane> commit) {
+	void paint(Graphics in, PlotCommit<SwingLane> commit) {
 		g = (Graphics2D) in.create();
 		try {
 			final int h = cell.getHeight();
@@ -84,6 +84,7 @@ final class AWTPlotRenderer extends AbstractPlotRenderer<SwingLane, Color>
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	protected void drawLine(final Color color, int x1, int y1, int x2,
 			int y2, int width) {
@@ -100,6 +101,7 @@ final class AWTPlotRenderer extends AbstractPlotRenderer<SwingLane, Color>
 		g.drawLine(x1, y1, x2, y2);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	protected void drawCommitDot(final int x, final int y, final int w,
 			final int h) {
@@ -110,6 +112,7 @@ final class AWTPlotRenderer extends AbstractPlotRenderer<SwingLane, Color>
 		g.drawOval(x, y, w, h);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	protected void drawBoundaryDot(final int x, final int y, final int w,
 			final int h) {
@@ -120,20 +123,22 @@ final class AWTPlotRenderer extends AbstractPlotRenderer<SwingLane, Color>
 		g.drawOval(x, y, w, h);
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	protected void drawText(final String msg, final int x, final int y) {
+	protected void drawText(String msg, int x, int y) {
 		final int texth = g.getFontMetrics().getHeight();
 		final int y0 = (y - texth) / 2 + (cell.getHeight() - texth) / 2;
 		g.setColor(cell.getForeground());
 		g.drawString(msg, x, y0 + texth - g.getFontMetrics().getDescent());
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	protected Color laneColor(final SwingLane myLane) {
+	protected Color laneColor(SwingLane myLane) {
 		return myLane != null ? myLane.color : Color.black;
 	}
 
-	void paintTriangleDown(final int cx, final int y, final int h) {
+	void paintTriangleDown(int cx, int y, int h) {
 		final int tipX = cx;
 		final int tipY = y + h;
 		final int baseX1 = cx - 10 / 2;
@@ -147,6 +152,7 @@ final class AWTPlotRenderer extends AbstractPlotRenderer<SwingLane, Color>
 		g.drawPolygon(triangle);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	protected int drawLabel(int x, int y, Ref ref) {
 		String txt;

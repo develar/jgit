@@ -71,12 +71,27 @@ import org.eclipse.jgit.errors.CommandFailedException;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.treewalk.FileTreeIterator.FileEntry;
+import org.eclipse.jgit.treewalk.FileTreeIterator.FileModeStrategy;
+import org.eclipse.jgit.treewalk.WorkingTreeIterator.Entry;
 import org.eclipse.jgit.util.ProcessResult.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Abstraction to support various file system operations not in Java. */
+/**
+ * Abstraction to support various file system operations not in Java.
+ */
 public abstract class FS {
+	private static final Logger LOG = LoggerFactory.getLogger(FS.class);
+
+	/**
+	 * An empty array of entries, suitable as a return value for
+	 * {@link #list(File, FileModeStrategy)}.
+	 *
+	 * @since 5.0
+	 */
+	protected static final Entry[] NO_ENTRIES = {};
+
 	/**
 	 * This class creates FS instances. It will be overridden by a Java7 variant
 	 * if such can be detected in {@link #detect(Boolean)}.
@@ -158,8 +173,6 @@ public abstract class FS {
 		}
 	}
 
-	private final static Logger LOG = LoggerFactory.getLogger(FS.class);
-
 	/** The auto-detected implementation selected for this operating system and JRE. */
 	public static final FS DETECTED = detect();
 
@@ -192,7 +205,6 @@ public abstract class FS {
 	 *            </ul>
 	 *
 	 *            Note: this parameter is only relevant on Windows.
-	 *
 	 * @return detected file system abstraction
 	 */
 	public static FS detect(Boolean cygwinUsed) {
@@ -224,7 +236,11 @@ public abstract class FS {
 		gitSystemConfig = src.gitSystemConfig;
 	}
 
-	/** @return a new instance of the same type of FS. */
+	/**
+	 * Create a new instance of the same type of FS.
+	 *
+	 * @return a new instance of the same type of FS.
+	 */
 	public abstract FS newInstance();
 
 	/**
@@ -234,6 +250,21 @@ public abstract class FS {
 	 *         executable bit information; false otherwise.
 	 */
 	public abstract boolean supportsExecute();
+
+	/**
+	 * Does this file system support atomic file creation via
+	 * java.io.File#createNewFile()? In certain environments (e.g. on NFS) it is
+	 * not guaranteed that when two file system clients run createNewFile() in
+	 * parallel only one will succeed. In such cases both clients may think they
+	 * created a new file.
+	 *
+	 * @return true if this implementation support atomic creation of new Files
+	 *         by {@link java.io.File#createNewFile()}
+	 * @since 4.5
+	 */
+	public boolean supportsAtomicCreateNewFile() {
+		return true;
+	}
 
 	/**
 	 * Does this operating system and JRE supports symbolic links. The
@@ -290,8 +321,9 @@ public abstract class FS {
 	 * than that of the link target.
 	 *
 	 * @param f
+	 *            a {@link java.io.File} object.
 	 * @return last modified time of f
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 * @since 3.0
 	 */
 	public long lastModified(File f) throws IOException {
@@ -303,8 +335,10 @@ public abstract class FS {
 	 * symbolic links, the link is modified, not the target,
 	 *
 	 * @param f
+	 *            a {@link java.io.File} object.
 	 * @param time
-	 * @throws IOException
+	 *            last modified time
+	 * @throws java.io.IOException
 	 * @since 3.0
 	 */
 	public void setLastModified(File f, long time) throws IOException {
@@ -316,8 +350,9 @@ public abstract class FS {
 	 * it's the length of the link, else the length of the target.
 	 *
 	 * @param path
+	 *            a {@link java.io.File} object.
 	 * @return length of a file
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 * @since 3.0
 	 */
 	public long length(File path) throws IOException {
@@ -328,7 +363,8 @@ public abstract class FS {
 	 * Delete a file. Throws an exception if delete fails.
 	 *
 	 * @param f
-	 * @throws IOException
+	 *            a {@link java.io.File} object.
+	 * @throws java.io.IOException
 	 *             this may be a Java7 subclass with detailed information
 	 * @since 3.3
 	 */
@@ -354,7 +390,7 @@ public abstract class FS {
 	 * @return the translated path. <code>new File(dir,name)</code> if this
 	 *         platform does not require path name translation.
 	 */
-	public File resolve(final File dir, final String name) {
+	public File resolve(File dir, String name) {
 		final File abspn = new File(name);
 		if (abspn.isAbsolute())
 			return abspn;
@@ -429,12 +465,12 @@ public abstract class FS {
 	 *            Files to search for in the given path
 	 * @return the first match found, or null
 	 * @since 3.0
-	 **/
-	protected static File searchPath(final String path, final String... lookFor) {
+	 */
+	protected static File searchPath(String path, String... lookFor) {
 		if (path == null)
 			return null;
 
-		for (final String p : path.split(File.pathSeparator)) {
+		for (String p : path.split(File.pathSeparator)) {
 			for (String command : lookFor) {
 				final File e = new File(p, command);
 				if (e.isFile())
@@ -455,7 +491,7 @@ public abstract class FS {
 	 *            to be used to parse the command's output
 	 * @return the one-line output of the command or {@code null} if there is
 	 *         none
-	 * @throws CommandFailedException
+	 * @throws org.eclipse.jgit.errors.CommandFailedException
 	 *             thrown when the command failed (return code was non-zero)
 	 */
 	@Nullable
@@ -478,7 +514,7 @@ public abstract class FS {
 	 *            current process
 	 * @return the one-line output of the command or {@code null} if there is
 	 *         none
-	 * @throws CommandFailedException
+	 * @throws org.eclipse.jgit.errors.CommandFailedException
 	 *             thrown when the command failed (return code was non-zero)
 	 * @since 4.0
 	 */
@@ -549,6 +585,10 @@ public abstract class FS {
 	}
 
 	private static class GobblerThread extends Thread {
+
+		/* The process has 5 seconds to exit after closing stderr */
+		private static final int PROCESS_EXIT_TIMEOUT = 5;
+
 		private final Process p;
 		private final String desc;
 		private final String dir;
@@ -571,15 +611,16 @@ public abstract class FS {
 					err.append((char) ch);
 				}
 			} catch (IOException e) {
-				if (p.exitValue() != 0) {
-					setError(e, e.getMessage());
+				if (waitForProcessCompletion(e) && p.exitValue() != 0) {
+					setError(e, e.getMessage(), p.exitValue());
 					fail.set(true);
 				} else {
 					// ignore. command terminated faster and stream was just closed
+					// or the process didn't terminate within timeout
 				}
 			} finally {
-				if (err.length() > 0) {
-					setError(null, err.toString());
+				if (waitForProcessCompletion(null) && err.length() > 0) {
+					setError(null, err.toString(), p.exitValue());
 					if (p.exitValue() != 0) {
 						fail.set(true);
 					}
@@ -587,15 +628,33 @@ public abstract class FS {
 			}
 		}
 
-		private void setError(IOException e, String message) {
+		@SuppressWarnings("boxing")
+		private boolean waitForProcessCompletion(IOException originalError) {
+			try {
+				if (!p.waitFor(PROCESS_EXIT_TIMEOUT, TimeUnit.SECONDS)) {
+					setError(originalError, MessageFormat.format(
+							JGitText.get().commandClosedStderrButDidntExit,
+							desc, PROCESS_EXIT_TIMEOUT), -1);
+					fail.set(true);
+				}
+			} catch (InterruptedException e) {
+				LOG.error(MessageFormat.format(
+						JGitText.get().threadInterruptedWhileRunning, desc), e);
+			}
+			return false;
+		}
+
+		private void setError(IOException e, String message, int exitCode) {
 			exception.set(e);
 			errorMessage.set(MessageFormat.format(
-					JGitText.get().exceptionCaughtDuringExcecutionOfCommand,
-					desc, dir, Integer.valueOf(p.exitValue()), message));
+					JGitText.get().exceptionCaughtDuringExecutionOfCommand,
+					desc, dir, Integer.valueOf(exitCode), message));
 		}
 	}
 
 	/**
+	 * Discover the path to the Git executable.
+	 *
 	 * @return the path to the Git executable or {@code null} if it cannot be
 	 *         determined.
 	 * @since 4.0
@@ -603,6 +662,8 @@ public abstract class FS {
 	protected abstract File discoverGitExe();
 
 	/**
+	 * Discover the path to the system-wide Git configuration file
+	 *
 	 * @return the path to the system-wide Git configuration file or
 	 *         {@code null} if it cannot be determined.
 	 * @since 4.0
@@ -650,8 +711,10 @@ public abstract class FS {
 	}
 
 	/**
-	 * @return the currently used path to the system-wide Git configuration
-	 *         file or {@code null} if none has been set.
+	 * Get the currently used path to the system-wide Git configuration file.
+	 *
+	 * @return the currently used path to the system-wide Git configuration file
+	 *         or {@code null} if none has been set.
 	 * @since 4.0
 	 */
 	public File getGitSystemConfig() {
@@ -675,7 +738,10 @@ public abstract class FS {
 	}
 
 	/**
+	 * Get the parent directory of this file's parent directory
+	 *
 	 * @param grandchild
+	 *            a {@link java.io.File} object.
 	 * @return the parent directory of this file's parent directory or
 	 *         {@code null} in case there's no grandparent directory
 	 * @since 4.0
@@ -693,8 +759,9 @@ public abstract class FS {
 	 * Check if a file is a symbolic link and read it
 	 *
 	 * @param path
+	 *            a {@link java.io.File} object.
 	 * @return target of link or null
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 * @since 3.0
 	 */
 	public String readSymLink(File path) throws IOException {
@@ -702,9 +769,12 @@ public abstract class FS {
 	}
 
 	/**
+	 * Whether the path is a symbolic link (and we support these).
+	 *
 	 * @param path
+	 *            a {@link java.io.File} object.
 	 * @return true if the path is a symbolic link (and we support these)
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 * @since 3.0
 	 */
 	public boolean isSymLink(File path) throws IOException {
@@ -716,6 +786,7 @@ public abstract class FS {
 	 * target does not exist
 	 *
 	 * @param path
+	 *            a {@link java.io.File} object.
 	 * @return true if path exists
 	 * @since 3.0
 	 */
@@ -728,6 +799,7 @@ public abstract class FS {
 	 * path is a symbolic link to a directory, this method returns false.
 	 *
 	 * @param path
+	 *            a {@link java.io.File} object.
 	 * @return true if file is a directory,
 	 * @since 3.0
 	 */
@@ -740,6 +812,7 @@ public abstract class FS {
 	 * symbolic links the test returns false if path represents a symbolic link.
 	 *
 	 * @param path
+	 *            a {@link java.io.File} object.
 	 * @return true if path represents a regular file
 	 * @since 3.0
 	 */
@@ -748,10 +821,14 @@ public abstract class FS {
 	}
 
 	/**
+	 * Whether path is hidden, either starts with . on unix or has the hidden
+	 * attribute in windows
+	 *
 	 * @param path
+	 *            a {@link java.io.File} object.
 	 * @return true if path is hidden, either starts with . on unix or has the
 	 *         hidden attribute in windows
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 * @since 3.0
 	 */
 	public boolean isHidden(File path) throws IOException {
@@ -762,8 +839,10 @@ public abstract class FS {
 	 * Set the hidden attribute for file whose name starts with a period.
 	 *
 	 * @param path
+	 *            a {@link java.io.File} object.
 	 * @param hidden
-	 * @throws IOException
+	 *            whether to set the file hidden
+	 * @throws java.io.IOException
 	 * @since 3.0
 	 */
 	public void setHidden(File path, boolean hidden) throws IOException {
@@ -774,8 +853,10 @@ public abstract class FS {
 	 * Create a symbolic link
 	 *
 	 * @param path
+	 *            a {@link java.io.File} object.
 	 * @param target
-	 * @throws IOException
+	 *            target path of the symlink
+	 * @throws java.io.IOException
 	 * @since 3.0
 	 */
 	public void createSymLink(File path, String target) throws IOException {
@@ -783,7 +864,24 @@ public abstract class FS {
 	}
 
 	/**
-	 * See {@link FileUtils#relativizePath(String, String, String, boolean)}.
+	 * Create a new file. See {@link java.io.File#createNewFile()}. Subclasses
+	 * of this class may take care to provide a safe implementation for this
+	 * even if {@link #supportsAtomicCreateNewFile()} is <code>false</code>
+	 *
+	 * @param path
+	 *            the file to be created
+	 * @return <code>true</code> if the file was created, <code>false</code> if
+	 *         the file already existed
+	 * @throws java.io.IOException
+	 * @since 4.5
+	 */
+	public boolean createNewFile(File path) throws IOException {
+		return path.createNewFile();
+	}
+
+	/**
+	 * See
+	 * {@link org.eclipse.jgit.util.FileUtils#relativizePath(String, String, String, boolean)}.
 	 *
 	 * @param base
 	 *            The path against which <code>other</code> should be
@@ -797,6 +895,29 @@ public abstract class FS {
 	 */
 	public String relativize(String base, String other) {
 		return FileUtils.relativizePath(base, other, File.separator, this.isCaseSensitive());
+	}
+
+	/**
+	 * Enumerates children of a directory.
+	 *
+	 * @param directory
+	 *            to get the children of
+	 * @param fileModeStrategy
+	 *            to use to calculate the git mode of a child
+	 * @return an array of entries for the children
+	 *
+	 * @since 5.0
+	 */
+	public Entry[] list(File directory, FileModeStrategy fileModeStrategy) {
+		final File[] all = directory.listFiles();
+		if (all == null) {
+			return NO_ENTRIES;
+		}
+		final Entry[] result = new Entry[all.length];
+		for (int i = 0; i < result.length; i++) {
+			result[i] = new FileEntry(all[i], this, fileModeStrategy);
+		}
+		return result;
 	}
 
 	/**
@@ -816,7 +937,7 @@ public abstract class FS {
 	 *            Arguments to pass to this hook. Cannot be <code>null</code>,
 	 *            but can be an empty array.
 	 * @return The ProcessResult describing this hook's execution.
-	 * @throws JGitInternalException
+	 * @throws org.eclipse.jgit.api.errors.JGitInternalException
 	 *             if we fail to run the hook somehow. Causes may include an
 	 *             interrupted process or I/O errors.
 	 * @since 4.0
@@ -851,7 +972,7 @@ public abstract class FS {
 	 *            A string to pass on to the standard input of the hook. May be
 	 *            <code>null</code>.
 	 * @return The ProcessResult describing this hook's execution.
-	 * @throws JGitInternalException
+	 * @throws org.eclipse.jgit.api.errors.JGitInternalException
 	 *             if we fail to run the hook somehow. Causes may include an
 	 *             interrupted process or I/O errors.
 	 * @since 4.0
@@ -887,7 +1008,7 @@ public abstract class FS {
 	 *            A string to pass on to the standard input of the hook. May be
 	 *            <code>null</code>.
 	 * @return The ProcessResult describing this hook's execution.
-	 * @throws JGitInternalException
+	 * @throws org.eclipse.jgit.api.errors.JGitInternalException
 	 *             if we fail to run the hook somehow. Causes may include an
 	 *             interrupted process or I/O errors.
 	 * @since 4.0
@@ -932,11 +1053,11 @@ public abstract class FS {
 	 *            The repository within which to find a hook.
 	 * @param hookName
 	 *            The name of the hook we're trying to find.
-	 * @return The {@link File} containing this particular hook if it exists in
-	 *         the given repository, <code>null</code> otherwise.
+	 * @return The {@link java.io.File} containing this particular hook if it
+	 *         exists in the given repository, <code>null</code> otherwise.
 	 * @since 4.0
 	 */
-	public File findHook(Repository repository, final String hookName) {
+	public File findHook(Repository repository, String hookName) {
 		File gitDir = repository.getDirectory();
 		if (gitDir == null)
 			return null;
@@ -963,9 +1084,9 @@ public abstract class FS {
 	 *            A string to pass on to the standard input of the hook. Can be
 	 *            <code>null</code>.
 	 * @return the exit value of this process.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             if an I/O error occurs while executing this process.
-	 * @throws InterruptedException
+	 * @throws java.lang.InterruptedException
 	 *             if the current thread is interrupted while waiting for the
 	 *             process to end.
 	 * @since 4.2
@@ -999,9 +1120,9 @@ public abstract class FS {
 	 *            will be consumed by the process. The method will close the
 	 *            inputstream after all bytes are read.
 	 * @return the return code of this process.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             if an I/O error occurs while executing this process.
-	 * @throws InterruptedException
+	 * @throws java.lang.InterruptedException
 	 *             if the current thread is interrupted while waiting for the
 	 *             process to end.
 	 * @since 4.2
@@ -1021,19 +1142,23 @@ public abstract class FS {
 					new StreamGobbler(process.getErrorStream(), errRedirect));
 			executor.execute(
 					new StreamGobbler(process.getInputStream(), outRedirect));
+			@SuppressWarnings("resource") // Closed in the finally block
 			OutputStream outputStream = process.getOutputStream();
-			if (inRedirect != null) {
-				new StreamGobbler(inRedirect, outputStream).copy();
-			}
 			try {
-				outputStream.close();
-			} catch (IOException e) {
-				// When the process exits before consuming the input, the OutputStream
-				// is replaced with the null output stream. This null output stream
-				// throws IOException for all write calls. When StreamGobbler fails to
-				// flush the buffer because of this, this close call tries to flush it
-				// again. This causes another IOException. Since we ignore the
-				// IOException in StreamGobbler, we also ignore the exception here.
+				if (inRedirect != null) {
+					new StreamGobbler(inRedirect, outputStream).copy();
+				}
+			} finally {
+				try {
+					outputStream.close();
+				} catch (IOException e) {
+					// When the process exits before consuming the input, the OutputStream
+					// is replaced with the null output stream. This null output stream
+					// throws IOException for all write calls. When StreamGobbler fails to
+					// flush the buffer because of this, this close call tries to flush it
+					// again. This causes another IOException. Since we ignore the
+					// IOException in StreamGobbler, we also ignore the exception here.
+				}
 			}
 			return process.waitFor();
 		} catch (IOException e) {
@@ -1127,27 +1252,24 @@ public abstract class FS {
 	public abstract ProcessBuilder runInShell(String cmd, String[] args);
 
 	/**
-	 * Execute a command defined by a {@link ProcessBuilder}.
+	 * Execute a command defined by a {@link java.lang.ProcessBuilder}.
 	 *
 	 * @param pb
 	 *            The command to be executed
 	 * @param in
 	 *            The standard input stream passed to the process
 	 * @return The result of the executed command
-	 * @throws InterruptedException
-	 * @throws IOException
+	 * @throws java.lang.InterruptedException
+	 * @throws java.io.IOException
 	 * @since 4.2
 	 */
 	public ExecutionResult execute(ProcessBuilder pb, InputStream in)
 			throws IOException, InterruptedException {
-		TemporaryBuffer stdout = new TemporaryBuffer.LocalFile(null);
-		TemporaryBuffer stderr = new TemporaryBuffer.Heap(1024, 1024 * 1024);
-		try {
+		try (TemporaryBuffer stdout = new TemporaryBuffer.LocalFile(null);
+				TemporaryBuffer stderr = new TemporaryBuffer.Heap(1024,
+						1024 * 1024)) {
 			int rc = runProcess(pb, stdout, stderr, in);
 			return new ExecutionResult(stdout, stderr, rc);
-		} finally {
-			stdout.close();
-			stderr.close();
 		}
 	}
 
@@ -1288,8 +1410,11 @@ public abstract class FS {
 	}
 
 	/**
+	 * Get the file attributes we care for.
+	 *
 	 * @param path
-	 * @return the file attributes we care for
+	 *            a {@link java.io.File} object.
+	 * @return the file attributes we care for.
 	 * @since 3.3
 	 */
 	public Attributes getAttributes(File path) {
@@ -1309,6 +1434,7 @@ public abstract class FS {
 	 * Normalize the unicode path to composed form.
 	 *
 	 * @param file
+	 *            a {@link java.io.File} object.
 	 * @return NFC-format File
 	 * @since 3.3
 	 */
@@ -1320,6 +1446,7 @@ public abstract class FS {
 	 * Normalize the unicode path to composed form.
 	 *
 	 * @param name
+	 *            path name
 	 * @return NFC-format string
 	 * @since 3.3
 	 */

@@ -68,7 +68,9 @@ import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 
-/** Common utility functions for servlets. */
+/**
+ * Common utility functions for servlets.
+ */
 public final class ServletUtils {
 	/** Request attribute which stores the {@link Repository} instance. */
 	public static final String ATTRIBUTE_REPOSITORY = "org.eclipse.jgit.Repository";
@@ -88,7 +90,7 @@ public final class ServletUtils {
 	 *             the filter runs before the servlet.
 	 * @see #ATTRIBUTE_REPOSITORY
 	 */
-	public static Repository getRepository(final ServletRequest req) {
+	public static Repository getRepository(ServletRequest req) {
 		Repository db = (Repository) req.getAttribute(ATTRIBUTE_REPOSITORY);
 		if (db == null)
 			throw new IllegalStateException(HttpServerText.get().expectedRepositoryAttribute);
@@ -108,11 +110,11 @@ public final class ServletUtils {
 	 * @throws IOException
 	 *             if an input or output exception occurred.
 	 */
-	public static InputStream getInputStream(final HttpServletRequest req)
+	public static InputStream getInputStream(HttpServletRequest req)
 			throws IOException {
 		InputStream in = req.getInputStream();
 		final String enc = req.getHeader(HDR_CONTENT_ENCODING);
-		if (ENCODING_GZIP.equals(enc) || ENCODING_X_GZIP.equals(enc)) //$NON-NLS-1$
+		if (ENCODING_GZIP.equals(enc) || ENCODING_X_GZIP.equals(enc))
 			in = new GZIPInputStream(in);
 		else if (enc != null)
 			throw new IOException(MessageFormat.format(HttpServerText.get().encodingNotSupportedByThisLibrary
@@ -218,12 +220,9 @@ public final class ServletUtils {
 	public static void send(byte[] content, final HttpServletRequest req,
 			final HttpServletResponse rsp) throws IOException {
 		content = sendInit(content, req, rsp);
-		final OutputStream out = rsp.getOutputStream();
-		try {
+		try (OutputStream out = rsp.getOutputStream()) {
 			out.write(content);
 			out.flush();
-		} finally {
-			out.close();
 		}
 	}
 
@@ -239,7 +238,7 @@ public final class ServletUtils {
 		return content;
 	}
 
-	static boolean acceptsGzipEncoding(final HttpServletRequest req) {
+	static boolean acceptsGzipEncoding(HttpServletRequest req) {
 		return acceptsGzipEncoding(req.getHeader(HDR_ACCEPT_ENCODING));
 	}
 
@@ -259,7 +258,7 @@ public final class ServletUtils {
 		return false;
 	}
 
-	private static byte[] compress(final byte[] raw) throws IOException {
+	private static byte[] compress(byte[] raw) throws IOException {
 		final int maxLen = raw.length + 32;
 		final ByteArrayOutputStream out = new ByteArrayOutputStream(maxLen);
 		final GZIPOutputStream gz = new GZIPOutputStream(out);
@@ -269,7 +268,7 @@ public final class ServletUtils {
 		return out.toByteArray();
 	}
 
-	private static String etag(final byte[] content) {
+	private static String etag(byte[] content) {
 		final MessageDigest md = Constants.newMessageDigest();
 		md.update(content);
 		return ObjectId.fromRaw(md.digest()).getName();

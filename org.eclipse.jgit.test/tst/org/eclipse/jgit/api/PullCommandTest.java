@@ -42,6 +42,7 @@
  */
 package org.eclipse.jgit.api;
 
+import static org.eclipse.jgit.lib.Constants.CHARSET;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -590,34 +591,23 @@ public class PullCommandTest extends RepositoryTestCase {
 
 	private static void writeToFile(File actFile, String string)
 			throws IOException {
-		FileOutputStream fos = null;
-		try {
-			fos = new FileOutputStream(actFile);
-			fos.write(string.getBytes("UTF-8"));
-			fos.close();
-		} finally {
-			if (fos != null)
-				fos.close();
+		try (FileOutputStream fos = new FileOutputStream(actFile)) {
+			fos.write(string.getBytes(CHARSET));
 		}
 	}
 
 	private static void assertFileContentsEqual(File actFile, String string)
 			throws IOException {
 		ByteArrayOutputStream bos = new ByteArrayOutputStream();
-		FileInputStream fis = null;
 		byte[] buffer = new byte[100];
-		try {
-			fis = new FileInputStream(actFile);
+		try (FileInputStream fis = new FileInputStream(actFile)) {
 			int read = fis.read(buffer);
 			while (read > 0) {
 				bos.write(buffer, 0, read);
 				read = fis.read(buffer);
 			}
-			String content = new String(bos.toByteArray(), "UTF-8");
+			String content = new String(bos.toByteArray(), CHARSET);
 			assertEquals(string, content);
-		} finally {
-			if (fis != null)
-				fis.close();
 		}
 	}
 }

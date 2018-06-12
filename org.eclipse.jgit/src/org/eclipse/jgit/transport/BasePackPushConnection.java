@@ -81,7 +81,8 @@ import org.eclipse.jgit.transport.RemoteRefUpdate.Status;
  * easily wrapped up into a local process pipe, anonymous TCP socket, or a
  * command executed through an SSH tunnel.
  * <p>
- * This implementation honors {@link Transport#isPushThin()} option.
+ * This implementation honors
+ * {@link org.eclipse.jgit.transport.Transport#isPushThin()} option.
  * <p>
  * Concrete implementations should just call
  * {@link #init(java.io.InputStream, java.io.OutputStream)} and
@@ -145,13 +146,14 @@ public abstract class BasePackPushConnection extends BasePackConnection implemen
 	 * @param packTransport
 	 *            the transport.
 	 */
-	public BasePackPushConnection(final PackTransport packTransport) {
+	public BasePackPushConnection(PackTransport packTransport) {
 		super(packTransport);
 		thinPack = transport.isPushThin();
 		atomic = transport.isPushAtomic();
 		pushOptions = transport.getPushOptions();
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void push(final ProgressMonitor monitor,
 			final Map<String, RemoteRefUpdate> refUpdates)
@@ -159,9 +161,7 @@ public abstract class BasePackPushConnection extends BasePackConnection implemen
 		push(monitor, refUpdates, null);
 	}
 
-	/**
-	 * @since 3.0
-	 */
+	/** {@inheritDoc} */
 	@Override
 	public void push(final ProgressMonitor monitor,
 			final Map<String, RemoteRefUpdate> refUpdates, OutputStream outputStream)
@@ -170,6 +170,7 @@ public abstract class BasePackPushConnection extends BasePackConnection implemen
 		doPush(monitor, refUpdates, outputStream);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	protected TransportException noRepository() {
 		// Sadly we cannot tell the "invalid URI" case from "push not allowed".
@@ -202,7 +203,7 @@ public abstract class BasePackPushConnection extends BasePackConnection implemen
 	 *            update commands to be applied to the remote repository.
 	 * @param outputStream
 	 *            output stream to write sideband messages to
-	 * @throws TransportException
+	 * @throws org.eclipse.jgit.errors.TransportException
 	 *             if any exception occurs.
 	 * @since 3.0
 	 */
@@ -255,7 +256,7 @@ public abstract class BasePackPushConnection extends BasePackConnection implemen
 							pushOptions.toString()));
 		}
 
-		for (final RemoteRefUpdate rru : refUpdates) {
+		for (RemoteRefUpdate rru : refUpdates) {
 			if (!capableDeleteRefs && rru.isDelete()) {
 				rru.setStatus(Status.REJECTED_NODELETE);
 				continue;
@@ -293,7 +294,7 @@ public abstract class BasePackPushConnection extends BasePackConnection implemen
 	}
 
 	private void transmitOptions() throws IOException {
-		for (final String pushOption : pushOptions) {
+		for (String pushOption : pushOptions) {
 			pckOut.writeString(pushOption);
 		}
 
@@ -331,17 +332,17 @@ public abstract class BasePackPushConnection extends BasePackConnection implemen
 		Set<ObjectId> remoteObjects = new HashSet<>();
 		Set<ObjectId> newObjects = new HashSet<>();
 
-		try (final PackWriter writer = new PackWriter(transport.getPackConfig(),
+		try (PackWriter writer = new PackWriter(transport.getPackConfig(),
 				local.newObjectReader())) {
 
-			for (final Ref r : getRefs()) {
+			for (Ref r : getRefs()) {
 				// only add objects that we actually have
 				ObjectId oid = r.getObjectId();
 				if (local.hasObject(oid))
 					remoteObjects.add(oid);
 			}
 			remoteObjects.addAll(additionalHaves);
-			for (final RemoteRefUpdate r : refUpdates.values()) {
+			for (RemoteRefUpdate r : refUpdates.values()) {
 				if (!ObjectId.zeroId().equals(r.getNewObjectId()))
 					newObjects.add(r.getNewObjectId());
 			}
@@ -364,7 +365,7 @@ public abstract class BasePackPushConnection extends BasePackConnection implemen
 		}
 	}
 
-	private void readStatusReport(final Map<String, RemoteRefUpdate> refUpdates)
+	private void readStatusReport(Map<String, RemoteRefUpdate> refUpdates)
 			throws IOException {
 		final String unpackLine = readStringLongTimeout();
 		if (!unpackLine.startsWith("unpack ")) //$NON-NLS-1$
@@ -410,7 +411,7 @@ public abstract class BasePackPushConnection extends BasePackConnection implemen
 				rru.setMessage(message);
 			}
 		}
-		for (final RemoteRefUpdate rru : refUpdates.values()) {
+		for (RemoteRefUpdate rru : refUpdates.values()) {
 			if (rru.getStatus() == Status.AWAITING_REPORT)
 				throw new PackProtocolException(MessageFormat.format(
 						JGitText.get().expectedReportForRefNotReceived , uri, rru.getRemoteName()));

@@ -57,7 +57,9 @@ import org.eclipse.jgit.revwalk.RevTree;
 import org.eclipse.jgit.treewalk.AbstractTreeIterator;
 import org.eclipse.jgit.treewalk.EmptyTreeIterator;
 
-/** A merge of 2 trees, using a common base ancestor tree. */
+/**
+ * A merge of 2 trees, using a common base ancestor tree.
+ */
 public abstract class ThreeWayMerger extends Merger {
 	private RevTree baseTree;
 
@@ -69,7 +71,7 @@ public abstract class ThreeWayMerger extends Merger {
 	 * @param local
 	 *            the repository this merger will read and write data on.
 	 */
-	protected ThreeWayMerger(final Repository local) {
+	protected ThreeWayMerger(Repository local) {
 		super(local);
 	}
 
@@ -81,7 +83,7 @@ public abstract class ThreeWayMerger extends Merger {
 	 * @param inCore
 	 *            perform the merge in core with no working folder involved
 	 */
-	protected ThreeWayMerger(final Repository local, boolean inCore) {
+	protected ThreeWayMerger(Repository local, boolean inCore) {
 		this(local);
 	}
 
@@ -103,14 +105,14 @@ public abstract class ThreeWayMerger extends Merger {
 	 *            common base treeish; null to automatically compute the common
 	 *            base from the input commits during
 	 *            {@link #merge(AnyObjectId...)}.
-	 * @throws IncorrectObjectTypeException
+	 * @throws org.eclipse.jgit.errors.IncorrectObjectTypeException
 	 *             the object is not a treeish.
-	 * @throws MissingObjectException
+	 * @throws org.eclipse.jgit.errors.MissingObjectException
 	 *             the object does not exist.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the object could not be read.
 	 */
-	public void setBase(final AnyObjectId id) throws MissingObjectException,
+	public void setBase(AnyObjectId id) throws MissingObjectException,
 			IncorrectObjectTypeException, IOException {
 		if (id != null) {
 			baseTree = walk.parseTree(id);
@@ -119,13 +121,15 @@ public abstract class ThreeWayMerger extends Merger {
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public boolean merge(final AnyObjectId... tips) throws IOException {
+	public boolean merge(AnyObjectId... tips) throws IOException {
 		if (tips.length != 2)
 			return false;
 		return super.merge(tips);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public ObjectId getBaseCommitId() {
 		return baseCommitId;
@@ -136,7 +140,7 @@ public abstract class ThreeWayMerger extends Merger {
 	 *
 	 * @return an iterator over the caller-specified merge base, or the natural
 	 *         merge base of the two input commits.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
 	protected AbstractTreeIterator mergeBase() throws IOException {
 		if (baseTree != null)

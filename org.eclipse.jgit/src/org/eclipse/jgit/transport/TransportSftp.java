@@ -43,6 +43,8 @@
 
 package org.eclipse.jgit.transport;
 
+import static org.eclipse.jgit.lib.Constants.LOCK_SUFFIX;
+
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -86,11 +88,12 @@ import com.jcraft.jsch.SftpException;
  * repository that is available over SSH, but whose remote host does not have
  * Git installed.
  * <p>
- * Unlike the HTTP variant (see {@link TransportHttp}) we rely upon being able
- * to list files in directories, as the SFTP protocol supports this function. By
+ * Unlike the HTTP variant (see
+ * {@link org.eclipse.jgit.transport.TransportHttp}) we rely upon being able to
+ * list files in directories, as the SFTP protocol supports this function. By
  * listing files through SFTP we can avoid needing to have current
- * <code>objects/info/packs</code> or <code>info/refs</code> files on the
- * remote repository and access the data directly, much as Git itself would.
+ * <code>objects/info/packs</code> or <code>info/refs</code> files on the remote
+ * repository and access the data directly, much as Git itself would.
  * <p>
  * Concurrent pushing over this transport is not supported. Multiple concurrent
  * push operations may cause confusion in the repository state.
@@ -133,10 +136,11 @@ public class TransportSftp extends SshTransport implements WalkTransport {
 		}
 	};
 
-	TransportSftp(final Repository local, final URIish uri) {
+	TransportSftp(Repository local, URIish uri) {
 		super(local, uri);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public FetchConnection openFetch() throws TransportException {
 		final SftpObjectDB c = new SftpObjectDB(uri.getPath());
@@ -145,6 +149,7 @@ public class TransportSftp extends SshTransport implements WalkTransport {
 		return r;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public PushConnection openPush() throws TransportException {
 		final SftpObjectDB c = new SftpObjectDB(uri.getPath());
@@ -192,7 +197,7 @@ public class TransportSftp extends SshTransport implements WalkTransport {
 			}
 		}
 
-		SftpObjectDB(final SftpObjectDB parent, final String p)
+		SftpObjectDB(SftpObjectDB parent, String p)
 				throws TransportException {
 			try {
 				ftp = newSftp();
@@ -224,7 +229,7 @@ public class TransportSftp extends SshTransport implements WalkTransport {
 		}
 
 		@Override
-		WalkRemoteObjectDatabase openAlternate(final String location)
+		WalkRemoteObjectDatabase openAlternate(String location)
 				throws IOException {
 			return new SftpObjectDB(this, location);
 		}
@@ -241,9 +246,9 @@ public class TransportSftp extends SshTransport implements WalkTransport {
 				files = new HashMap<>();
 				mtimes = new HashMap<>();
 
-				for (final ChannelSftp.LsEntry ent : list)
+				for (ChannelSftp.LsEntry ent : list)
 					files.put(ent.getFilename(), ent);
-				for (final ChannelSftp.LsEntry ent : list) {
+				for (ChannelSftp.LsEntry ent : list) {
 					final String n = ent.getFilename();
 					if (!n.startsWith("pack-") || !n.endsWith(".pack")) //$NON-NLS-1$ //$NON-NLS-2$
 						continue;
@@ -258,7 +263,7 @@ public class TransportSftp extends SshTransport implements WalkTransport {
 
 				Collections.sort(packs, new Comparator<String>() {
 					@Override
-					public int compare(final String o1, final String o2) {
+					public int compare(String o1, String o2) {
 						return mtimes.get(o2).intValue()
 								- mtimes.get(o1).intValue();
 					}
@@ -273,7 +278,7 @@ public class TransportSftp extends SshTransport implements WalkTransport {
 		}
 
 		@Override
-		FileStream open(final String path) throws IOException {
+		FileStream open(String path) throws IOException {
 			try {
 				final SftpATTRS a = ftp.lstat(path);
 				return new FileStream(ftp.get(path), a.getSize());
@@ -287,7 +292,7 @@ public class TransportSftp extends SshTransport implements WalkTransport {
 		}
 
 		@Override
-		void deleteFile(final String path) throws IOException {
+		void deleteFile(String path) throws IOException {
 			try {
 				ftp.rm(path);
 			} catch (SftpException je) {
@@ -340,8 +345,8 @@ public class TransportSftp extends SshTransport implements WalkTransport {
 		}
 
 		@Override
-		void writeFile(final String path, final byte[] data) throws IOException {
-			final String lock = path + ".lock"; //$NON-NLS-1$
+		void writeFile(String path, byte[] data) throws IOException {
+			final String lock = path + LOCK_SUFFIX;
 			try {
 				super.writeFile(lock, data);
 				try {
@@ -408,7 +413,7 @@ public class TransportSftp extends SshTransport implements WalkTransport {
 						je.getMessage()), je);
 			}
 
-			for (final ChannelSftp.LsEntry ent : list) {
+			for (ChannelSftp.LsEntry ent : list) {
 				final String n = ent.getFilename();
 				if (".".equals(n) || "..".equals(n)) //$NON-NLS-1$ //$NON-NLS-2$
 					continue;
@@ -424,13 +429,8 @@ public class TransportSftp extends SshTransport implements WalkTransport {
 		private Ref readRef(final TreeMap<String, Ref> avail,
 				final String path, final String name) throws TransportException {
 			final String line;
-			try {
-				final BufferedReader br = openReader(path);
-				try {
-					line = br.readLine();
-				} finally {
-					br.close();
-				}
+			try (BufferedReader br = openReader(path)) {
+				line = br.readLine();
 			} catch (FileNotFoundException noRef) {
 				return null;
 			} catch (IOException err) {
@@ -466,7 +466,7 @@ public class TransportSftp extends SshTransport implements WalkTransport {
 					MessageFormat.format(JGitText.get().badRef, name, line));
 		}
 
-		private Storage loose(final Ref r) {
+		private Storage loose(Ref r) {
 			if (r != null && r.getStorage() == Storage.PACKED)
 				return Storage.LOOSE_PACKED;
 			return Storage.LOOSE;

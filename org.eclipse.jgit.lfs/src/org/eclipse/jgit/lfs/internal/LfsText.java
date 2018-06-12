@@ -51,6 +51,8 @@ import org.eclipse.jgit.nls.TranslationBundle;
 public class LfsText extends TranslationBundle {
 
 	/**
+	 * Get an instance of this translation bundle.
+	 *
 	 * @return an instance of this translation bundle
 	 */
 	public static LfsText get() {
@@ -60,13 +62,20 @@ public class LfsText extends TranslationBundle {
 	// @formatter:off
 	/***/ public String corruptLongObject;
 	/***/ public String inconsistentMediafileLength;
+	/***/ public String inconsistentContentLength;
 	/***/ public String incorrectLONG_OBJECT_ID_LENGTH;
 	/***/ public String invalidLongId;
 	/***/ public String invalidLongIdLength;
+	/***/ public String lfsUnavailable;
+	/***/ public String protocolError;
 	/***/ public String requiredHashFunctionNotAvailable;
 	/***/ public String repositoryNotFound;
 	/***/ public String repositoryReadOnly;
-	/***/ public String lfsUnavailable;
 	/***/ public String lfsUnathorized;
 	/***/ public String lfsFailedToGetRepository;
+	/***/ public String lfsNoDownloadUrl;
+	/***/ public String serverFailure;
+	/***/ public String wrongAmoutOfDataReceived;
+	/***/ public String userConfigInvalid;
+	/***/ public String missingLocalObject;
 }

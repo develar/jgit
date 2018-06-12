@@ -56,8 +56,8 @@ import org.eclipse.jgit.util.RefList;
 import org.eclipse.jgit.util.RefMap;
 
 /**
- * Writes out refs to the {@link Constants#INFO_REFS} and
- * {@link Constants#PACKED_REFS} files.
+ * Writes out refs to the {@link org.eclipse.jgit.lib.Constants#INFO_REFS} and
+ * {@link org.eclipse.jgit.lib.Constants#PACKED_REFS} files.
  *
  * This class is abstract as the writing of the files must be handled by the
  * caller. This is because it is used by transport classes as well.
@@ -67,6 +67,8 @@ public abstract class RefWriter {
 	private final Collection<Ref> refs;
 
 	/**
+	 * <p>Constructor for RefWriter.</p>
+	 *
 	 * @param refs
 	 *            the complete set of references. This should have been computed
 	 *            by applying updates to the advertised refs already discovered.
@@ -76,6 +78,8 @@ public abstract class RefWriter {
 	}
 
 	/**
+	 * <p>Constructor for RefWriter.</p>
+	 *
 	 * @param refs
 	 *            the complete set of references. This should have been computed
 	 *            by applying updates to the advertised refs already discovered.
@@ -88,6 +92,8 @@ public abstract class RefWriter {
 	}
 
 	/**
+	 * <p>Constructor for RefWriter.</p>
+	 *
 	 * @param refs
 	 *            the complete set of references. This should have been computed
 	 *            by applying updates to the advertised refs already discovered.
@@ -97,20 +103,20 @@ public abstract class RefWriter {
 	}
 
 	/**
-	 * Rebuild the {@link Constants#INFO_REFS}.
+	 * Rebuild the {@link org.eclipse.jgit.lib.Constants#INFO_REFS}.
 	 * <p>
-	 * This method rebuilds the contents of the {@link Constants#INFO_REFS} file
-	 * to match the passed list of references.
+	 * This method rebuilds the contents of the
+	 * {@link org.eclipse.jgit.lib.Constants#INFO_REFS} file to match the passed
+	 * list of references.
 	 *
-	 *
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             writing is not supported, or attempting to write the file
 	 *             failed, possibly due to permissions or remote disk full, etc.
 	 */
 	public void writeInfoRefs() throws IOException {
 		final StringWriter w = new StringWriter();
 		final char[] tmp = new char[Constants.OBJECT_ID_STRING_LENGTH];
-		for (final Ref r : refs) {
+		for (Ref r : refs) {
 			if (Constants.HEAD.equals(r.getName())) {
 				// Historically HEAD has never been published through
 				// the INFO_REFS file. This is a mistake, but its the
@@ -142,19 +148,20 @@ public abstract class RefWriter {
 	}
 
 	/**
-	 * Rebuild the {@link Constants#PACKED_REFS} file.
+	 * Rebuild the {@link org.eclipse.jgit.lib.Constants#PACKED_REFS} file.
 	 * <p>
-	 * This method rebuilds the contents of the {@link Constants#PACKED_REFS}
-	 * file to match the passed list of references, including only those refs
-	 * that have a storage type of {@link Ref.Storage#PACKED}.
+	 * This method rebuilds the contents of the
+	 * {@link org.eclipse.jgit.lib.Constants#PACKED_REFS} file to match the
+	 * passed list of references, including only those refs that have a storage
+	 * type of {@link org.eclipse.jgit.lib.Ref.Storage#PACKED}.
 	 *
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             writing is not supported, or attempting to write the file
 	 *             failed, possibly due to permissions or remote disk full, etc.
 	 */
 	public void writePackedRefs() throws IOException {
 		boolean peeled = false;
-		for (final Ref r : refs) {
+		for (Ref r : refs) {
 			if (r.getStorage().isPacked() && r.isPeeled()) {
 				peeled = true;
 				break;
@@ -170,7 +177,7 @@ public abstract class RefWriter {
 		}
 
 		final char[] tmp = new char[Constants.OBJECT_ID_STRING_LENGTH];
-		for (final Ref r : refs) {
+		for (Ref r : refs) {
 			if (r.getStorage() != Ref.Storage.PACKED)
 				continue;
 
@@ -203,7 +210,7 @@ public abstract class RefWriter {
 	 *            path to ref file.
 	 * @param content
 	 *            byte content of file to be written.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
 	protected abstract void writeFile(String file, byte[] content)
 			throws IOException;

@@ -53,9 +53,9 @@ import org.eclipse.jgit.util.NB;
 /**
  * A (possibly mutable) SHA-1 abstraction.
  * <p>
- * If this is an instance of {@link MutableObjectId} the concept of equality
- * with this instance can alter at any time, if this instance is modified to
- * represent a different object name.
+ * If this is an instance of {@link org.eclipse.jgit.lib.MutableObjectId} the
+ * concept of equality with this instance can alter at any time, if this
+ * instance is modified to represent a different object name.
  */
 public abstract class AnyObjectId implements Comparable<AnyObjectId> {
 
@@ -73,17 +73,19 @@ public abstract class AnyObjectId implements Comparable<AnyObjectId> {
 		if (firstObjectId == secondObjectId)
 			return true;
 
-		// We test word 2 first as odds are someone already used our
-		// word 1 as a hash code, and applying that came up with these
-		// two instances we are comparing for equality. Therefore the
-		// first two words are very likely to be identical. We want to
-		// break away from collisions as quickly as possible.
+		// We test word 3 first since the git file-based ODB
+		// uses the first byte of w1, and we use w2 as the
+		// hash code, one of those probably came up with these
+		// two instances which we are comparing for equality.
+		// Therefore the first two words are very likely to be
+		// identical. We want to break away from collisions as
+		// quickly as possible.
 		//
-		return firstObjectId.w2 == secondObjectId.w2
-				&& firstObjectId.w3 == secondObjectId.w3
+		return firstObjectId.w3 == secondObjectId.w3
 				&& firstObjectId.w4 == secondObjectId.w4
 				&& firstObjectId.w5 == secondObjectId.w5
-				&& firstObjectId.w1 == secondObjectId.w1;
+				&& firstObjectId.w1 == secondObjectId.w1
+				&& firstObjectId.w2 == secondObjectId.w2;
 	}
 
 	int w1;
@@ -117,14 +119,16 @@ public abstract class AnyObjectId implements Comparable<AnyObjectId> {
 	 *
 	 * @param index
 	 *            index of the byte to obtain from the raw form of the ObjectId.
-	 *            Must be in range [0, {@link Constants#OBJECT_ID_LENGTH}).
+	 *            Must be in range [0,
+	 *            {@link org.eclipse.jgit.lib.Constants#OBJECT_ID_LENGTH}).
 	 * @return the value of the requested byte at {@code index}. Returned values
 	 *         are unsigned and thus are in the range [0,255] rather than the
 	 *         signed byte range of [-128, 127].
-	 * @throws ArrayIndexOutOfBoundsException
+	 * @throws java.lang.ArrayIndexOutOfBoundsException
 	 *             {@code index} is less than 0, equal to
-	 *             {@link Constants#OBJECT_ID_LENGTH}, or greater than
-	 *             {@link Constants#OBJECT_ID_LENGTH}.
+	 *             {@link org.eclipse.jgit.lib.Constants#OBJECT_ID_LENGTH}, or
+	 *             greater than
+	 *             {@link org.eclipse.jgit.lib.Constants#OBJECT_ID_LENGTH}.
 	 */
 	public final int getByte(int index) {
 		int w;
@@ -152,15 +156,12 @@ public abstract class AnyObjectId implements Comparable<AnyObjectId> {
 	}
 
 	/**
+	 * {@inheritDoc}
+	 * <p>
 	 * Compare this ObjectId to another and obtain a sort ordering.
-	 *
-	 * @param other
-	 *            the other id to compare to. Must not be null.
-	 * @return &lt; 0 if this id comes before other; 0 if this id is equal to
-	 *         other; &gt; 0 if this id comes after other.
 	 */
 	@Override
-	public final int compareTo(final AnyObjectId other) {
+	public final int compareTo(AnyObjectId other) {
 		if (this == other)
 			return 0;
 
@@ -196,7 +197,7 @@ public abstract class AnyObjectId implements Comparable<AnyObjectId> {
 	 * @return a negative integer, zero, or a positive integer as this object is
 	 *         less than, equal to, or greater than the specified object.
 	 */
-	public final int compareTo(final byte[] bs, final int p) {
+	public final int compareTo(byte[] bs, int p) {
 		int cmp;
 
 		cmp = NB.compareUInt32(w1, NB.decodeInt32(bs, p));
@@ -229,7 +230,7 @@ public abstract class AnyObjectId implements Comparable<AnyObjectId> {
 	 * @return a negative integer, zero, or a positive integer as this object is
 	 *         less than, equal to, or greater than the specified object.
 	 */
-	public final int compareTo(final int[] bs, final int p) {
+	public final int compareTo(int[] bs, int p) {
 		int cmp;
 
 		cmp = NB.compareUInt32(w1, bs[p]);
@@ -258,10 +259,11 @@ public abstract class AnyObjectId implements Comparable<AnyObjectId> {
 	 *            the abbreviation.
 	 * @return true if this ObjectId begins with the abbreviation; else false.
 	 */
-	public boolean startsWith(final AbbreviatedObjectId abbr) {
+	public boolean startsWith(AbbreviatedObjectId abbr) {
 		return abbr.prefixCompare(this) == 0;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public final int hashCode() {
 		return w2;
@@ -274,12 +276,13 @@ public abstract class AnyObjectId implements Comparable<AnyObjectId> {
 	 *            the other id to compare to. May be null.
 	 * @return true only if both ObjectIds have identical bits.
 	 */
-	public final boolean equals(final AnyObjectId other) {
+	public final boolean equals(AnyObjectId other) {
 		return other != null ? equals(this, other) : false;
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public final boolean equals(final Object o) {
+	public final boolean equals(Object o) {
 		if (o instanceof AnyObjectId)
 			return equals((AnyObjectId) o);
 		else
@@ -292,7 +295,7 @@ public abstract class AnyObjectId implements Comparable<AnyObjectId> {
 	 * @param w
 	 *            the buffer to copy to. Must be in big endian order.
 	 */
-	public void copyRawTo(final ByteBuffer w) {
+	public void copyRawTo(ByteBuffer w) {
 		w.putInt(w1);
 		w.putInt(w2);
 		w.putInt(w3);
@@ -308,7 +311,7 @@ public abstract class AnyObjectId implements Comparable<AnyObjectId> {
 	 * @param o
 	 *            the offset within b to write at.
 	 */
-	public void copyRawTo(final byte[] b, final int o) {
+	public void copyRawTo(byte[] b, int o) {
 		NB.encodeInt32(b, o, w1);
 		NB.encodeInt32(b, o + 4, w2);
 		NB.encodeInt32(b, o + 8, w3);
@@ -324,7 +327,7 @@ public abstract class AnyObjectId implements Comparable<AnyObjectId> {
 	 * @param o
 	 *            the offset within b to write at.
 	 */
-	public void copyRawTo(final int[] b, final int o) {
+	public void copyRawTo(int[] b, int o) {
 		b[o] = w1;
 		b[o + 1] = w2;
 		b[o + 2] = w3;
@@ -337,10 +340,10 @@ public abstract class AnyObjectId implements Comparable<AnyObjectId> {
 	 *
 	 * @param w
 	 *            the stream to write to.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the stream writing failed.
 	 */
-	public void copyRawTo(final OutputStream w) throws IOException {
+	public void copyRawTo(OutputStream w) throws IOException {
 		writeRawInt(w, w1);
 		writeRawInt(w, w2);
 		writeRawInt(w, w3);
@@ -348,7 +351,7 @@ public abstract class AnyObjectId implements Comparable<AnyObjectId> {
 		writeRawInt(w, w5);
 	}
 
-	private static void writeRawInt(final OutputStream w, int v)
+	private static void writeRawInt(OutputStream w, int v)
 			throws IOException {
 		w.write(v >>> 24);
 		w.write(v >>> 16);
@@ -361,10 +364,10 @@ public abstract class AnyObjectId implements Comparable<AnyObjectId> {
 	 *
 	 * @param w
 	 *            the stream to copy to.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the stream writing failed.
 	 */
-	public void copyTo(final OutputStream w) throws IOException {
+	public void copyTo(OutputStream w) throws IOException {
 		w.write(toHexByteArray());
 	}
 
@@ -407,7 +410,7 @@ public abstract class AnyObjectId implements Comparable<AnyObjectId> {
 	private static final byte[] hexbyte = { '0', '1', '2', '3', '4', '5', '6',
 			'7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
 
-	private static void formatHexByte(final byte[] dst, final int p, int w) {
+	private static void formatHexByte(byte[] dst, int p, int w) {
 		int o = p + 7;
 		while (o >= p && w != 0) {
 			dst[o--] = hexbyte[w & 0xf];
@@ -422,10 +425,10 @@ public abstract class AnyObjectId implements Comparable<AnyObjectId> {
 	 *
 	 * @param w
 	 *            the stream to copy to.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the stream writing failed.
 	 */
-	public void copyTo(final Writer w) throws IOException {
+	public void copyTo(Writer w) throws IOException {
 		w.write(toHexCharArray());
 	}
 
@@ -438,10 +441,10 @@ public abstract class AnyObjectId implements Comparable<AnyObjectId> {
 	 *            of object id (40 characters or larger).
 	 * @param w
 	 *            the stream to copy to.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the stream writing failed.
 	 */
-	public void copyTo(final char[] tmp, final Writer w) throws IOException {
+	public void copyTo(char[] tmp, Writer w) throws IOException {
 		toHexCharArray(tmp);
 		w.write(tmp, 0, Constants.OBJECT_ID_STRING_LENGTH);
 	}
@@ -456,7 +459,7 @@ public abstract class AnyObjectId implements Comparable<AnyObjectId> {
 	 * @param w
 	 *            the string to append onto.
 	 */
-	public void copyTo(final char[] tmp, final StringBuilder w) {
+	public void copyTo(char[] tmp, StringBuilder w) {
 		toHexCharArray(tmp);
 		w.append(tmp, 0, Constants.OBJECT_ID_STRING_LENGTH);
 	}
@@ -467,7 +470,7 @@ public abstract class AnyObjectId implements Comparable<AnyObjectId> {
 		return dst;
 	}
 
-	private void toHexCharArray(final char[] dst) {
+	private void toHexCharArray(char[] dst) {
 		formatHexChar(dst, 0, w1);
 		formatHexChar(dst, 8, w2);
 		formatHexChar(dst, 16, w3);
@@ -478,7 +481,7 @@ public abstract class AnyObjectId implements Comparable<AnyObjectId> {
 	private static final char[] hexchar = { '0', '1', '2', '3', '4', '5', '6',
 			'7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
 
-	static void formatHexChar(final char[] dst, final int p, int w) {
+	static void formatHexChar(char[] dst, int p, int w) {
 		int o = p + 7;
 		while (o >= p && w != 0) {
 			dst[o--] = hexchar[w & 0xf];
@@ -488,6 +491,7 @@ public abstract class AnyObjectId implements Comparable<AnyObjectId> {
 			dst[o--] = '0';
 	}
 
+	/** {@inheritDoc} */
 	@SuppressWarnings("nls")
 	@Override
 	public String toString() {
@@ -495,6 +499,8 @@ public abstract class AnyObjectId implements Comparable<AnyObjectId> {
 	}
 
 	/**
+	 * <p>name.</p>
+	 *
 	 * @return string form of the SHA-1, in lower case hexadecimal.
 	 */
 	public final String name() {
@@ -502,6 +508,8 @@ public abstract class AnyObjectId implements Comparable<AnyObjectId> {
 	}
 
 	/**
+	 * Get string form of the SHA-1, in lower case hexadecimal.
+	 *
 	 * @return string form of the SHA-1, in lower case hexadecimal.
 	 */
 	public final String getName() {
@@ -511,15 +519,17 @@ public abstract class AnyObjectId implements Comparable<AnyObjectId> {
 	/**
 	 * Return an abbreviation (prefix) of this object SHA-1.
 	 * <p>
-	 * This implementation does not guarantee uniqueness. Callers should
-	 * instead use {@link ObjectReader#abbreviate(AnyObjectId, int)} to obtain a
-	 * unique abbreviation within the scope of a particular object database.
+	 * This implementation does not guarantee uniqueness. Callers should instead
+	 * use
+	 * {@link org.eclipse.jgit.lib.ObjectReader#abbreviate(AnyObjectId, int)} to
+	 * obtain a unique abbreviation within the scope of a particular object
+	 * database.
 	 *
 	 * @param len
 	 *            length of the abbreviated string.
 	 * @return SHA-1 abbreviation.
 	 */
-	public AbbreviatedObjectId abbreviate(final int len) {
+	public AbbreviatedObjectId abbreviate(int len) {
 		final int a = AbbreviatedObjectId.mask(len, 1, w1);
 		final int b = AbbreviatedObjectId.mask(len, 2, w2);
 		final int c = AbbreviatedObjectId.mask(len, 3, w3);
@@ -532,8 +542,8 @@ public abstract class AnyObjectId implements Comparable<AnyObjectId> {
 	 * Obtain an immutable copy of this current object name value.
 	 * <p>
 	 * Only returns <code>this</code> if this instance is an unsubclassed
-	 * instance of {@link ObjectId}; otherwise a new instance is returned
-	 * holding the same value.
+	 * instance of {@link org.eclipse.jgit.lib.ObjectId}; otherwise a new
+	 * instance is returned holding the same value.
 	 * <p>
 	 * This method is useful to shed any additional memory that may be tied to
 	 * the subclass, yet retain the unique identity of the object id for future

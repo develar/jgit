@@ -70,11 +70,14 @@ import org.eclipse.jgit.revwalk.RevSort;
 import org.eclipse.jgit.revwalk.RevTag;
 import org.eclipse.jgit.revwalk.RevWalk;
 
-/** Specialized RevWalk for visualization of a commit graph. */
+/**
+ * Specialized RevWalk for visualization of a commit graph.
+ */
 public class PlotWalk extends RevWalk {
 
 	private Map<AnyObjectId, Set<Ref>> reverseRefMap;
 
+	/** {@inheritDoc} */
 	@Override
 	public void dispose() {
 		super.dispose();
@@ -87,7 +90,7 @@ public class PlotWalk extends RevWalk {
 	 * @param repo
 	 *            the repository the walker will obtain data from.
 	 */
-	public PlotWalk(final Repository repo) {
+	public PlotWalk(Repository repo) {
 		super(repo);
 		super.sort(RevSort.TOPO, true);
 		reverseRefMap = repo.getAllRefsByPeeledObjectId();
@@ -98,8 +101,7 @@ public class PlotWalk extends RevWalk {
 	 *
 	 * @param refs
 	 *            additional refs
-	 *
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
 	public void addAdditionalRefs(Iterable<Ref> refs) throws IOException {
 		for (Ref ref : refs) {
@@ -114,18 +116,21 @@ public class PlotWalk extends RevWalk {
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public void sort(final RevSort s, final boolean use) {
+	public void sort(RevSort s, boolean use) {
 		if (s == RevSort.TOPO && !use)
 			throw new IllegalArgumentException(JGitText.get().topologicalSortRequired);
 		super.sort(s, use);
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	protected RevCommit createCommit(final AnyObjectId id) {
+	protected RevCommit createCommit(AnyObjectId id) {
 		return new PlotCommit(id);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public RevCommit next() throws MissingObjectException,
 			IncorrectObjectTypeException, IOException {
@@ -135,7 +140,7 @@ public class PlotWalk extends RevWalk {
 		return pc;
 	}
 
-	private Ref[] getRefs(final AnyObjectId commitId) {
+	private Ref[] getRefs(AnyObjectId commitId) {
 		Collection<Ref> list = reverseRefMap.get(commitId);
 		if (list == null)
 			return PlotCommit.NO_REFS;

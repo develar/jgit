@@ -42,7 +42,7 @@
  */
 package org.eclipse.jgit.lfs.server;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.eclipse.jgit.lib.Constants.CHARSET;
 import static org.apache.http.HttpStatus.SC_FORBIDDEN;
 import static org.apache.http.HttpStatus.SC_INSUFFICIENT_STORAGE;
 import static org.apache.http.HttpStatus.SC_INTERNAL_SERVER_ERROR;
@@ -81,12 +81,9 @@ import org.eclipse.jgit.lfs.errors.LfsUnauthorized;
 import org.eclipse.jgit.lfs.errors.LfsUnavailable;
 import org.eclipse.jgit.lfs.errors.LfsValidationError;
 import org.eclipse.jgit.lfs.internal.LfsText;
+import org.eclipse.jgit.lfs.server.internal.LfsGson;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.gson.FieldNamingPolicy;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 
 /**
  * LFS protocol handler implementing the LFS batch API [1]
@@ -108,51 +105,6 @@ public abstract class LfsProtocolServlet extends HttpServlet {
 
 	private static final int SC_BANDWIDTH_LIMIT_EXCEEDED = 509;
 
-	private Gson gson = createGson();
-
-	/**
-	 * Get the large file repository for the given request and path.
-	 *
-	 * @param request
-	 *            the request
-	 * @param path
-	 *            the path
-	 *
-	 * @return the large file repository storing large files.
-	 * @throws LfsException
-	 *             implementations should throw more specific exceptions to
-	 *             signal which type of error occurred:
-	 *             <dl>
-	 *             <dt>{@link LfsValidationError}</dt>
-	 *             <dd>when there is a validation error with one or more of the
-	 *             objects in the request</dd>
-	 *             <dt>{@link LfsRepositoryNotFound}</dt>
-	 *             <dd>when the repository does not exist for the user</dd>
-	 *             <dt>{@link LfsRepositoryReadOnly}</dt>
-	 *             <dd>when the user has read, but not write access. Only
-	 *             applicable when the operation in the request is "upload"</dd>
-	 *             <dt>{@link LfsRateLimitExceeded}</dt>
-	 *             <dd>when the user has hit a rate limit with the server</dd>
-	 *             <dt>{@link LfsBandwidthLimitExceeded}</dt>
-	 *             <dd>when the bandwidth limit for the user or repository has
-	 *             been exceeded</dd>
-	 *             <dt>{@link LfsInsufficientStorage}</dt>
-	 *             <dd>when there is insufficient storage on the server</dd>
-	 *             <dt>{@link LfsUnavailable}</dt>
-	 *             <dd>when LFS is not available</dd>
-	 *             <dt>{@link LfsException}</dt>
-	 *             <dd>when an unexpected internal server error occurred</dd>
-	 *             </dl>
-	 * @since 4.5
-	 * @deprecated use
-	 *             {@link #getLargeFileRepository(LfsRequest, String, String)}
-	 */
-	@Deprecated
-	protected LargeFileRepository getLargeFileRepository(LfsRequest request,
-			String path) throws LfsException {
-		return getLargeFileRepository(request, path, null);
-	}
-
 	/**
 	 * Get the large file repository for the given request and path.
 	 *
@@ -162,30 +114,29 @@ public abstract class LfsProtocolServlet extends HttpServlet {
 	 *            the path
 	 * @param auth
 	 *            the Authorization HTTP header
-	 *
 	 * @return the large file repository storing large files.
-	 * @throws LfsException
+	 * @throws org.eclipse.jgit.lfs.errors.LfsException
 	 *             implementations should throw more specific exceptions to
 	 *             signal which type of error occurred:
 	 *             <dl>
-	 *             <dt>{@link LfsValidationError}</dt>
+	 *             <dt>{@link org.eclipse.jgit.lfs.errors.LfsValidationError}</dt>
 	 *             <dd>when there is a validation error with one or more of the
 	 *             objects in the request</dd>
-	 *             <dt>{@link LfsRepositoryNotFound}</dt>
+	 *             <dt>{@link org.eclipse.jgit.lfs.errors.LfsRepositoryNotFound}</dt>
 	 *             <dd>when the repository does not exist for the user</dd>
-	 *             <dt>{@link LfsRepositoryReadOnly}</dt>
+	 *             <dt>{@link org.eclipse.jgit.lfs.errors.LfsRepositoryReadOnly}</dt>
 	 *             <dd>when the user has read, but not write access. Only
 	 *             applicable when the operation in the request is "upload"</dd>
-	 *             <dt>{@link LfsRateLimitExceeded}</dt>
+	 *             <dt>{@link org.eclipse.jgit.lfs.errors.LfsRateLimitExceeded}</dt>
 	 *             <dd>when the user has hit a rate limit with the server</dd>
-	 *             <dt>{@link LfsBandwidthLimitExceeded}</dt>
+	 *             <dt>{@link org.eclipse.jgit.lfs.errors.LfsBandwidthLimitExceeded}</dt>
 	 *             <dd>when the bandwidth limit for the user or repository has
 	 *             been exceeded</dd>
-	 *             <dt>{@link LfsInsufficientStorage}</dt>
+	 *             <dt>{@link org.eclipse.jgit.lfs.errors.LfsInsufficientStorage}</dt>
 	 *             <dd>when there is insufficient storage on the server</dd>
-	 *             <dt>{@link LfsUnavailable}</dt>
+	 *             <dt>{@link org.eclipse.jgit.lfs.errors.LfsUnavailable}</dt>
 	 *             <dd>when LFS is not available</dd>
-	 *             <dt>{@link LfsException}</dt>
+	 *             <dt>{@link org.eclipse.jgit.lfs.errors.LfsException}</dt>
 	 *             <dd>when an unexpected internal server error occurred</dd>
 	 *             </dl>
 	 * @since 4.7
@@ -246,15 +197,16 @@ public abstract class LfsProtocolServlet extends HttpServlet {
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	protected void doPost(HttpServletRequest req, HttpServletResponse res)
 			throws ServletException, IOException {
 		Writer w = new BufferedWriter(
-				new OutputStreamWriter(res.getOutputStream(), UTF_8));
+				new OutputStreamWriter(res.getOutputStream(), CHARSET));
 
 		Reader r = new BufferedReader(
-				new InputStreamReader(req.getInputStream(), UTF_8));
-		LfsRequest request = gson.fromJson(r, LfsRequest.class);
+				new InputStreamReader(req.getInputStream(), CHARSET));
+		LfsRequest request = LfsGson.fromJson(r, LfsRequest.class);
 		String path = req.getPathInfo();
 
 		res.setContentType(CONTENTTYPE_VND_GIT_LFS_JSON);
@@ -271,7 +223,7 @@ public abstract class LfsProtocolServlet extends HttpServlet {
 			res.setStatus(SC_OK);
 			TransferHandler handler = TransferHandler
 					.forOperation(request.operation, repo, request.objects);
-			gson.toJson(handler.process(), w);
+			LfsGson.toJson(handler.process(), w);
 		} catch (LfsValidationError e) {
 			sendError(res, w, SC_UNPROCESSABLE_ENTITY, e.getMessage());
 		} catch (LfsRepositoryNotFound e) {
@@ -295,24 +247,9 @@ public abstract class LfsProtocolServlet extends HttpServlet {
 		}
 	}
 
-	static class Error {
-		String message;
-
-		Error(String m) {
-			this.message = m;
-		}
-	}
-
 	private void sendError(HttpServletResponse rsp, Writer writer, int status,
 			String message) {
 		rsp.setStatus(status);
-		gson.toJson(new Error(message), writer);
-	}
-
-	private Gson createGson() {
-		return new GsonBuilder()
-				.setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES)
-				.disableHtmlEscaping()
-				.create();
+		LfsGson.toJson(message, writer);
 	}
 }

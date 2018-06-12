@@ -85,12 +85,14 @@ public abstract class BaseDirCacheEditor {
 	 *            estimated number of entries the editor will have upon
 	 *            completion. This sizes the initial entry table.
 	 */
-	protected BaseDirCacheEditor(final DirCache dc, final int ecnt) {
+	protected BaseDirCacheEditor(DirCache dc, int ecnt) {
 		cache = dc;
 		entries = new DirCacheEntry[ecnt];
 	}
 
 	/**
+	 * Get the {@code DirCache}
+	 *
 	 * @return the cache we will update on {@link #finish()}.
 	 */
 	public DirCache getDirCache() {
@@ -109,7 +111,7 @@ public abstract class BaseDirCacheEditor {
 	 * @param newEntry
 	 *            the new entry to add.
 	 */
-	protected void fastAdd(final DirCacheEntry newEntry) {
+	protected void fastAdd(DirCacheEntry newEntry) {
 		if (entries.length == entryCnt) {
 			final DirCacheEntry[] n = new DirCacheEntry[(entryCnt + 16) * 3 / 2];
 			System.arraycopy(entries, 0, n, 0, entryCnt);
@@ -138,7 +140,7 @@ public abstract class BaseDirCacheEditor {
 	 * @param cnt
 	 *            number of entries to copy.
 	 */
-	protected void fastKeep(final int pos, int cnt) {
+	protected void fastKeep(int pos, int cnt) {
 		if (entryCnt + cnt > entries.length) {
 			final int m1 = (entryCnt + 16) * 3 / 2;
 			final int m2 = entryCnt + cnt;
@@ -152,7 +154,8 @@ public abstract class BaseDirCacheEditor {
 	}
 
 	/**
-	 * Finish this builder and update the destination {@link DirCache}.
+	 * Finish this builder and update the destination
+	 * {@link org.eclipse.jgit.dircache.DirCache}.
 	 * <p>
 	 * When this method completes this builder instance is no longer usable by
 	 * the calling application. A new builder must be created to make additional
@@ -263,9 +266,9 @@ public abstract class BaseDirCacheEditor {
 	 * @return true if the commit was successful and the file contains the new
 	 *         data; false if the commit failed and the file remains with the
 	 *         old data.
-	 * @throws IllegalStateException
+	 * @throws java.lang.IllegalStateException
 	 *             the lock is not held.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the output file could not be created. The caller no longer
 	 *             holds the lock.
 	 */

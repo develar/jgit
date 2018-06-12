@@ -63,8 +63,8 @@ import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
  * .gitmodules file to a repository's config file for each submodule not
  * currently present in the repository's config file.
  *
- * @see <a
- *      href="http://www.kernel.org/pub/software/scm/git/docs/git-submodule.html"
+ * @see <a href=
+ *      "http://www.kernel.org/pub/software/scm/git/docs/git-submodule.html"
  *      >Git documentation about submodules</a>
  */
 public class SubmoduleInitCommand extends GitCommand<Collection<String>> {
@@ -72,9 +72,12 @@ public class SubmoduleInitCommand extends GitCommand<Collection<String>> {
 	private final Collection<String> paths;
 
 	/**
+	 * Constructor for SubmoduleInitCommand.
+	 *
 	 * @param repo
+	 *            a {@link org.eclipse.jgit.lib.Repository} object.
 	 */
-	public SubmoduleInitCommand(final Repository repo) {
+	public SubmoduleInitCommand(Repository repo) {
 		super(repo);
 		paths = new ArrayList<>();
 	}
@@ -86,11 +89,12 @@ public class SubmoduleInitCommand extends GitCommand<Collection<String>> {
 	 *            (with <code>/</code> as separator)
 	 * @return this command
 	 */
-	public SubmoduleInitCommand addPath(final String path) {
+	public SubmoduleInitCommand addPath(String path) {
 		paths.add(path);
 		return this;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public Collection<String> call() throws GitAPIException {
 		checkCallable();
@@ -106,16 +110,17 @@ public class SubmoduleInitCommand extends GitCommand<Collection<String>> {
 					continue;
 
 				String path = generator.getPath();
+				String name = generator.getModuleName();
 				// Copy 'url' and 'update' fields from .gitmodules to config
 				// file
 				String url = generator.getRemoteUrl();
 				String update = generator.getModulesUpdate();
 				if (url != null)
 					config.setString(ConfigConstants.CONFIG_SUBMODULE_SECTION,
-							path, ConfigConstants.CONFIG_KEY_URL, url);
+							name, ConfigConstants.CONFIG_KEY_URL, url);
 				if (update != null)
 					config.setString(ConfigConstants.CONFIG_SUBMODULE_SECTION,
-							path, ConfigConstants.CONFIG_KEY_UPDATE, update);
+							name, ConfigConstants.CONFIG_KEY_UPDATE, update);
 				if (url != null || update != null)
 					initialized.add(path);
 			}

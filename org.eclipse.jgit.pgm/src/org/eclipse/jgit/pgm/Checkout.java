@@ -57,6 +57,7 @@ import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.lib.TextProgressMonitor;
 import org.eclipse.jgit.pgm.internal.CLIText;
 import org.kohsuke.args4j.Argument;
 import org.kohsuke.args4j.Option;
@@ -77,9 +78,10 @@ class Checkout extends TextBuiltin {
 	@Argument(required = false, index = 0, metaVar = "metaVar_name", usage = "usage_checkout")
 	private String name;
 
-	@Option(name = "--", metaVar = "metaVar_paths", multiValued = true, handler = RestOfArgumentsHandler.class)
+	@Option(name = "--", metaVar = "metaVar_paths", handler = RestOfArgumentsHandler.class)
 	private List<String> paths = new ArrayList<>();
 
+	/** {@inheritDoc} */
 	@Override
 	protected void run() throws Exception {
 		if (createBranch) {
@@ -89,7 +91,8 @@ class Checkout extends TextBuiltin {
 		}
 
 		try (Git git = new Git(db)) {
-			CheckoutCommand command = git.checkout();
+			CheckoutCommand command = git.checkout()
+					.setProgressMonitor(new TextProgressMonitor(errw));
 			if (paths.size() > 0) {
 				command.setStartPoint(name);
 				if (paths.size() == 1 && paths.get(0).equals(".")) { //$NON-NLS-1$
@@ -122,17 +125,21 @@ class Checkout extends TextBuiltin {
 							CLIText.get().switchedToBranch,
 							Repository.shortenRefName(ref.getName())));
 			} catch (RefNotFoundException e) {
-				outw.println(MessageFormat.format(
-						CLIText.get().pathspecDidNotMatch,
-						name));
+				throw die(MessageFormat
+						.format(CLIText.get().pathspecDidNotMatch, name), e);
 			} catch (RefAlreadyExistsException e) {
-				throw die(MessageFormat.format(CLIText.get().branchAlreadyExists,
-						name));
+				throw die(MessageFormat
+						.format(CLIText.get().branchAlreadyExists, name));
 			} catch (CheckoutConflictException e) {
-				outw.println(CLIText.get().checkoutConflict);
-				for (String path : e.getConflictingPaths())
-					outw.println(MessageFormat.format(
+				StringBuilder builder = new StringBuilder();
+				builder.append(CLIText.get().checkoutConflict);
+				builder.append(System.lineSeparator());
+				for (String path : e.getConflictingPaths()) {
+					builder.append(MessageFormat.format(
 							CLIText.get().checkoutConflictPathLine, path));
+					builder.append(System.lineSeparator());
+				}
+				throw die(builder.toString(), e);
 			}
 		}
 	}

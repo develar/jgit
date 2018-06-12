@@ -48,9 +48,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import org.eclipse.jgit.attributes.Attribute;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.AbbreviatedObjectId;
 import org.eclipse.jgit.lib.AnyObjectId;
+import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.MutableObjectId;
 import org.eclipse.jgit.lib.ObjectId;
@@ -58,7 +60,9 @@ import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.eclipse.jgit.treewalk.filter.TreeFilterMarker;
 
-/** A value class representing a change to a file */
+/**
+ * A value class representing a change to a file
+ */
 public class DiffEntry {
 	/** Magical SHA1 used for file adds or deletes */
 	static final AbbreviatedObjectId A_ZERO = AbbreviatedObjectId
@@ -107,9 +111,9 @@ public class DiffEntry {
 	 * @param walk
 	 *            the TreeWalk to walk through. Must have exactly two trees.
 	 * @return headers describing the changed files.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the repository cannot be accessed.
-	 * @throws IllegalArgumentException
+	 * @throws java.lang.IllegalArgumentException
 	 *             When given TreeWalk doesn't have exactly two trees.
 	 */
 	public static List<DiffEntry> scan(TreeWalk walk) throws IOException {
@@ -127,9 +131,9 @@ public class DiffEntry {
 	 * @param includeTrees
 	 *            include tree objects.
 	 * @return headers describing the changed files.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the repository cannot be accessed.
-	 * @throws IllegalArgumentException
+	 * @throws java.lang.IllegalArgumentException
 	 *             when {@code includeTrees} is true and given TreeWalk is
 	 *             recursive. Or when given TreeWalk doesn't have exactly two
 	 *             trees
@@ -155,9 +159,9 @@ public class DiffEntry {
 	 *            queried through {{@link #isMarked(int)} (with the index from
 	 *            this passed array).
 	 * @return headers describing the changed files.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the repository cannot be accessed.
-	 * @throws IllegalArgumentException
+	 * @throws java.lang.IllegalArgumentException
 	 *             when {@code includeTrees} is true and given TreeWalk is
 	 *             recursive. Or when given TreeWalk doesn't have exactly two
 	 *             trees
@@ -193,6 +197,11 @@ public class DiffEntry {
 			entry.oldMode = walk.getFileMode(0);
 			entry.newMode = walk.getFileMode(1);
 			entry.newPath = entry.oldPath = walk.getPathString();
+
+			if (walk.getAttributesNodeProvider() != null) {
+				entry.diffAttribute = walk.getAttributes()
+						.get(Constants.ATTR_DIFF);
+			}
 
 			if (treeFilterMarker != null)
 				entry.treeFilterMarks = treeFilterMarker.getMarks(walk);
@@ -280,6 +289,7 @@ public class DiffEntry {
 		del.newMode = FileMode.MISSING;
 		del.newPath = DiffEntry.DEV_NULL;
 		del.changeType = ChangeType.DELETE;
+		del.diffAttribute = entry.diffAttribute;
 
 		DiffEntry add = new DiffEntry();
 		add.oldId = A_ZERO;
@@ -290,6 +300,7 @@ public class DiffEntry {
 		add.newMode = entry.getNewMode();
 		add.newPath = entry.getNewPath();
 		add.changeType = ChangeType.ADD;
+		add.diffAttribute = entry.diffAttribute;
 		return Arrays.asList(del, add);
 	}
 
@@ -304,6 +315,7 @@ public class DiffEntry {
 		r.newId = dst.newId;
 		r.newMode = dst.newMode;
 		r.newPath = dst.newPath;
+		r.diffAttribute = dst.diffAttribute;
 
 		r.changeType = changeType;
 		r.score = score;
@@ -318,6 +330,13 @@ public class DiffEntry {
 
 	/** File name of the new (post-image). */
 	protected String newPath;
+
+	/**
+	 * diff filter attribute
+	 *
+	 * @since 4.11
+	 */
+	protected Attribute diffAttribute;
 
 	/** Old mode of the file, if described by the patch, else null. */
 	protected FileMode oldMode;
@@ -392,12 +411,28 @@ public class DiffEntry {
 		return side == Side.OLD ? getOldPath() : getNewPath();
 	}
 
-	/** @return the old file mode, if described in the patch */
+	/**
+	 * @return the {@link Attribute} determining filters to be applied.
+	 * @since 4.11
+	 */
+	public Attribute getDiffAttribute() {
+		return diffAttribute;
+	}
+
+	/**
+	 * Get the old file mode
+	 *
+	 * @return the old file mode, if described in the patch
+	 */
 	public FileMode getOldMode() {
 		return oldMode;
 	}
 
-	/** @return the new file mode, if described in the patch */
+	/**
+	 * Get the new file mode
+	 *
+	 * @return the new file mode, if described in the patch
+	 */
 	public FileMode getNewMode() {
 		return newMode;
 	}
@@ -413,15 +448,22 @@ public class DiffEntry {
 		return side == Side.OLD ? getOldMode() : getNewMode();
 	}
 
-	/** @return the type of change this patch makes on {@link #getNewPath()} */
+	/**
+	 * Get the change type
+	 *
+	 * @return the type of change this patch makes on {@link #getNewPath()}
+	 */
 	public ChangeType getChangeType() {
 		return changeType;
 	}
 
 	/**
+	 * Get similarity score
+	 *
 	 * @return similarity score between {@link #getOldPath()} and
 	 *         {@link #getNewPath()} if {@link #getChangeType()} is
-	 *         {@link ChangeType#COPY} or {@link ChangeType#RENAME}.
+	 *         {@link org.eclipse.jgit.diff.DiffEntry.ChangeType#COPY} or
+	 *         {@link org.eclipse.jgit.diff.DiffEntry.ChangeType#RENAME}.
 	 */
 	public int getScore() {
 		return score;
@@ -466,10 +508,9 @@ public class DiffEntry {
 	 *
 	 * @param index
 	 *            the index of the tree filter to check for (must be between 0
-	 *            and {@link Integer#SIZE}).
-	 *
-	 * @return true, if the tree filter matched; false if not
+	 *            and {@link java.lang.Integer#SIZE}).
 	 * @since 2.3
+	 * @return a boolean.
 	 */
 	public boolean isMarked(int index) {
 		return (treeFilterMarks & (1L << index)) != 0;
@@ -498,6 +539,7 @@ public class DiffEntry {
 		return side == Side.OLD ? getOldId() : getNewId();
 	}
 
+	/** {@inheritDoc} */
 	@SuppressWarnings("nls")
 	@Override
 	public String toString() {

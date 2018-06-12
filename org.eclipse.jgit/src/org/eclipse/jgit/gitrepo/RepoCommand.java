@@ -49,12 +49,12 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.UnsupportedOperationException;
 import java.net.URI;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.StringJoiner;
 
@@ -125,7 +125,6 @@ public class RepoCommand extends GitCommand<RevCommit> {
 	private boolean ignoreRemoteFailures = false;
 
 	private List<RepoProject> bareProjects;
-	private Git git;
 	private ProgressMonitor monitor;
 
 	/**
@@ -233,7 +232,10 @@ public class RepoCommand extends GitCommand<RevCommit> {
 	}
 
 	/**
+	 * Constructor for RepoCommand
+	 *
 	 * @param repo
+	 *            the {@link org.eclipse.jgit.lib.Repository}
 	 */
 	public RepoCommand(Repository repo) {
 		super(repo);
@@ -259,7 +261,7 @@ public class RepoCommand extends GitCommand<RevCommit> {
 	 * Setting inputStream will ignore the path set. It will be closed in
 	 * {@link #call}.
 	 *
-	 * @param inputStream
+	 * @param inputStream a {@link java.io.InputStream} object.
 	 * @return this command
 	 * @since 3.5
 	 */
@@ -272,10 +274,11 @@ public class RepoCommand extends GitCommand<RevCommit> {
 	 * Set base URI of the paths inside the XML. This is typically the name of
 	 * the directory holding the manifest repository, eg. for
 	 * https://android.googlesource.com/platform/manifest, this should be
-	 * /platform (if you would run this on android.googlesource.com)
-	 * or https://android.googlesource.com/platform elsewhere.
+	 * /platform (if you would run this on android.googlesource.com) or
+	 * https://android.googlesource.com/platform elsewhere.
 	 *
 	 * @param uri
+	 *            the base URI
 	 * @return this command
 	 */
 	public RepoCommand setURI(String uri) {
@@ -320,6 +323,7 @@ public class RepoCommand extends GitCommand<RevCommit> {
 	 * revision specified in project, this branch will be used.
 	 *
 	 * @param branch
+	 *            a branch name
 	 * @return this command
 	 */
 	public RepoCommand setBranch(String branch) {
@@ -337,6 +341,7 @@ public class RepoCommand extends GitCommand<RevCommit> {
 	 * ignored.
 	 *
 	 * @param branch
+	 *            branch name
 	 * @return this command
 	 * @since 4.1
 	 */
@@ -405,9 +410,10 @@ public class RepoCommand extends GitCommand<RevCommit> {
 	 *
 	 * @see org.eclipse.jgit.lib.NullProgressMonitor
 	 * @param monitor
+	 *            a {@link org.eclipse.jgit.lib.ProgressMonitor}
 	 * @return this command
 	 */
-	public RepoCommand setProgressMonitor(final ProgressMonitor monitor) {
+	public RepoCommand setProgressMonitor(ProgressMonitor monitor) {
 		this.monitor = monitor;
 		return this;
 	}
@@ -439,9 +445,10 @@ public class RepoCommand extends GitCommand<RevCommit> {
 	 * ignored.
 	 *
 	 * @param author
+	 *            the author's {@link org.eclipse.jgit.lib.PersonIdent}
 	 * @return this command
 	 */
-	public RepoCommand setAuthor(final PersonIdent author) {
+	public RepoCommand setAuthor(PersonIdent author) {
 		this.author = author;
 		return this;
 	}
@@ -452,9 +459,11 @@ public class RepoCommand extends GitCommand<RevCommit> {
 	 * This is only used in bare repositories.
 	 *
 	 * @param callback
+	 *            a {@link org.eclipse.jgit.gitrepo.RepoCommand.RemoteReader}
+	 *            object.
 	 * @return this command
 	 */
-	public RepoCommand setRemoteReader(final RemoteReader callback) {
+	public RepoCommand setRemoteReader(RemoteReader callback) {
 		this.callback = callback;
 		return this;
 	}
@@ -463,6 +472,9 @@ public class RepoCommand extends GitCommand<RevCommit> {
 	 * Set the IncludedFileReader callback.
 	 *
 	 * @param reader
+	 *            a
+	 *            {@link org.eclipse.jgit.gitrepo.ManifestParser.IncludedFileReader}
+	 *            object.
 	 * @return this command
 	 * @since 4.0
 	 */
@@ -471,60 +483,53 @@ public class RepoCommand extends GitCommand<RevCommit> {
 		return this;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public RevCommit call() throws GitAPIException {
-		try {
-			checkCallable();
-			if (baseUri == null) {
-				baseUri = ""; //$NON-NLS-1$
-			}
-			if (inputStream == null) {
-				if (manifestPath == null || manifestPath.length() == 0)
-					throw new IllegalArgumentException(
-							JGitText.get().pathNotConfigured);
-				try {
-					inputStream = new FileInputStream(manifestPath);
-				} catch (IOException e) {
-					throw new IllegalArgumentException(
-							JGitText.get().pathNotConfigured);
-				}
-			}
-
-			if (repo.isBare()) {
-				bareProjects = new ArrayList<>();
-				if (author == null)
-					author = new PersonIdent(repo);
-				if (callback == null)
-					callback = new DefaultRemoteReader();
-			} else
-				git = new Git(repo);
-
-			ManifestParser parser = new ManifestParser(
-					includedReader, manifestPath, branch, baseUri, groupsParam, repo);
+		checkCallable();
+		if (baseUri == null) {
+			baseUri = ""; //$NON-NLS-1$
+		}
+		if (inputStream == null) {
+			if (manifestPath == null || manifestPath.length() == 0)
+				throw new IllegalArgumentException(
+						JGitText.get().pathNotConfigured);
 			try {
-				parser.read(inputStream);
-				for (RepoProject proj : parser.getFilteredProjects()) {
-					addSubmodule(proj.getUrl(),
-							proj.getPath(),
-							proj.getRevision(),
-							proj.getCopyFiles(),
-							proj.getLinkFiles(),
-							proj.getGroups(),
-							proj.getRecommendShallow());
-				}
-			} catch (GitAPIException | IOException e) {
-				throw new ManifestErrorException(e);
+				inputStream = new FileInputStream(manifestPath);
+			} catch (IOException e) {
+				throw new IllegalArgumentException(
+						JGitText.get().pathNotConfigured);
 			}
+		}
+
+		List<RepoProject> filteredProjects;
+		try {
+			ManifestParser parser = new ManifestParser(includedReader,
+					manifestPath, branch, baseUri, groupsParam, repo);
+			parser.read(inputStream);
+			filteredProjects = parser.getFilteredProjects();
+		} catch (IOException e) {
+			throw new ManifestErrorException(e);
 		} finally {
 			try {
-				if (inputStream != null)
-					inputStream.close();
+				inputStream.close();
 			} catch (IOException e) {
 				// Just ignore it, it's not important.
 			}
 		}
 
 		if (repo.isBare()) {
+			bareProjects = new ArrayList<>();
+			if (author == null)
+				author = new PersonIdent(repo);
+			if (callback == null)
+				callback = new DefaultRemoteReader();
+			for (RepoProject proj : filteredProjects) {
+				addSubmoduleBare(proj.getUrl(), proj.getPath(),
+						proj.getRevision(), proj.getCopyFiles(),
+						proj.getLinkFiles(), proj.getGroups(),
+						proj.getRecommendShallow());
+			}
 			DirCache index = DirCache.newInCore();
 			DirCacheBuilder builder = index.builder();
 			ObjectInserter inserter = repo.newObjectInserter();
@@ -535,15 +540,11 @@ public class RepoCommand extends GitCommand<RevCommit> {
 					String path = proj.getPath();
 					String nameUri = proj.getName();
 					ObjectId objectId;
-					if (ObjectId.isId(proj.getRevision())
-							&& !ignoreRemoteFailures) {
+					if (ObjectId.isId(proj.getRevision())) {
 						objectId = ObjectId.fromString(proj.getRevision());
 					} else {
 						objectId = callback.sha1(nameUri, proj.getRevision());
-						if (objectId == null) {
-							if (ignoreRemoteFailures) {
-								continue;
-							}
+						if (objectId == null && !ignoreRemoteFailures) {
 							throw new RemoteUnavailableException(nameUri);
 						}
 						if (recordRemoteBranch) {
@@ -582,38 +583,40 @@ public class RepoCommand extends GitCommand<RevCommit> {
 					cfg.setString("submodule", path, "url", submodUrl.toString()); //$NON-NLS-1$ //$NON-NLS-2$
 
 					// create gitlink
-					DirCacheEntry dcEntry = new DirCacheEntry(path);
-					dcEntry.setObjectId(objectId);
-					dcEntry.setFileMode(FileMode.GITLINK);
-					builder.add(dcEntry);
+					if (objectId != null) {
+						DirCacheEntry dcEntry = new DirCacheEntry(path);
+						dcEntry.setObjectId(objectId);
+						dcEntry.setFileMode(FileMode.GITLINK);
+						builder.add(dcEntry);
 
-					for (CopyFile copyfile : proj.getCopyFiles()) {
-						byte[] src = callback.readFile(
+						for (CopyFile copyfile : proj.getCopyFiles()) {
+							byte[] src = callback.readFile(
 								nameUri, proj.getRevision(), copyfile.src);
-						objectId = inserter.insert(Constants.OBJ_BLOB, src);
-						dcEntry = new DirCacheEntry(copyfile.dest);
-						dcEntry.setObjectId(objectId);
-						dcEntry.setFileMode(FileMode.REGULAR_FILE);
-						builder.add(dcEntry);
-					}
-					for (LinkFile linkfile : proj.getLinkFiles()) {
-						String link;
-						if (linkfile.dest.contains("/")) { //$NON-NLS-1$
-							link = FileUtils.relativizeGitPath(
-									linkfile.dest.substring(0,
-											linkfile.dest.lastIndexOf('/')),
-									proj.getPath() + "/" + linkfile.src); //$NON-NLS-1$
-						} else {
-							link = proj.getPath() + "/" + linkfile.src; //$NON-NLS-1$
+							objectId = inserter.insert(Constants.OBJ_BLOB, src);
+							dcEntry = new DirCacheEntry(copyfile.dest);
+							dcEntry.setObjectId(objectId);
+							dcEntry.setFileMode(FileMode.REGULAR_FILE);
+							builder.add(dcEntry);
 						}
+						for (LinkFile linkfile : proj.getLinkFiles()) {
+							String link;
+							if (linkfile.dest.contains("/")) { //$NON-NLS-1$
+								link = FileUtils.relativizeGitPath(
+									linkfile.dest.substring(0,
+										linkfile.dest.lastIndexOf('/')),
+									proj.getPath() + "/" + linkfile.src); //$NON-NLS-1$
+							} else {
+								link = proj.getPath() + "/" + linkfile.src; //$NON-NLS-1$
+							}
 
-						objectId = inserter.insert(Constants.OBJ_BLOB,
+							objectId = inserter.insert(Constants.OBJ_BLOB,
 								link.getBytes(
-										Constants.CHARACTER_ENCODING));
-						dcEntry = new DirCacheEntry(linkfile.dest);
-						dcEntry.setObjectId(objectId);
-						dcEntry.setFileMode(FileMode.SYMLINK);
-						builder.add(dcEntry);
+									Constants.CHARACTER_ENCODING));
+							dcEntry = new DirCacheEntry(linkfile.dest);
+							dcEntry.setObjectId(objectId);
+							dcEntry.setFileMode(FileMode.SYMLINK);
+							builder.add(dcEntry);
+						}
 					}
 				}
 				String content = cfg.toText();
@@ -641,6 +644,11 @@ public class RepoCommand extends GitCommand<RevCommit> {
 
 				// Create a Commit object, populate it and write it
 				ObjectId headId = repo.resolve(targetBranch + "^{commit}"); //$NON-NLS-1$
+				if (headId != null && rw.parseCommit(headId).getTree().getId().equals(treeId)) {
+					// No change. Do nothing.
+					return rw.parseCommit(headId);
+				}
+
 				CommitBuilder commit = new CommitBuilder();
 				commit.setTreeId(treeId);
 				if (headId != null)
@@ -677,53 +685,62 @@ public class RepoCommand extends GitCommand<RevCommit> {
 				}
 
 				return rw.parseCommit(commitId);
-			} catch (IOException e) {
+			} catch (GitAPIException | IOException e) {
 				throw new ManifestErrorException(e);
 			}
 		} else {
-			return git
-				.commit()
-				.setMessage(RepoText.get().repoCommitMessage)
-				.call();
+			try (Git git = new Git(repo)) {
+				for (RepoProject proj : filteredProjects) {
+					addSubmodule(proj.getUrl(), proj.getPath(),
+							proj.getRevision(), proj.getCopyFiles(),
+							proj.getLinkFiles(), git);
+				}
+				return git.commit().setMessage(RepoText.get().repoCommitMessage)
+						.call();
+			} catch (GitAPIException | IOException e) {
+				throw new ManifestErrorException(e);
+			}
 		}
 	}
 
 	private void addSubmodule(String url, String path, String revision,
-			List<CopyFile> copyfiles, List<LinkFile> linkfiles,
-			Set<String> groups, String recommendShallow)
+			List<CopyFile> copyfiles, List<LinkFile> linkfiles, Git git)
 			throws GitAPIException, IOException {
-		if (repo.isBare()) {
-			RepoProject proj = new RepoProject(url, path, revision, null, groups, recommendShallow);
-			proj.addCopyFiles(copyfiles);
-			proj.addLinkFiles(linkfiles);
-			bareProjects.add(proj);
-		} else {
-			if (!linkfiles.isEmpty()) {
-				throw new UnsupportedOperationException(
-						JGitText.get().nonBareLinkFilesNotSupported);
-			}
-
-			SubmoduleAddCommand add = git
-				.submoduleAdd()
-				.setPath(path)
-				.setURI(url);
-			if (monitor != null)
-				add.setProgressMonitor(monitor);
-
-			Repository subRepo = add.call();
-			if (revision != null) {
-				try (Git sub = new Git(subRepo)) {
-					sub.checkout().setName(findRef(revision, subRepo))
-							.call();
-				}
-				subRepo.close();
-				git.add().addFilepattern(path).call();
-			}
-			for (CopyFile copyfile : copyfiles) {
-				copyfile.copy();
-				git.add().addFilepattern(copyfile.dest).call();
-			}
+		assert (!repo.isBare());
+		assert (git != null);
+		if (!linkfiles.isEmpty()) {
+			throw new UnsupportedOperationException(
+					JGitText.get().nonBareLinkFilesNotSupported);
 		}
+
+		SubmoduleAddCommand add = git.submoduleAdd().setPath(path).setURI(url);
+		if (monitor != null)
+			add.setProgressMonitor(monitor);
+
+		Repository subRepo = add.call();
+		if (revision != null) {
+			try (Git sub = new Git(subRepo)) {
+				sub.checkout().setName(findRef(revision, subRepo)).call();
+			}
+			subRepo.close();
+			git.add().addFilepattern(path).call();
+		}
+		for (CopyFile copyfile : copyfiles) {
+			copyfile.copy();
+			git.add().addFilepattern(copyfile.dest).call();
+		}
+	}
+
+	private void addSubmoduleBare(String url, String path, String revision,
+			List<CopyFile> copyfiles, List<LinkFile> linkfiles,
+			Set<String> groups, String recommendShallow) {
+		assert (repo.isBare());
+		assert (bareProjects != null);
+		RepoProject proj = new RepoProject(url, path, revision, null, groups,
+				recommendShallow);
+		proj.addCopyFiles(copyfiles);
+		proj.addLinkFiles(linkfiles);
+		bareProjects.add(proj);
 	}
 
 	/*
@@ -733,12 +750,7 @@ public class RepoCommand extends GitCommand<RevCommit> {
 	 */
 	private static final String SLASH = "/"; //$NON-NLS-1$
 	static URI relativize(URI current, URI target) {
-
-		// We only handle bare paths for now.
-		if (!target.toString().equals(target.getPath())) {
-			return target;
-		}
-		if (!current.toString().equals(current.getPath())) {
+		if (!Objects.equals(current.getHost(), target.getHost())) {
 			return target;
 		}
 

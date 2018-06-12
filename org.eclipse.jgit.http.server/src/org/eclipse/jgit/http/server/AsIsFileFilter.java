@@ -66,20 +66,23 @@ import org.eclipse.jgit.transport.resolver.ServiceNotEnabledException;
 class AsIsFileFilter implements Filter {
 	private final AsIsFileService asIs;
 
-	AsIsFileFilter(final AsIsFileService getAnyFile) {
+	AsIsFileFilter(AsIsFileService getAnyFile) {
 		this.asIs = getAnyFile;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void init(FilterConfig config) throws ServletException {
 		// Do nothing.
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void destroy() {
 		// Do nothing.
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void doFilter(ServletRequest request, ServletResponse response,
 			FilterChain chain) throws IOException, ServletException {

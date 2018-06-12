@@ -337,7 +337,7 @@ public class PackWriterTest extends SampleDataRepositoryTestCase {
 	 */
 	@Test
 	public void testWritePack2DeltasCRC32Copy() throws IOException {
-		final File packDir = new File(db.getObjectDatabase().getDirectory(), "pack");
+		final File packDir = db.getObjectDatabase().getPackDirectory();
 		final File crc32Pack = new File(packDir,
 				"pack-34be9032ac282b11fa9babdc2b2a93ca996c9c2f.pack");
 		final File crc32Idx = new File(packDir,
@@ -368,7 +368,7 @@ public class PackWriterTest extends SampleDataRepositoryTestCase {
 				ObjectId.fromString("902d5476fa249b7abc9d84c611577a81381f0327"),
 				ObjectId.fromString("6ff87c4664981e4397625791c8ea3bbb5f2279a3") ,
 				ObjectId.fromString("5b6e7c66c276e7610d4a73c70ec1a1f7c1003259") };
-		try (final RevWalk parser = new RevWalk(db)) {
+		try (RevWalk parser = new RevWalk(db)) {
 			final RevObject forcedOrderRevs[] = new RevObject[forcedOrder.length];
 			for (int i = 0; i < forcedOrder.length; i++)
 				forcedOrderRevs[i] = parser.parseAny(forcedOrder[i]);
@@ -515,11 +515,8 @@ public class PackWriterTest extends SampleDataRepositoryTestCase {
 
 		// Validate that an index written by PackWriter is the same.
 		final File idx2File = new File(indexFile.getAbsolutePath() + ".2");
-		final FileOutputStream is = new FileOutputStream(idx2File);
-		try {
+		try (FileOutputStream is = new FileOutputStream(idx2File)) {
 			writer.writeIndex(is);
-		} finally {
-			is.close();
 		}
 		final PackIndex idx2 = PackIndex.open(idx2File);
 		assertTrue(idx2 instanceof PackIndexV2);
@@ -713,16 +710,16 @@ public class PackWriterTest extends SampleDataRepositoryTestCase {
 
 			pw.preparePack(NullProgressMonitor.INSTANCE, ow, want, have, NONE);
 			String id = pw.computeName().getName();
-			File packdir = new File(repo.getObjectsDirectory(), "pack");
+			File packdir = repo.getObjectDatabase().getPackDirectory();
 			File packFile = new File(packdir, "pack-" + id + ".pack");
-			FileOutputStream packOS = new FileOutputStream(packFile);
-			pw.writePack(NullProgressMonitor.INSTANCE,
-					NullProgressMonitor.INSTANCE, packOS);
-			packOS.close();
+			try (FileOutputStream packOS = new FileOutputStream(packFile)) {
+				pw.writePack(NullProgressMonitor.INSTANCE,
+						NullProgressMonitor.INSTANCE, packOS);
+			}
 			File idxFile = new File(packdir, "pack-" + id + ".idx");
-			FileOutputStream idxOS = new FileOutputStream(idxFile);
-			pw.writeIndex(idxOS);
-			idxOS.close();
+			try (FileOutputStream idxOS = new FileOutputStream(idxFile)) {
+				pw.writeIndex(idxOS);
+			}
 			return PackIndex.open(idxFile);
 		}
 	}
@@ -838,7 +835,7 @@ public class PackWriterTest extends SampleDataRepositoryTestCase {
 		verifyOpenPack(thin);
 	}
 
-	private void createVerifyOpenPack(final List<RevObject> objectSource)
+	private void createVerifyOpenPack(List<RevObject> objectSource)
 			throws MissingObjectException, IOException {
 		NullProgressMonitor m = NullProgressMonitor.INSTANCE;
 		writer = new PackWriter(config, db.newObjectReader());
@@ -849,7 +846,7 @@ public class PackWriterTest extends SampleDataRepositoryTestCase {
 		verifyOpenPack(false);
 	}
 
-	private void verifyOpenPack(final boolean thin) throws IOException {
+	private void verifyOpenPack(boolean thin) throws IOException {
 		final byte[] packData = os.toByteArray();
 
 		if (thin) {
@@ -871,13 +868,13 @@ public class PackWriterTest extends SampleDataRepositoryTestCase {
 		assertNotNull("have PackFile after parsing", pack);
 	}
 
-	private PackParser index(final byte[] packData) throws IOException {
+	private PackParser index(byte[] packData) throws IOException {
 		if (inserter == null)
 			inserter = dst.newObjectInserter();
 		return inserter.newPackParser(new ByteArrayInputStream(packData));
 	}
 
-	private void verifyObjectsOrder(final ObjectId objectsOrder[]) {
+	private void verifyObjectsOrder(ObjectId objectsOrder[]) {
 		final List<PackIndex.MutableEntry> entries = new ArrayList<>();
 
 		for (MutableEntry me : pack) {

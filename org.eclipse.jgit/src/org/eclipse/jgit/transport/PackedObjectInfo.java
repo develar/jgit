@@ -45,6 +45,7 @@
 package org.eclipse.jgit.transport;
 
 import org.eclipse.jgit.lib.AnyObjectId;
+import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectIdOwnerMap;
 
 /**
@@ -59,6 +60,8 @@ public class PackedObjectInfo extends ObjectIdOwnerMap.Entry {
 
 	private int crc;
 
+	private int type = Constants.OBJ_BAD;
+
 	PackedObjectInfo(final long headerOffset, final int packedCRC,
 			final AnyObjectId id) {
 		super(id);
@@ -72,11 +75,13 @@ public class PackedObjectInfo extends ObjectIdOwnerMap.Entry {
 	 * @param id
 	 *            the identity of the object the new instance tracks.
 	 */
-	public PackedObjectInfo(final AnyObjectId id) {
+	public PackedObjectInfo(AnyObjectId id) {
 		super(id);
 	}
 
 	/**
+	 * Get offset in pack when object has been already written
+	 *
 	 * @return offset in pack when object has been already written, or 0 if it
 	 *         has not been written yet
 	 */
@@ -90,11 +95,13 @@ public class PackedObjectInfo extends ObjectIdOwnerMap.Entry {
 	 * @param offset
 	 *            offset where written object starts
 	 */
-	public void setOffset(final long offset) {
+	public void setOffset(long offset) {
 		this.offset = offset;
 	}
 
 	/**
+	 * Get the 32 bit CRC checksum for the packed data.
+	 *
 	 * @return the 32 bit CRC checksum for the packed data.
 	 */
 	public int getCRC() {
@@ -109,7 +116,29 @@ public class PackedObjectInfo extends ObjectIdOwnerMap.Entry {
 	 *            inflated length and delta base reference) as computed by
 	 *            {@link java.util.zip.CRC32}.
 	 */
-	public void setCRC(final int crc) {
+	public void setCRC(int crc) {
 		this.crc = crc;
+	}
+
+	/**
+	 * Get the object type.
+	 *
+	 * @return the object type. The default type is OBJ_BAD, which is considered
+	 *         as unknown or invalid type.
+	 * @since 4.9
+	 */
+	public int getType() {
+		return type;
+	}
+
+	/**
+	 * Record the object type if applicable.
+	 *
+	 * @param type
+	 *            the object type.
+	 * @since 4.9
+	 */
+	public void setType(int type) {
+		this.type = type;
 	}
 }

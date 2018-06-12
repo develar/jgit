@@ -56,10 +56,10 @@ import org.eclipse.jgit.transport.URIish;
 public class MissingBundlePrerequisiteException extends TransportException {
 	private static final long serialVersionUID = 1L;
 
-	private static String format(final Map<ObjectId, String> missingCommits) {
+	private static String format(Map<ObjectId, String> missingCommits) {
 		final StringBuilder r = new StringBuilder();
 		r.append(JGitText.get().missingPrerequisiteCommits);
-		for (final Map.Entry<ObjectId, String> e : missingCommits.entrySet()) {
+		for (Map.Entry<ObjectId, String> e : missingCommits.entrySet()) {
 			r.append("\n  "); //$NON-NLS-1$
 			r.append(e.getKey().name());
 			if (e.getValue() != null)

@@ -48,15 +48,12 @@ package org.eclipse.jgit.lib;
 import org.eclipse.jgit.lib.Config.SectionParser;
 import org.eclipse.jgit.util.SystemReader;
 
-/** The standard "user" configuration parameters. */
+/**
+ * The standard "user" configuration parameters.
+ */
 public class UserConfig {
 	/** Key for {@link Config#get(SectionParser)}. */
-	public static final Config.SectionParser<UserConfig> KEY = new SectionParser<UserConfig>() {
-		@Override
-		public UserConfig parse(final Config cfg) {
-			return new UserConfig(cfg);
-		}
-	};
+	public static final Config.SectionParser<UserConfig> KEY = UserConfig::new;
 
 	private String authorName;
 
@@ -74,7 +71,7 @@ public class UserConfig {
 
 	private boolean isCommitterEmailImplicit;
 
-	private UserConfig(final Config rc) {
+	private UserConfig(Config rc) {
 		authorName = getNameInternal(rc, Constants.GIT_AUTHOR_NAME_KEY);
 		if (authorName == null) {
 			authorName = getDefaultUserName();
@@ -99,6 +96,8 @@ public class UserConfig {
 	}
 
 	/**
+	 * Get the author name as defined in the git variables and configurations.
+	 *
 	 * @return the author name as defined in the git variables and
 	 *         configurations. If no name could be found, try to use the system
 	 *         user name instead.
@@ -108,6 +107,9 @@ public class UserConfig {
 	}
 
 	/**
+	 * Get the committer name as defined in the git variables and
+	 * configurations.
+	 *
 	 * @return the committer name as defined in the git variables and
 	 *         configurations. If no name could be found, try to use the system
 	 *         user name instead.
@@ -117,26 +119,31 @@ public class UserConfig {
 	}
 
 	/**
-	 * @return the author email as defined in git variables and
-	 *         configurations. If no email could be found, try to
-	 *         propose one default with the user name and the
-	 *         host name.
+	 * Get the author email as defined in git variables and configurations.
+	 *
+	 * @return the author email as defined in git variables and configurations.
+	 *         If no email could be found, try to propose one default with the
+	 *         user name and the host name.
 	 */
 	public String getAuthorEmail() {
 		return authorEmail;
 	}
 
 	/**
+	 * Get the committer email as defined in git variables and configurations.
+	 *
 	 * @return the committer email as defined in git variables and
-	 *         configurations. If no email could be found, try to
-	 *         propose one default with the user name and the
-	 *         host name.
+	 *         configurations. If no email could be found, try to propose one
+	 *         default with the user name and the host name.
 	 */
 	public String getCommitterEmail() {
 		return committerEmail;
 	}
 
 	/**
+	 * Whether the author name was not explicitly configured but constructed
+	 * from information the system has about the logged on user
+	 *
 	 * @return true if the author name was not explicitly configured but
 	 *         constructed from information the system has about the logged on
 	 *         user
@@ -146,6 +153,9 @@ public class UserConfig {
 	}
 
 	/**
+	 * Whether the author email was not explicitly configured but constructed
+	 * from information the system has about the logged on user
+	 *
 	 * @return true if the author email was not explicitly configured but
 	 *         constructed from information the system has about the logged on
 	 *         user
@@ -155,6 +165,9 @@ public class UserConfig {
 	}
 
 	/**
+	 * Whether the committer name was not explicitly configured but constructed
+	 * from information the system has about the logged on user
+	 *
 	 * @return true if the committer name was not explicitly configured but
 	 *         constructed from information the system has about the logged on
 	 *         user
@@ -164,6 +177,9 @@ public class UserConfig {
 	}
 
 	/**
+	 * Whether the author email was not explicitly configured but constructed
+	 * from information the system has about the logged on user
+	 *
 	 * @return true if the author email was not explicitly configured but
 	 *         constructed from information the system has about the logged on
 	 *         user

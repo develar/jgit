@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014, Andrey Loskutov <loskutov@gmx.de>
+ * Copyright (C) 2014, 2017 Andrey Loskutov <loskutov@gmx.de>
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -56,8 +56,8 @@ import org.eclipse.jgit.ignore.FastIgnoreRule;
 import org.eclipse.jgit.internal.JGitText;
 
 /**
- * Various {@link String} related utility methods, written mostly to avoid
- * generation of new String objects (e.g. via splitting Strings etc).
+ * Various {@link java.lang.String} related utility methods, written mostly to
+ * avoid generation of new String objects (e.g. via splitting Strings etc).
  */
 public class Strings {
 
@@ -67,6 +67,8 @@ public class Strings {
 	}
 
 	/**
+	 * Strip trailing characters
+	 *
 	 * @param pattern
 	 *            non null
 	 * @param c
@@ -87,6 +89,8 @@ public class Strings {
 	}
 
 	/**
+	 * Strip trailing whitespace characters
+	 *
 	 * @param pattern
 	 *            non null
 	 * @return new string with all trailing whitespace removed
@@ -105,10 +109,12 @@ public class Strings {
 	}
 
 	/**
+	 * Check if pattern is a directory pattern ending with a path separator
+	 *
 	 * @param pattern
 	 *            non null
-	 * @return true if the last character, which is not whitespace, is a path
-	 *         separator
+	 * @return {@code true} if the last character, which is not whitespace, is a
+	 *         path separator
 	 */
 	public static boolean isDirectoryPattern(String pattern) {
 		for (int i = pattern.length() - 1; i >= 0; i--) {
@@ -123,12 +129,15 @@ public class Strings {
 	static int count(String s, char c, boolean ignoreFirstLast) {
 		int start = 0;
 		int count = 0;
-		while (true) {
+		int length = s.length();
+		while (start < length) {
 			start = s.indexOf(c, start);
-			if (start == -1)
+			if (start == -1) {
 				break;
-			if (!ignoreFirstLast || (start != 0 && start != s.length()))
+			}
+			if (!ignoreFirstLast || (start != 0 && start != length - 1)) {
 				count++;
+			}
 			start++;
 		}
 		return count;
@@ -360,7 +369,10 @@ public class Strings {
 
 			case '[':
 				if (in_brackets > 0) {
-					sb.append('\\').append('[');
+					if (!seenEscape) {
+						sb.append('\\');
+					}
+					sb.append('[');
 					ignoreLastBracket = true;
 				} else {
 					if (!seenEscape) {
@@ -433,12 +445,10 @@ public class Strings {
 		try {
 			return Pattern.compile(sb.toString());
 		} catch (PatternSyntaxException e) {
-			InvalidPatternException patternException = new InvalidPatternException(
+			throw new InvalidPatternException(
 					MessageFormat.format(JGitText.get().invalidIgnoreRule,
 							pattern),
-					pattern);
-			patternException.initCause(e);
-			throw patternException;
+					pattern, e);
 		}
 	}
 

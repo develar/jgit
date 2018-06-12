@@ -47,9 +47,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import org.eclipse.jgit.lfs.lib.AnyLongObjectId;
+import org.eclipse.jgit.lfs.lib.Constants;
+import org.eclipse.jgit.lib.Repository;
 
 /**
- * Class which represents the lfs folder hierarchy inside a .git folder
+ * Class which represents the lfs folder hierarchy inside a {@code .git} folder
  *
  * @since 4.6
  */
@@ -61,14 +63,20 @@ public class Lfs {
 	private Path tmpDir;
 
 	/**
-	 * @param root
-	 *            the path to the LFS media directory. Will be "<repo>/.git/lfs"
+	 * Constructor for Lfs.
+	 *
+	 * @param db
+	 *            the associated repo
+	 *
+	 * @since 4.11
 	 */
-	public Lfs(Path root) {
-		this.root = root;
+	public Lfs(Repository db) {
+		this.root = db.getDirectory().toPath().resolve(Constants.LFS);
 	}
 
 	/**
+	 * Get the LFS root directory
+	 *
 	 * @return the path to the LFS directory
 	 */
 	public Path getLfsRoot() {
@@ -76,8 +84,10 @@ public class Lfs {
 	}
 
 	/**
-	 * @return the path to the temp directory used by LFS. Will be
-	 *         "<repo>/.git/lfs/tmp"
+	 * Get the path to the temporary directory used by LFS.
+	 *
+	 * @return the path to the temporary directory used by LFS. Will be
+	 *         {@code <repo>/.git/lfs/tmp}
 	 */
 	public Path getLfsTmpDir() {
 		if (tmpDir == null) {
@@ -87,8 +97,10 @@ public class Lfs {
 	}
 
 	/**
+	 * Get the object directory used by LFS
+	 *
 	 * @return the path to the object directory used by LFS. Will be
-	 *         "<repo>/.git/lfs/objects"
+	 *         {@code <repo>/.git/lfs/objects}
 	 */
 	public Path getLfsObjDir() {
 		if (objDir == null) {
@@ -98,23 +110,25 @@ public class Lfs {
 	}
 
 	/**
+	 * Get the media file which stores the original content
+	 *
 	 * @param id
 	 *            the id of the mediafile
-	 * @return the file which stores the original content. This will be files
-	 *         underneath
-	 *         "<repo>/.git/lfs/objects/<firstTwoLettersOfID>/<remainingLettersOfID>"
+	 * @return the file which stores the original content. Its path will look
+	 *         like
+	 *         {@code "<repo>/.git/lfs/objects/<firstTwoLettersOfID>/<remainingLettersOfID>"}
 	 */
 	public Path getMediaFile(AnyLongObjectId id) {
 		String idStr = id.name();
 		return getLfsObjDir().resolve(idStr.substring(0, 2))
-				.resolve(idStr.substring(2));
+				.resolve(idStr.substring(2, 4)).resolve(idStr);
 	}
 
 	/**
 	 * Create a new temp file in the LFS directory
 	 *
 	 * @return a new temporary file in the LFS directory
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             when the temp file could not be created
 	 */
 	public Path createTmpFile() throws IOException {

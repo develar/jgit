@@ -60,13 +60,14 @@ import org.eclipse.jgit.lib.ObjectDatabase;
 class InfoPacksServlet extends HttpServlet {
 	private static final long serialVersionUID = 1L;
 
+	/** {@inheritDoc} */
 	@Override
 	public void doGet(final HttpServletRequest req,
 			final HttpServletResponse rsp) throws IOException {
 		sendPlainText(packList(req), req, rsp);
 	}
 
-	private static String packList(final HttpServletRequest req) {
+	private static String packList(HttpServletRequest req) {
 		final StringBuilder out = new StringBuilder();
 		final ObjectDatabase db = getRepository(req).getObjectDatabase();
 		if (db instanceof ObjectDirectory) {

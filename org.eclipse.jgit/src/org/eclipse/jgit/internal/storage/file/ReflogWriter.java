@@ -46,11 +46,11 @@
 package org.eclipse.jgit.internal.storage.file;
 
 import static org.eclipse.jgit.lib.Constants.HEAD;
-import static org.eclipse.jgit.lib.Constants.LOGS;
+import static org.eclipse.jgit.lib.Constants.LOCK_SUFFIX;
 import static org.eclipse.jgit.lib.Constants.R_HEADS;
+import static org.eclipse.jgit.lib.Constants.R_NOTES;
 import static org.eclipse.jgit.lib.Constants.R_REFS;
 import static org.eclipse.jgit.lib.Constants.R_REMOTES;
-import static org.eclipse.jgit.lib.Constants.R_STASH;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -68,110 +68,81 @@ import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.lib.ReflogEntry;
-import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.util.FS;
 import org.eclipse.jgit.util.FileUtils;
 
 /**
- * Utility for writing reflog entries
+ * Utility for writing reflog entries using the traditional one-file-per-log
+ * format.
  */
 public class ReflogWriter {
 
 	/**
-	 * Get the ref name to be used for when locking a ref's log for rewriting
+	 * Get the ref name to be used for when locking a ref's log for rewriting.
 	 *
 	 * @param name
 	 *            name of the ref, relative to the Git repository top level
 	 *            directory (so typically starts with refs/).
-	 * @return the name of the ref's lock ref
+	 * @return the name of the ref's lock ref.
 	 */
-	public static String refLockFor(final String name) {
-		return name + LockFile.SUFFIX;
+	public static String refLockFor(String name) {
+		return name + LOCK_SUFFIX;
 	}
 
-	private final Repository parent;
-
-	private final File logsDir;
-
-	private final File logsRefsDir;
+	private final RefDirectory refdb;
 
 	private final boolean forceWrite;
 
 	/**
-	 * Create write for repository
+	 * Create writer for ref directory.
 	 *
-	 * @param repository
+	 * @param refdb
+	 *            a {@link org.eclipse.jgit.internal.storage.file.RefDirectory}
+	 *            object.
 	 */
-	public ReflogWriter(final Repository repository) {
-		this(repository, false);
+	public ReflogWriter(RefDirectory refdb) {
+		this(refdb, false);
 	}
 
 	/**
-	 * Create write for repository
+	 * Create writer for ref directory.
 	 *
-	 * @param repository
+	 * @param refdb
+	 *            a {@link org.eclipse.jgit.internal.storage.file.RefDirectory}
+	 *            object.
 	 * @param forceWrite
 	 *            true to write to disk all entries logged, false to respect the
-	 *            repository's config and current log file status
+	 *            repository's config and current log file status.
 	 */
-	public ReflogWriter(final Repository repository, final boolean forceWrite) {
-		final FS fs = repository.getFS();
-		parent = repository;
-		File gitDir = repository.getDirectory();
-		logsDir = fs.resolve(gitDir, LOGS);
-		logsRefsDir = fs.resolve(gitDir, LOGS + '/' + R_REFS);
+	public ReflogWriter(RefDirectory refdb, boolean forceWrite) {
+		this.refdb = refdb;
 		this.forceWrite = forceWrite;
 	}
 
 	/**
-	 * Get repository that reflog is being written for
+	 * Create the log directories.
 	 *
-	 * @return file repository
-	 */
-	public Repository getRepository() {
-		return parent;
-	}
-
-	/**
-	 * Create the log directories
-	 *
-	 * @throws IOException
-	 * @return this writer
+	 * @throws java.io.IOException
+	 * @return this writer.
 	 */
 	public ReflogWriter create() throws IOException {
-		FileUtils.mkdir(logsDir);
-		FileUtils.mkdir(logsRefsDir);
-		FileUtils.mkdir(new File(logsRefsDir,
-				R_HEADS.substring(R_REFS.length())));
+		FileUtils.mkdir(refdb.logsDir);
+		FileUtils.mkdir(refdb.logsRefsDir);
+		FileUtils.mkdir(
+				new File(refdb.logsRefsDir, R_HEADS.substring(R_REFS.length())));
 		return this;
 	}
 
 	/**
-	 * Locate the log file on disk for a single reference name.
-	 *
-	 * @param name
-	 *            name of the ref, relative to the Git repository top level
-	 *            directory (so typically starts with refs/).
-	 * @return the log file location.
-	 */
-	public File logFor(String name) {
-		if (name.startsWith(R_REFS)) {
-			name = name.substring(R_REFS.length());
-			return new File(logsRefsDir, name);
-		}
-		return new File(logsDir, name);
-	}
-
-	/**
-	 * Write the given {@link ReflogEntry} entry to the ref's log
+	 * Write the given entry to the ref's log.
 	 *
 	 * @param refName
-	 *
+	 *            a {@link java.lang.String} object.
 	 * @param entry
+	 *            a {@link org.eclipse.jgit.lib.ReflogEntry} object.
 	 * @return this writer
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
-	public ReflogWriter log(final String refName, final ReflogEntry entry)
+	public ReflogWriter log(String refName, ReflogEntry entry)
 			throws IOException {
 		return log(refName, entry.getOldId(), entry.getNewId(), entry.getWho(),
 				entry.getComment());
@@ -181,42 +152,49 @@ public class ReflogWriter {
 	 * Write the given entry information to the ref's log
 	 *
 	 * @param refName
+	 *            ref name
 	 * @param oldId
+	 *            old object id
 	 * @param newId
+	 *            new object id
 	 * @param ident
+	 *            a {@link org.eclipse.jgit.lib.PersonIdent}
 	 * @param message
+	 *            reflog message
 	 * @return this writer
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
-	public ReflogWriter log(final String refName, final ObjectId oldId,
-			final ObjectId newId, final PersonIdent ident, final String message)
-			throws IOException {
+	public ReflogWriter log(String refName, ObjectId oldId,
+			ObjectId newId, PersonIdent ident, String message) throws IOException {
 		byte[] encoded = encode(oldId, newId, ident, message);
 		return log(refName, encoded);
 	}
 
 	/**
-	 * Write the given ref update to the ref's log
+	 * Write the given ref update to the ref's log.
 	 *
 	 * @param update
+	 *            a {@link org.eclipse.jgit.lib.RefUpdate}
 	 * @param msg
+	 *            reflog message
 	 * @param deref
+	 *            whether to dereference symbolic refs
 	 * @return this writer
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
-	public ReflogWriter log(final RefUpdate update, final String msg,
-			final boolean deref) throws IOException {
-		final ObjectId oldId = update.getOldObjectId();
-		final ObjectId newId = update.getNewObjectId();
-		final Ref ref = update.getRef();
+	public ReflogWriter log(RefUpdate update, String msg,
+			boolean deref) throws IOException {
+		ObjectId oldId = update.getOldObjectId();
+		ObjectId newId = update.getNewObjectId();
+		Ref ref = update.getRef();
 
 		PersonIdent ident = update.getRefLogIdent();
 		if (ident == null)
-			ident = new PersonIdent(parent);
+			ident = new PersonIdent(refdb.getRepository());
 		else
 			ident = new PersonIdent(ident);
 
-		final byte[] rec = encode(oldId, newId, ident, msg);
+		byte[] rec = encode(oldId, newId, ident, msg);
 		if (deref && ref.isSymbolic()) {
 			log(ref.getName(), rec);
 			log(ref.getLeaf().getName(), rec);
@@ -228,63 +206,69 @@ public class ReflogWriter {
 
 	private byte[] encode(ObjectId oldId, ObjectId newId, PersonIdent ident,
 			String message) {
-		final StringBuilder r = new StringBuilder();
+		StringBuilder r = new StringBuilder();
 		r.append(ObjectId.toString(oldId));
 		r.append(' ');
 		r.append(ObjectId.toString(newId));
 		r.append(' ');
 		r.append(ident.toExternalString());
 		r.append('\t');
-		r.append(message.replace("\r\n", " ").replace("\n", " ")); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
+		r.append(
+				message.replace("\r\n", " ") //$NON-NLS-1$ //$NON-NLS-2$
+						.replace("\n", " ")); //$NON-NLS-1$ //$NON-NLS-2$
 		r.append('\n');
 		return Constants.encode(r.toString());
 	}
 
-	private ReflogWriter log(final String refName, final byte[] rec)
-			throws IOException {
-		final File log = logFor(refName);
-		final boolean write = forceWrite
+	private FileOutputStream getFileOutputStream(File log) throws IOException {
+		try {
+			return new FileOutputStream(log, true);
+		} catch (FileNotFoundException err) {
+			File dir = log.getParentFile();
+			if (dir.exists()) {
+				throw err;
+			}
+			if (!dir.mkdirs() && !dir.isDirectory()) {
+				throw new IOException(MessageFormat
+						.format(JGitText.get().cannotCreateDirectory, dir));
+			}
+			return new FileOutputStream(log, true);
+		}
+	}
+
+	private ReflogWriter log(String refName, byte[] rec) throws IOException {
+		File log = refdb.logFor(refName);
+		boolean write = forceWrite
 				|| (isLogAllRefUpdates() && shouldAutoCreateLog(refName))
 				|| log.isFile();
 		if (!write)
 			return this;
 
-		WriteConfig wc = getRepository().getConfig().get(WriteConfig.KEY);
-		FileOutputStream out;
-		try {
-			out = new FileOutputStream(log, true);
-		} catch (FileNotFoundException err) {
-			final File dir = log.getParentFile();
-			if (dir.exists())
-				throw err;
-			if (!dir.mkdirs() && !dir.isDirectory())
-				throw new IOException(MessageFormat.format(
-						JGitText.get().cannotCreateDirectory, dir));
-			out = new FileOutputStream(log, true);
-		}
-		try {
+		WriteConfig wc = refdb.getRepository().getConfig().get(WriteConfig.KEY);
+		try (FileOutputStream out = getFileOutputStream(log)) {
 			if (wc.getFSyncRefFiles()) {
 				FileChannel fc = out.getChannel();
 				ByteBuffer buf = ByteBuffer.wrap(rec);
-				while (0 < buf.remaining())
+				while (0 < buf.remaining()) {
 					fc.write(buf);
+				}
 				fc.force(true);
-			} else
+			} else {
 				out.write(rec);
-		} finally {
-			out.close();
+			}
 		}
 		return this;
 	}
 
 	private boolean isLogAllRefUpdates() {
-		return parent.getConfig().get(CoreConfig.KEY).isLogAllRefUpdates();
+		return refdb.getRepository().getConfig().get(CoreConfig.KEY)
+				.isLogAllRefUpdates();
 	}
 
-	private boolean shouldAutoCreateLog(final String refName) {
-		return refName.equals(HEAD) //
-				|| refName.startsWith(R_HEADS) //
-				|| refName.startsWith(R_REMOTES) //
-				|| refName.equals(R_STASH);
+	private boolean shouldAutoCreateLog(String refName) {
+		return refName.equals(HEAD)
+				|| refName.startsWith(R_HEADS)
+				|| refName.startsWith(R_REMOTES)
+				|| refName.startsWith(R_NOTES);
 	}
 }

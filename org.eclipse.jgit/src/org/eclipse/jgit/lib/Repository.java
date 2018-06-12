@@ -48,6 +48,8 @@
 
 package org.eclipse.jgit.lib;
 
+import static org.eclipse.jgit.lib.Constants.LOCK_SUFFIX;
+
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -83,7 +85,6 @@ import org.eclipse.jgit.events.IndexChangedListener;
 import org.eclipse.jgit.events.ListenerList;
 import org.eclipse.jgit.events.RepositoryEvent;
 import org.eclipse.jgit.internal.JGitText;
-import org.eclipse.jgit.internal.storage.file.GC;
 import org.eclipse.jgit.revwalk.RevBlob;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevObject;
@@ -106,7 +107,13 @@ import org.slf4j.LoggerFactory;
  * A repository holds all objects and refs used for managing source code (could
  * be any type of file, but source code is what SCM's are typically used for).
  * <p>
- * This class is thread-safe.
+ * The thread-safety of a {@link org.eclipse.jgit.lib.Repository} very much
+ * depends on the concrete implementation. Applications working with a generic
+ * {@code Repository} type must not assume the instance is thread-safe.
+ * <ul>
+ * <li>{@code FileRepository} is thread-safe.
+ * <li>{@code DfsRepository} thread-safety is determined by its subclass.
+ * </ul>
  */
 public abstract class Repository implements AutoCloseable {
 	private static final Logger LOG = LoggerFactory.getLogger(Repository.class);
@@ -123,7 +130,11 @@ public abstract class Repository implements AutoCloseable {
 					"(^|/)(aux|com[1-9]|con|lpt[1-9]|nul|prn)(\\.[^/]*)?", //$NON-NLS-1$
 					Pattern.CASE_INSENSITIVE);
 
-	/** @return the global listener list observing all events in this JVM. */
+	/**
+	 * Get the global listener list observing all events in this JVM.
+	 *
+	 * @return the global listener list observing all events in this JVM.
+	 */
 	public static ListenerList getGlobalListenerList() {
 		return globalListeners;
 	}
@@ -153,14 +164,18 @@ public abstract class Repository implements AutoCloseable {
 	 * @param options
 	 *            options to configure the repository.
 	 */
-	protected Repository(final BaseRepositoryBuilder options) {
+	protected Repository(BaseRepositoryBuilder options) {
 		gitDir = options.getGitDir();
 		fs = options.getFS();
 		workTree = options.getWorkTree();
 		indexFile = options.getIndexFile();
 	}
 
-	/** @return listeners observing only events on this repository. */
+	/**
+	 * Get listeners observing only events on this repository.
+	 *
+	 * @return listeners observing only events on this repository.
+	 */
 	@NonNull
 	public ListenerList getListenerList() {
 		return myListeners;
@@ -187,7 +202,7 @@ public abstract class Repository implements AutoCloseable {
 	 * Repository with working tree is created using this method. This method is
 	 * the same as {@code create(false)}.
 	 *
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 * @see #create(boolean)
 	 */
 	public void create() throws IOException {
@@ -201,12 +216,14 @@ public abstract class Repository implements AutoCloseable {
 	 * @param bare
 	 *            if true, a bare repository (a repository without a working
 	 *            directory) is created.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             in case of IO problem
 	 */
 	public abstract void create(boolean bare) throws IOException;
 
 	/**
+	 * Get local metadata directory
+	 *
 	 * @return local metadata directory; {@code null} if repository isn't local.
 	 */
 	/*
@@ -221,44 +238,64 @@ public abstract class Repository implements AutoCloseable {
 	}
 
 	/**
+	 * Get the object database which stores this repository's data.
+	 *
 	 * @return the object database which stores this repository's data.
 	 */
 	@NonNull
 	public abstract ObjectDatabase getObjectDatabase();
 
-	/** @return a new inserter to create objects in {@link #getObjectDatabase()} */
+	/**
+	 * Create a new inserter to create objects in {@link #getObjectDatabase()}.
+	 *
+	 * @return a new inserter to create objects in {@link #getObjectDatabase()}.
+	 */
 	@NonNull
 	public ObjectInserter newObjectInserter() {
 		return getObjectDatabase().newInserter();
 	}
 
-	/** @return a new reader to read objects from {@link #getObjectDatabase()} */
+	/**
+	 * Create a new reader to read objects from {@link #getObjectDatabase()}.
+	 *
+	 * @return a new reader to read objects from {@link #getObjectDatabase()}.
+	 */
 	@NonNull
 	public ObjectReader newObjectReader() {
 		return getObjectDatabase().newReader();
 	}
 
-	/** @return the reference database which stores the reference namespace. */
+	/**
+	 * Get the reference database which stores the reference namespace.
+	 *
+	 * @return the reference database which stores the reference namespace.
+	 */
 	@NonNull
 	public abstract RefDatabase getRefDatabase();
 
 	/**
-	 * @return the configuration of this repository
+	 * Get the configuration of this repository.
+	 *
+	 * @return the configuration of this repository.
 	 */
 	@NonNull
 	public abstract StoredConfig getConfig();
 
 	/**
-	 * @return a new {@link AttributesNodeProvider}. This
-	 *         {@link AttributesNodeProvider} is lazy loaded only once. It means
-	 *         that it will not be updated after loading. Prefer creating new
-	 *         instance for each use.
+	 * Create a new {@link org.eclipse.jgit.attributes.AttributesNodeProvider}.
+	 *
+	 * @return a new {@link org.eclipse.jgit.attributes.AttributesNodeProvider}.
+	 *         This {@link org.eclipse.jgit.attributes.AttributesNodeProvider}
+	 *         is lazy loaded only once. It means that it will not be updated
+	 *         after loading. Prefer creating new instance for each use.
 	 * @since 4.2
 	 */
 	@NonNull
 	public abstract AttributesNodeProvider createAttributesNodeProvider();
 
 	/**
+	 * Get the used file system abstraction.
+	 *
 	 * @return the used file system abstraction, or or {@code null} if
 	 *         repository isn't local.
 	 */
@@ -274,7 +311,11 @@ public abstract class Repository implements AutoCloseable {
 	}
 
 	/**
+	 * Whether the specified object is stored in this repo or any of the known
+	 * shared repositories.
+	 *
 	 * @param objectId
+	 *            a {@link org.eclipse.jgit.lib.AnyObjectId} object.
 	 * @return true if the specified object is stored in this repo or any of the
 	 *         known shared repositories.
 	 */
@@ -295,14 +336,15 @@ public abstract class Repository implements AutoCloseable {
 	 *
 	 * @param objectId
 	 *            identity of the object to open.
-	 * @return a {@link ObjectLoader} for accessing the object.
-	 * @throws MissingObjectException
+	 * @return a {@link org.eclipse.jgit.lib.ObjectLoader} for accessing the
+	 *         object.
+	 * @throws org.eclipse.jgit.errors.MissingObjectException
 	 *             the object does not exist.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the object store cannot be accessed.
 	 */
 	@NonNull
-	public ObjectLoader open(final AnyObjectId objectId)
+	public ObjectLoader open(AnyObjectId objectId)
 			throws MissingObjectException, IOException {
 		return getObjectDatabase().open(objectId);
 	}
@@ -317,16 +359,17 @@ public abstract class Repository implements AutoCloseable {
 	 *            identity of the object to open.
 	 * @param typeHint
 	 *            hint about the type of object being requested, e.g.
-	 *            {@link Constants#OBJ_BLOB}; {@link ObjectReader#OBJ_ANY} if
-	 *            the object type is not known, or does not matter to the
-	 *            caller.
-	 * @return a {@link ObjectLoader} for accessing the object.
-	 * @throws MissingObjectException
+	 *            {@link org.eclipse.jgit.lib.Constants#OBJ_BLOB};
+	 *            {@link org.eclipse.jgit.lib.ObjectReader#OBJ_ANY} if the
+	 *            object type is not known, or does not matter to the caller.
+	 * @return a {@link org.eclipse.jgit.lib.ObjectLoader} for accessing the
+	 *         object.
+	 * @throws org.eclipse.jgit.errors.MissingObjectException
 	 *             the object does not exist.
-	 * @throws IncorrectObjectTypeException
+	 * @throws org.eclipse.jgit.errors.IncorrectObjectTypeException
 	 *             typeHint was not OBJ_ANY, and the object's actual type does
 	 *             not match typeHint.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the object store cannot be accessed.
 	 */
 	@NonNull
@@ -344,12 +387,12 @@ public abstract class Repository implements AutoCloseable {
 	 * @return an update command. The caller must finish populating this command
 	 *         and then invoke one of the update methods to actually make a
 	 *         change.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             a symbolic ref was passed in and could not be resolved back
 	 *             to the base ref, as the symbolic ref could not be read.
 	 */
 	@NonNull
-	public RefUpdate updateRef(final String ref) throws IOException {
+	public RefUpdate updateRef(String ref) throws IOException {
 		return updateRef(ref, false);
 	}
 
@@ -363,12 +406,12 @@ public abstract class Repository implements AutoCloseable {
 	 * @return an update command. The caller must finish populating this command
 	 *         and then invoke one of the update methods to actually make a
 	 *         change.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             a symbolic ref was passed in and could not be resolved back
 	 *             to the base ref, as the symbolic ref could not be read.
 	 */
 	@NonNull
-	public RefUpdate updateRef(final String ref, final boolean detach) throws IOException {
+	public RefUpdate updateRef(String ref, boolean detach) throws IOException {
 		return getRefDatabase().newUpdate(ref, detach);
 	}
 
@@ -380,12 +423,11 @@ public abstract class Repository implements AutoCloseable {
 	 * @param toRef
 	 *            name of ref to rename to
 	 * @return an update command that knows how to rename a branch to another.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the rename could not be performed.
-	 *
 	 */
 	@NonNull
-	public RefRename renameRef(final String fromRef, final String toRef) throws IOException {
+	public RefRename renameRef(String fromRef, String toRef) throws IOException {
 		return getRefDatabase().newRename(fromRef, toRef);
 	}
 
@@ -426,27 +468,27 @@ public abstract class Repository implements AutoCloseable {
 	 *            A git object references expression
 	 * @return an ObjectId or {@code null} if revstr can't be resolved to any
 	 *         ObjectId
-	 * @throws AmbiguousObjectException
+	 * @throws org.eclipse.jgit.errors.AmbiguousObjectException
 	 *             {@code revstr} contains an abbreviated ObjectId and this
 	 *             repository contains more than one object which match to the
 	 *             input abbreviation.
-	 * @throws IncorrectObjectTypeException
+	 * @throws org.eclipse.jgit.errors.IncorrectObjectTypeException
 	 *             the id parsed does not meet the type required to finish
 	 *             applying the operators in the expression.
-	 * @throws RevisionSyntaxException
+	 * @throws org.eclipse.jgit.errors.RevisionSyntaxException
 	 *             the expression is not supported by this implementation, or
 	 *             does not meet the standard syntax.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             on serious errors
 	 */
 	@Nullable
-	public ObjectId resolve(final String revstr)
+	public ObjectId resolve(String revstr)
 			throws AmbiguousObjectException, IncorrectObjectTypeException,
 			RevisionSyntaxException, IOException {
 		try (RevWalk rw = new RevWalk(this)) {
 			Object resolved = resolve(rw, revstr);
 			if (resolved instanceof String) {
-				final Ref ref = getRef((String)resolved);
+				final Ref ref = findRef((String) resolved);
 				return ref != null ? ref.getLeaf().getObjectId() : null;
 			} else {
 				return (ObjectId) resolved;
@@ -460,14 +502,14 @@ public abstract class Repository implements AutoCloseable {
 	 * Thus this method can be used to process an expression to a method that
 	 * expects a branch or revision id.
 	 *
-	 * @param revstr
+	 * @param revstr a {@link java.lang.String} object.
 	 * @return object id or ref name from resolved expression or {@code null} if
 	 *         given expression cannot be resolved
-	 * @throws AmbiguousObjectException
-	 * @throws IOException
+	 * @throws org.eclipse.jgit.errors.AmbiguousObjectException
+	 * @throws java.io.IOException
 	 */
 	@Nullable
-	public String simplify(final String revstr)
+	public String simplify(String revstr)
 			throws AmbiguousObjectException, IOException {
 		try (RevWalk rw = new RevWalk(this)) {
 			Object resolved = resolve(rw, revstr);
@@ -481,7 +523,7 @@ public abstract class Repository implements AutoCloseable {
 	}
 
 	@Nullable
-	private Object resolve(final RevWalk rw, final String revstr)
+	private Object resolve(RevWalk rw, String revstr)
 			throws IOException {
 		char[] revChars = revstr.toCharArray();
 		RevObject rev = null;
@@ -646,6 +688,8 @@ public abstract class Repository implements AutoCloseable {
 			case '@':
 				if (rev != null)
 					throw new RevisionSyntaxException(revstr);
+				if (i + 1 == revChars.length)
+					continue;
 				if (i + 1 < revChars.length && revChars[i + 1] != '{')
 					continue;
 				int m;
@@ -669,7 +713,7 @@ public abstract class Repository implements AutoCloseable {
 									.format(JGitText.get().invalidRefName,
 											name),
 									revstr);
-						Ref ref = getRef(name);
+						Ref ref = findRef(name);
 						name = null;
 						if (ref == null)
 							return null;
@@ -722,7 +766,7 @@ public abstract class Repository implements AutoCloseable {
 									.format(JGitText.get().invalidRefName,
 											name),
 									revstr);
-						Ref ref = getRef(name);
+						Ref ref = findRef(name);
 						name = null;
 						if (ref == null)
 							return null;
@@ -773,7 +817,7 @@ public abstract class Repository implements AutoCloseable {
 			throw new RevisionSyntaxException(
 					MessageFormat.format(JGitText.get().invalidRefName, name),
 					revstr);
-		if (getRef(name) != null)
+		if (findRef(name) != null)
 			return name;
 		return resolveSimple(name);
 	}
@@ -799,7 +843,7 @@ public abstract class Repository implements AutoCloseable {
 	}
 
 	@Nullable
-	private ObjectId resolveSimple(final String revstr) throws IOException {
+	private ObjectId resolveSimple(String revstr) throws IOException {
 		if (ObjectId.isId(revstr))
 			return ObjectId.fromString(revstr);
 
@@ -869,7 +913,7 @@ public abstract class Repository implements AutoCloseable {
 	}
 
 	@Nullable
-	private ObjectId resolveAbbreviation(final String revstr) throws IOException,
+	private ObjectId resolveAbbreviation(String revstr) throws IOException,
 			AmbiguousObjectException {
 		AbbreviatedObjectId id = AbbreviatedObjectId.fromString(revstr);
 		try (ObjectReader reader = newObjectReader()) {
@@ -883,12 +927,18 @@ public abstract class Repository implements AutoCloseable {
 		}
 	}
 
-	/** Increment the use counter by one, requiring a matched {@link #close()}. */
+	/**
+	 * Increment the use counter by one, requiring a matched {@link #close()}.
+	 */
 	public void incrementOpen() {
 		useCnt.incrementAndGet();
 	}
 
-	/** Decrement the use count, and maybe close resources. */
+	/**
+	 * {@inheritDoc}
+	 * <p>
+	 * Decrement the use count, and maybe close resources.
+	 */
 	@Override
 	public void close() {
 		int newCount = useCnt.decrementAndGet();
@@ -924,6 +974,7 @@ public abstract class Repository implements AutoCloseable {
 		getRefDatabase().close();
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	@NonNull
 	public String toString() {
@@ -953,7 +1004,7 @@ public abstract class Repository implements AutoCloseable {
 	 *         an ObjectId in hex format if the current branch is detached, or
 	 *         {@code null} if the repository is corrupt and has no HEAD
 	 *         reference.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
 	@Nullable
 	public String getFullBranch() throws IOException {
@@ -981,7 +1032,7 @@ public abstract class Repository implements AutoCloseable {
 	 * @return name of current branch (for example {@code master}), an ObjectId
 	 *         in hex format if the current branch is detached, or {@code null}
 	 *         if the repository is corrupt and has no HEAD reference.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
 	@Nullable
 	public String getBranch() throws IOException {
@@ -1010,33 +1061,15 @@ public abstract class Repository implements AutoCloseable {
 	 * Get a ref by name.
 	 *
 	 * @param name
-	 *            the name of the ref to lookup. May be a short-hand form, e.g.
-	 *            "master" which is is automatically expanded to
-	 *            "refs/heads/master" if "refs/heads/master" already exists.
-	 * @return the Ref with the given name, or {@code null} if it does not exist
-	 * @throws IOException
-	 * @deprecated Use {@link #exactRef(String)} or {@link #findRef(String)}
-	 * instead.
-	 */
-	@Deprecated
-	@Nullable
-	public Ref getRef(final String name) throws IOException {
-		return findRef(name);
-	}
-
-	/**
-	 * Get a ref by name.
-	 *
-	 * @param name
 	 *            the name of the ref to lookup. Must not be a short-hand
 	 *            form; e.g., "master" is not automatically expanded to
 	 *            "refs/heads/master".
 	 * @return the Ref with the given name, or {@code null} if it does not exist
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 * @since 4.2
 	 */
 	@Nullable
-	public Ref exactRef(String name) throws IOException {
+	public final Ref exactRef(String name) throws IOException {
 		return getRefDatabase().exactRef(name);
 	}
 
@@ -1048,17 +1081,22 @@ public abstract class Repository implements AutoCloseable {
 	 *            "master" which is is automatically expanded to
 	 *            "refs/heads/master" if "refs/heads/master" already exists.
 	 * @return the Ref with the given name, or {@code null} if it does not exist
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 * @since 4.2
 	 */
 	@Nullable
-	public Ref findRef(String name) throws IOException {
+	public final Ref findRef(String name) throws IOException {
 		return getRefDatabase().getRef(name);
 	}
 
 	/**
+	 * Get mutable map of all known refs, including symrefs like HEAD that may
+	 * not point to any object yet.
+	 *
 	 * @return mutable map of all known refs (heads, tags, remotes).
+	 * @deprecated use {@code getRefDatabase().getRefs()} instead.
 	 */
+	@Deprecated
 	@NonNull
 	public Map<String, Ref> getAllRefs() {
 		try {
@@ -1069,10 +1107,14 @@ public abstract class Repository implements AutoCloseable {
 	}
 
 	/**
+	 * Get mutable map of all tags
+	 *
 	 * @return mutable map of all tags; key is short tag name ("v1.0") and value
 	 *         of the entry contains the ref with the full tag name
 	 *         ("refs/tags/v1.0").
+	 * @deprecated use {@code getRefDatabase().getRefsByPrefix(R_TAGS)} instead
 	 */
+	@Deprecated
 	@NonNull
 	public Map<String, Ref> getTags() {
 		try {
@@ -1086,7 +1128,8 @@ public abstract class Repository implements AutoCloseable {
 	 * Peel a possibly unpeeled reference to an annotated tag.
 	 * <p>
 	 * If the ref cannot be peeled (as it does not refer to an annotated tag)
-	 * the peeled id stays null, but {@link Ref#isPeeled()} will be true.
+	 * the peeled id stays null, but {@link org.eclipse.jgit.lib.Ref#isPeeled()}
+	 * will be true.
 	 *
 	 * @param ref
 	 *            The ref to peel
@@ -1094,9 +1137,11 @@ public abstract class Repository implements AutoCloseable {
 	 *         new Ref object representing the same data as Ref, but isPeeled()
 	 *         will be true and getPeeledObjectId will contain the peeled object
 	 *         (or null).
+	 * @deprecated use {@code getRefDatabase().peel(ref)} instead.
 	 */
+	@Deprecated
 	@NonNull
-	public Ref peel(final Ref ref) {
+	public Ref peel(Ref ref) {
 		try {
 			return getRefDatabase().peel(ref);
 		} catch (IOException e) {
@@ -1108,6 +1153,8 @@ public abstract class Repository implements AutoCloseable {
 	}
 
 	/**
+	 * Get a map with all objects referenced by a peeled ref.
+	 *
 	 * @return a map with all objects referenced by a peeled ref.
 	 */
 	@NonNull
@@ -1135,9 +1182,11 @@ public abstract class Repository implements AutoCloseable {
 	}
 
 	/**
+	 * Get the index file location or {@code null} if repository isn't local.
+	 *
 	 * @return the index file location or {@code null} if repository isn't
 	 *         local.
-	 * @throws NoWorkTreeException
+	 * @throws org.eclipse.jgit.errors.NoWorkTreeException
 	 *             if this is bare, which implies it has no working directory.
 	 *             See {@link #isBare()}.
 	 */
@@ -1157,11 +1206,11 @@ public abstract class Repository implements AutoCloseable {
 	 * @param id
 	 *            name of the commit object.
 	 * @return reference to the commit object. Never null.
-	 * @throws MissingObjectException
+	 * @throws org.eclipse.jgit.errors.MissingObjectException
 	 *             the supplied commit does not exist.
-	 * @throws IncorrectObjectTypeException
+	 * @throws org.eclipse.jgit.errors.IncorrectObjectTypeException
 	 *             the supplied id is not a commit or an annotated tag.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             a pack file or loose object could not be read.
 	 * @since 4.8
 	 */
@@ -1184,12 +1233,12 @@ public abstract class Repository implements AutoCloseable {
 	 *
 	 * @return a cache representing the contents of the specified index file (if
 	 *         it exists) or an empty cache if the file does not exist.
-	 * @throws NoWorkTreeException
+	 * @throws org.eclipse.jgit.errors.NoWorkTreeException
 	 *             if this is bare, which implies it has no working directory.
 	 *             See {@link #isBare()}.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the index file is present but could not be read.
-	 * @throws CorruptObjectException
+	 * @throws org.eclipse.jgit.errors.CorruptObjectException
 	 *             the index file is using a format or extension that this
 	 *             library does not support.
 	 */
@@ -1208,13 +1257,13 @@ public abstract class Repository implements AutoCloseable {
 	 *
 	 * @return a cache representing the contents of the specified index file (if
 	 *         it exists) or an empty cache if the file does not exist.
-	 * @throws NoWorkTreeException
+	 * @throws org.eclipse.jgit.errors.NoWorkTreeException
 	 *             if this is bare, which implies it has no working directory.
 	 *             See {@link #isBare()}.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the index file is present but could not be read, or the lock
 	 *             could not be obtained.
-	 * @throws CorruptObjectException
+	 * @throws org.eclipse.jgit.errors.CorruptObjectException
 	 *             the index file is using a format or extension that this
 	 *             library does not support.
 	 */
@@ -1226,14 +1275,16 @@ public abstract class Repository implements AutoCloseable {
 		IndexChangedListener l = new IndexChangedListener() {
 			@Override
 			public void onIndexChanged(IndexChangedEvent event) {
-				notifyIndexChanged();
+				notifyIndexChanged(true);
 			}
 		};
 		return DirCache.lock(this, l);
 	}
 
 	/**
-	 * @return an important state
+	 * Get the repository state
+	 *
+	 * @return the repository state
 	 */
 	@NonNull
 	public RepositoryState getRepositoryState() {
@@ -1314,16 +1365,17 @@ public abstract class Repository implements AutoCloseable {
 	 *
 	 * For portability reasons '\' is excluded
 	 *
-	 * @param refName
-	 *
+	 * @param refName a {@link java.lang.String} object.
 	 * @return true if refName is a valid ref name
 	 */
-	public static boolean isValidRefName(final String refName) {
+	public static boolean isValidRefName(String refName) {
 		final int len = refName.length();
-		if (len == 0)
+		if (len == 0) {
 			return false;
-		if (refName.endsWith(".lock")) //$NON-NLS-1$
+		}
+		if (refName.endsWith(LOCK_SUFFIX)) {
 			return false;
+		}
 
 		// Refs may be stored as loose files so invalid paths
 		// on the local system must also be invalid refs.
@@ -1374,10 +1426,10 @@ public abstract class Repository implements AutoCloseable {
 	 * Normalizes the passed branch name into a possible valid branch name. The
 	 * validity of the returned name should be checked by a subsequent call to
 	 * {@link #isValidRefName(String)}.
-	 * <p/>
+	 * <p>
 	 * Future implementations of this method could be more restrictive or more
 	 * lenient about the validity of specific characters in the returned name.
-	 * <p/>
+	 * <p>
 	 * The current implementation returns the trimmed input string if this is
 	 * already a valid branch name. Otherwise it returns a trimmed string with
 	 * special characters not allowed by {@link #isValidRefName(String)}
@@ -1386,7 +1438,6 @@ public abstract class Repository implements AutoCloseable {
 	 *
 	 * @param name
 	 *            to normalize
-	 *
 	 * @return The normalized name or an empty String if it is {@code null} or
 	 *         empty.
 	 * @since 4.7
@@ -1493,6 +1544,8 @@ public abstract class Repository implements AutoCloseable {
 	}
 
 	/**
+	 * Whether this repository is bare
+	 *
 	 * @return true if this is bare, which implies it has no working directory.
 	 */
 	public boolean isBare() {
@@ -1500,9 +1553,12 @@ public abstract class Repository implements AutoCloseable {
 	}
 
 	/**
+	 * Get the root directory of the working tree, where files are checked out
+	 * for viewing and editing.
+	 *
 	 * @return the root directory of the working tree, where files are checked
 	 *         out for viewing and editing.
-	 * @throws NoWorkTreeException
+	 * @throws org.eclipse.jgit.errors.NoWorkTreeException
 	 *             if this is bare, which implies it has no working directory.
 	 *             See {@link #isBare()}.
 	 */
@@ -1514,20 +1570,28 @@ public abstract class Repository implements AutoCloseable {
 	}
 
 	/**
-	 * Force a scan for changed refs.
+	 * Force a scan for changed refs. Fires an IndexChangedEvent(false) if
+	 * changes are detected.
 	 *
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
 	public abstract void scanForRepoChanges() throws IOException;
 
 	/**
-	 * Notify that the index changed
+	 * Notify that the index changed by firing an IndexChangedEvent.
+	 *
+	 * @param internal
+	 *                     {@code true} if the index was changed by the same
+	 *                     JGit process
+	 * @since 5.0
 	 */
-	public abstract void notifyIndexChanged();
+	public abstract void notifyIndexChanged(boolean internal);
 
 	/**
-	 * @param refName
+	 * Get a shortened more user friendly ref name
 	 *
+	 * @param refName
+	 *            a {@link java.lang.String} object.
 	 * @return a more user friendly ref name
 	 */
 	@NonNull
@@ -1542,7 +1606,10 @@ public abstract class Repository implements AutoCloseable {
 	}
 
 	/**
+	 * Get a shortened more user friendly remote tracking branch name
+	 *
 	 * @param refName
+	 *            a {@link java.lang.String} object.
 	 * @return the remote branch name part of <code>refName</code>, i.e. without
 	 *         the <code>refs/remotes/&lt;remote&gt;</code> prefix, if
 	 *         <code>refName</code> represents a remote tracking branch;
@@ -1560,7 +1627,10 @@ public abstract class Repository implements AutoCloseable {
 	}
 
 	/**
+	 * Get remote name
+	 *
 	 * @param refName
+	 *            a {@link java.lang.String} object.
 	 * @return the remote name part of <code>refName</code>, i.e. without the
 	 *         <code>refs/remotes/&lt;remote&gt;</code> prefix, if
 	 *         <code>refName</code> represents a remote tracking branch;
@@ -1581,7 +1651,7 @@ public abstract class Repository implements AutoCloseable {
 	 * Read the {@code GIT_DIR/description} file for gitweb.
 	 *
 	 * @return description text; null if no description has been configured.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             description cannot be accessed.
 	 * @since 4.6
 	 */
@@ -1595,7 +1665,7 @@ public abstract class Repository implements AutoCloseable {
 	 *
 	 * @param description
 	 *            new description; null to clear the description.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             description cannot be persisted.
 	 * @since 4.6
 	 */
@@ -1605,10 +1675,13 @@ public abstract class Repository implements AutoCloseable {
 	}
 
 	/**
+	 * Get the reflog reader
+	 *
 	 * @param refName
-	 * @return a {@link ReflogReader} for the supplied refname, or {@code null}
-	 *         if the named ref does not exist.
-	 * @throws IOException
+	 *            a {@link java.lang.String} object.
+	 * @return a {@link org.eclipse.jgit.lib.ReflogReader} for the supplied
+	 *         refname, or {@code null} if the named ref does not exist.
+	 * @throws java.io.IOException
 	 *             the ref could not be accessed.
 	 * @since 3.0
 	 */
@@ -1623,8 +1696,8 @@ public abstract class Repository implements AutoCloseable {
 	 *
 	 * @return a String containing the content of the MERGE_MSG file or
 	 *         {@code null} if this file doesn't exist
-	 * @throws IOException
-	 * @throws NoWorkTreeException
+	 * @throws java.io.IOException
+	 * @throws org.eclipse.jgit.errors.NoWorkTreeException
 	 *             if this is bare, which implies it has no working directory.
 	 *             See {@link #isBare()}.
 	 */
@@ -1642,8 +1715,7 @@ public abstract class Repository implements AutoCloseable {
 	 * @param msg
 	 *            the message which should be written or <code>null</code> to
 	 *            delete the file
-	 *
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
 	public void writeMergeCommitMsg(String msg) throws IOException {
 		File mergeMsgFile = new File(gitDir, Constants.MERGE_MSG);
@@ -1657,8 +1729,8 @@ public abstract class Repository implements AutoCloseable {
 	 *
 	 * @return a String containing the content of the COMMIT_EDITMSG file or
 	 *         {@code null} if this file doesn't exist
-	 * @throws IOException
-	 * @throws NoWorkTreeException
+	 * @throws java.io.IOException
+	 * @throws org.eclipse.jgit.errors.NoWorkTreeException
 	 *             if this is bare, which implies it has no working directory.
 	 *             See {@link #isBare()}.
 	 * @since 4.0
@@ -1676,8 +1748,7 @@ public abstract class Repository implements AutoCloseable {
 	 * @param msg
 	 *            the message which should be written or {@code null} to delete
 	 *            the file
-	 *
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 * @since 4.0
 	 */
 	public void writeCommitEditMsg(String msg) throws IOException {
@@ -1693,8 +1764,8 @@ public abstract class Repository implements AutoCloseable {
 	 * @return a list of commits which IDs are listed in the MERGE_HEAD file or
 	 *         {@code null} if this file doesn't exist. Also if the file exists
 	 *         but is empty {@code null} will be returned
-	 * @throws IOException
-	 * @throws NoWorkTreeException
+	 * @throws java.io.IOException
+	 * @throws org.eclipse.jgit.errors.NoWorkTreeException
 	 *             if this is bare, which implies it has no working directory.
 	 *             See {@link #isBare()}.
 	 */
@@ -1725,7 +1796,7 @@ public abstract class Repository implements AutoCloseable {
 	 * @param heads
 	 *            a list of commits which IDs should be written to
 	 *            $GIT_DIR/MERGE_HEAD or <code>null</code> to delete the file
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
 	public void writeMergeHeads(List<? extends ObjectId> heads) throws IOException {
 		writeHeadsFile(heads, Constants.MERGE_HEAD);
@@ -1737,8 +1808,8 @@ public abstract class Repository implements AutoCloseable {
 	 * @return object id from CHERRY_PICK_HEAD file or {@code null} if this file
 	 *         doesn't exist. Also if the file exists but is empty {@code null}
 	 *         will be returned
-	 * @throws IOException
-	 * @throws NoWorkTreeException
+	 * @throws java.io.IOException
+	 * @throws org.eclipse.jgit.errors.NoWorkTreeException
 	 *             if this is bare, which implies it has no working directory.
 	 *             See {@link #isBare()}.
 	 */
@@ -1761,8 +1832,8 @@ public abstract class Repository implements AutoCloseable {
 	 * @return object id from REVERT_HEAD file or {@code null} if this file
 	 *         doesn't exist. Also if the file exists but is empty {@code null}
 	 *         will be returned
-	 * @throws IOException
-	 * @throws NoWorkTreeException
+	 * @throws java.io.IOException
+	 * @throws org.eclipse.jgit.errors.NoWorkTreeException
 	 *             if this is bare, which implies it has no working directory.
 	 *             See {@link #isBare()}.
 	 */
@@ -1784,7 +1855,7 @@ public abstract class Repository implements AutoCloseable {
 	 * @param head
 	 *            an object id of the cherry commit or <code>null</code> to
 	 *            delete the file
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
 	public void writeCherryPickHead(ObjectId head) throws IOException {
 		List<ObjectId> heads = (head != null) ? Collections.singletonList(head)
@@ -1799,7 +1870,7 @@ public abstract class Repository implements AutoCloseable {
 	 * @param head
 	 *            an object id of the revert commit or <code>null</code> to
 	 *            delete the file
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
 	public void writeRevertHead(ObjectId head) throws IOException {
 		List<ObjectId> heads = (head != null) ? Collections.singletonList(head)
@@ -1813,7 +1884,7 @@ public abstract class Repository implements AutoCloseable {
 	 * @param head
 	 *            an object id of the original HEAD commit or <code>null</code>
 	 *            to delete the file
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
 	public void writeOrigHead(ObjectId head) throws IOException {
 		List<ObjectId> heads = head != null ? Collections.singletonList(head)
@@ -1827,8 +1898,8 @@ public abstract class Repository implements AutoCloseable {
 	 * @return object id from ORIG_HEAD file or {@code null} if this file
 	 *         doesn't exist. Also if the file exists but is empty {@code null}
 	 *         will be returned
-	 * @throws IOException
-	 * @throws NoWorkTreeException
+	 * @throws java.io.IOException
+	 * @throws org.eclipse.jgit.errors.NoWorkTreeException
 	 *             if this is bare, which implies it has no working directory.
 	 *             See {@link #isBare()}.
 	 */
@@ -1848,7 +1919,7 @@ public abstract class Repository implements AutoCloseable {
 	 *
 	 * @return a String containing the content of the SQUASH_MSG file or
 	 *         {@code null} if this file doesn't exist
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 * @throws NoWorkTreeException
 	 *             if this is bare, which implies it has no working directory.
 	 *             See {@link #isBare()}.
@@ -1867,8 +1938,7 @@ public abstract class Repository implements AutoCloseable {
 	 * @param msg
 	 *            the message which should be written or <code>null</code> to
 	 *            delete the file
-	 *
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
 	public void writeSquashCommitMsg(String msg) throws IOException {
 		File squashMsgFile = new File(gitDir, Constants.SQUASH_MSG);
@@ -1894,11 +1964,8 @@ public abstract class Repository implements AutoCloseable {
 
 	private void writeCommitMsg(File msgFile, String msg) throws IOException {
 		if (msg != null) {
-			FileOutputStream fos = new FileOutputStream(msgFile);
-			try {
+			try (FileOutputStream fos = new FileOutputStream(msgFile)) {
 				fos.write(msg.getBytes(Constants.CHARACTER_ENCODING));
-			} finally {
-				fos.close();
 			}
 		} else {
 			FileUtils.delete(msgFile, FileUtils.SKIP_MISSING);
@@ -1964,7 +2031,7 @@ public abstract class Repository implements AutoCloseable {
 	 * @param includeComments
 	 *            <code>true</code> if also comments should be reported
 	 * @return the list of steps
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 * @since 3.2
 	 */
 	@NonNull
@@ -1984,7 +2051,7 @@ public abstract class Repository implements AutoCloseable {
 	 *            the steps to be written
 	 * @param append
 	 *            whether to append to an existing file or to write a new file
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 * @since 3.2
 	 */
 	public void writeRebaseTodoFile(String path, List<RebaseTodoLine> steps,
@@ -1994,6 +2061,8 @@ public abstract class Repository implements AutoCloseable {
 	}
 
 	/**
+	 * Get the names of all known remotes
+	 *
 	 * @return the names of all known remotes
 	 * @since 3.4
 	 */
@@ -2008,9 +2077,10 @@ public abstract class Repository implements AutoCloseable {
 	 * collection; if not, exit without performing any work. Some JGit commands
 	 * run autoGC after performing operations that could create many loose
 	 * objects.
-	 * <p/>
+	 * <p>
 	 * Currently this option is supported for repositories of type
-	 * {@code FileRepository} only. See {@link GC#setAuto(boolean)} for
+	 * {@code FileRepository} only. See
+	 * {@link org.eclipse.jgit.internal.storage.file.GC#setAuto(boolean)} for
 	 * configuration details.
 	 *
 	 * @param monitor

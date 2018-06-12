@@ -45,6 +45,7 @@
 
 package org.eclipse.jgit.junit;
 
+import static org.eclipse.jgit.lib.Constants.CHARSET;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.fail;
 
@@ -82,8 +83,9 @@ import org.junit.Before;
  * A temporary directory is created for each test, allowing each test to use a
  * fresh environment. The temporary directory is cleaned up after the test ends.
  * <p>
- * Callers should not use {@link RepositoryCache} from within these tests as it
- * may wedge file descriptors open past the end of the test.
+ * Callers should not use {@link org.eclipse.jgit.lib.RepositoryCache} from
+ * within these tests as it may wedge file descriptors open past the end of the
+ * test.
  * <p>
  * A system property {@code jgit.junit.usemmap} defines whether memory mapping
  * is used. Memory mapping has an effect on the file system, in that memory
@@ -112,6 +114,11 @@ public abstract class LocalDiskRepositoryTestCase {
 	private final Set<Repository> toClose = new HashSet<>();
 	private File tmp;
 
+	/**
+	 * Setup test
+	 *
+	 * @throws Exception
+	 */
 	@Before
 	public void setUp() throws Exception {
 		tmp = File.createTempFile("jgit_test_", "_tmp");
@@ -142,10 +149,20 @@ public abstract class LocalDiskRepositoryTestCase {
 		c.install();
 	}
 
+	/**
+	 * Get temporary directory.
+	 *
+	 * @return the temporary directory
+	 */
 	protected File getTemporaryDirectory() {
 		return tmp.getAbsoluteFile();
 	}
 
+	/**
+	 * Get list of ceiling directories
+	 *
+	 * @return list of ceiling directories
+	 */
 	protected List<File> getCeilings() {
 		return Collections.singletonList(getTemporaryDirectory());
 	}
@@ -164,6 +181,11 @@ public abstract class LocalDiskRepositoryTestCase {
 		return stringBuilder.toString();
 	}
 
+	/**
+	 * Tear down the test
+	 *
+	 * @throws Exception
+	 */
 	@After
 	public void tearDown() throws Exception {
 		RepositoryCache.clear();
@@ -185,7 +207,9 @@ public abstract class LocalDiskRepositoryTestCase {
 		SystemReader.setInstance(null);
 	}
 
-	/** Increment the {@link #author} and {@link #committer} times. */
+	/**
+	 * Increment the {@link #author} and {@link #committer} times.
+	 */
 	protected void tick() {
 		mockSystemReader.tick(5 * 60);
 		final long now = mockSystemReader.getCurrentTime();
@@ -201,7 +225,7 @@ public abstract class LocalDiskRepositoryTestCase {
 	 * @param dir
 	 *            the recursively directory to delete, if present.
 	 */
-	protected void recursiveDelete(final File dir) {
+	protected void recursiveDelete(File dir) {
 		recursiveDelete(dir, false, true);
 	}
 
@@ -239,16 +263,22 @@ public abstract class LocalDiskRepositoryTestCase {
 			System.err.println(msg);
 	}
 
+	/** Constant <code>MOD_TIME=1</code> */
 	public static final int MOD_TIME = 1;
 
+	/** Constant <code>SMUDGE=2</code> */
 	public static final int SMUDGE = 2;
 
+	/** Constant <code>LENGTH=4</code> */
 	public static final int LENGTH = 4;
 
+	/** Constant <code>CONTENT_ID=8</code> */
 	public static final int CONTENT_ID = 8;
 
+	/** Constant <code>CONTENT=16</code> */
 	public static final int CONTENT = 16;
 
+	/** Constant <code>ASSUME_UNCHANGED=32</code> */
 	public static final int ASSUME_UNCHANGED = 32;
 
 	/**
@@ -279,7 +309,6 @@ public abstract class LocalDiskRepositoryTestCase {
 	 *
 	 * @param repo
 	 *            the repository the index state should be determined for
-	 *
 	 * @param includedOptions
 	 *            a bitmask constructed out of the constants {@link #MOD_TIME},
 	 *            {@link #SMUDGE}, {@link #LENGTH}, {@link #CONTENT_ID} and
@@ -323,7 +352,7 @@ public abstract class LocalDiskRepositoryTestCase {
 			if (0 != (includedOptions & CONTENT)) {
 				sb.append(", content:"
 						+ new String(repo.open(entry.getObjectId(),
-						Constants.OBJ_BLOB).getCachedBytes(), "UTF-8"));
+						Constants.OBJ_BLOB).getCachedBytes(), CHARSET));
 			}
 			if (0 != (includedOptions & ASSUME_UNCHANGED))
 				sb.append(", assume-unchanged:"
@@ -511,7 +540,7 @@ public abstract class LocalDiskRepositoryTestCase {
 	 * @throws IOException
 	 *             the file could not be written.
 	 */
-	protected File write(final String body) throws IOException {
+	protected File write(String body) throws IOException {
 		final File f = File.createTempFile("temp", "txt", tmp);
 		try {
 			write(f, body);
@@ -542,15 +571,23 @@ public abstract class LocalDiskRepositoryTestCase {
 	 * @throws IOException
 	 *             the file could not be written.
 	 */
-	protected void write(final File f, final String body) throws IOException {
+	protected void write(File f, String body) throws IOException {
 		JGitTestUtil.write(f, body);
 	}
 
-	protected String read(final File f) throws IOException {
+	/**
+	 * Read a file's content
+	 *
+	 * @param f
+	 *            the file
+	 * @return the content of the file
+	 * @throws IOException
+	 */
+	protected String read(File f) throws IOException {
 		return JGitTestUtil.read(f);
 	}
 
-	private static String[] toEnvArray(final Map<String, String> env) {
+	private static String[] toEnvArray(Map<String, String> env) {
 		final String[] envp = new String[env.size()];
 		int i = 0;
 		for (Map.Entry<String, String> e : env.entrySet())

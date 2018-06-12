@@ -56,9 +56,10 @@ import org.eclipse.jgit.treewalk.TreeWalk;
  * Includes a tree entry only if all subfilters include the same tree entry.
  * <p>
  * Classic shortcut behavior is used, so evaluation of the
- * {@link TreeFilter#include(TreeWalk)} method stops as soon as a false result
- * is obtained. Applications can improve filtering performance by placing faster
- * filters that are more likely to reject a result earlier in the list.
+ * {@link org.eclipse.jgit.treewalk.filter.TreeFilter#include(TreeWalk)} method
+ * stops as soon as a false result is obtained. Applications can improve
+ * filtering performance by placing faster filters that are more likely to
+ * reject a result earlier in the list.
  */
 public abstract class AndTreeFilter extends TreeFilter {
 	/**
@@ -70,7 +71,7 @@ public abstract class AndTreeFilter extends TreeFilter {
 	 *            second filter to test.
 	 * @return a filter that must match both input filters.
 	 */
-	public static TreeFilter create(final TreeFilter a, final TreeFilter b) {
+	public static TreeFilter create(TreeFilter a, TreeFilter b) {
 		if (a == ALL)
 			return b;
 		if (b == ALL)
@@ -86,7 +87,7 @@ public abstract class AndTreeFilter extends TreeFilter {
 	 *            filters.
 	 * @return a filter that must match all input filters.
 	 */
-	public static TreeFilter create(final TreeFilter[] list) {
+	public static TreeFilter create(TreeFilter[] list) {
 		if (list.length == 2)
 			return create(list[0], list[1]);
 		if (list.length < 2)
@@ -104,7 +105,7 @@ public abstract class AndTreeFilter extends TreeFilter {
 	 *            filters.
 	 * @return a filter that must match all input filters.
 	 */
-	public static TreeFilter create(final Collection<TreeFilter> list) {
+	public static TreeFilter create(Collection<TreeFilter> list) {
 		if (list.size() < 2)
 			throw new IllegalArgumentException(JGitText.get().atLeastTwoFiltersNeeded);
 		final TreeFilter[] subfilters = new TreeFilter[list.size()];
@@ -119,13 +120,13 @@ public abstract class AndTreeFilter extends TreeFilter {
 
 		private final TreeFilter b;
 
-		Binary(final TreeFilter one, final TreeFilter two) {
+		Binary(TreeFilter one, TreeFilter two) {
 			a = one;
 			b = two;
 		}
 
 		@Override
-		public boolean include(final TreeWalk walker)
+		public boolean include(TreeWalk walker)
 				throws MissingObjectException, IncorrectObjectTypeException,
 				IOException {
 			return matchFilter(walker) <= 0;
@@ -169,12 +170,12 @@ public abstract class AndTreeFilter extends TreeFilter {
 	private static class List extends AndTreeFilter {
 		private final TreeFilter[] subfilters;
 
-		List(final TreeFilter[] list) {
+		List(TreeFilter[] list) {
 			subfilters = list;
 		}
 
 		@Override
-		public boolean include(final TreeWalk walker)
+		public boolean include(TreeWalk walker)
 				throws MissingObjectException, IncorrectObjectTypeException,
 				IOException {
 			return matchFilter(walker) <= 0;
@@ -185,7 +186,7 @@ public abstract class AndTreeFilter extends TreeFilter {
 				throws MissingObjectException, IncorrectObjectTypeException,
 				IOException {
 			int m = 0;
-			for (final TreeFilter f : subfilters) {
+			for (TreeFilter f : subfilters) {
 				int r = f.matchFilter(walker);
 				if (r == 1) {
 					return 1;
@@ -199,7 +200,7 @@ public abstract class AndTreeFilter extends TreeFilter {
 
 		@Override
 		public boolean shouldBeRecursive() {
-			for (final TreeFilter f : subfilters)
+			for (TreeFilter f : subfilters)
 				if (f.shouldBeRecursive())
 					return true;
 			return false;

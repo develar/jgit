@@ -51,7 +51,9 @@ import java.text.MessageFormat;
 
 import org.eclipse.jgit.internal.JGitText;
 
-/** InputStream with a configurable timeout. */
+/**
+ * InputStream with a configurable timeout.
+ */
 public class TimeoutInputStream extends FilterInputStream {
 	private final InterruptTimer myTimer;
 
@@ -72,22 +74,29 @@ public class TimeoutInputStream extends FilterInputStream {
 		myTimer = timer;
 	}
 
-	/** @return number of milliseconds before aborting a read. */
+	/**
+	 * Get number of milliseconds before aborting a read.
+	 *
+	 * @return number of milliseconds before aborting a read.
+	 */
 	public int getTimeout() {
 		return timeout;
 	}
 
 	/**
+	 * Set number of milliseconds before aborting a read.
+	 *
 	 * @param millis
 	 *            number of milliseconds before aborting a read. Must be &gt; 0.
 	 */
-	public void setTimeout(final int millis) {
+	public void setTimeout(int millis) {
 		if (millis < 0)
 			throw new IllegalArgumentException(MessageFormat.format(
 					JGitText.get().invalidTimeout, Integer.valueOf(millis)));
 		timeout = millis;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public int read() throws IOException {
 		try {
@@ -100,11 +109,13 @@ public class TimeoutInputStream extends FilterInputStream {
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public int read(byte[] buf) throws IOException {
 		return read(buf, 0, buf.length);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public int read(byte[] buf, int off, int cnt) throws IOException {
 		try {
@@ -117,6 +128,7 @@ public class TimeoutInputStream extends FilterInputStream {
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public long skip(long cnt) throws IOException {
 		try {

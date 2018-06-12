@@ -68,7 +68,8 @@ import org.eclipse.jgit.treewalk.AbstractTreeIterator;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 
 /**
- * Instance of a specific {@link MergeStrategy} for a single {@link Repository}.
+ * Instance of a specific {@link org.eclipse.jgit.merge.MergeStrategy} for a
+ * single {@link org.eclipse.jgit.lib.Repository}.
  */
 public abstract class Merger {
 	/**
@@ -112,7 +113,7 @@ public abstract class Merger {
 	 * @param local
 	 *            the repository this merger will read and write data on.
 	 */
-	protected Merger(final Repository local) {
+	protected Merger(Repository local) {
 		if (local == null) {
 			throw new NullPointerException(JGitText.get().repositoryIsRequired);
 		}
@@ -138,6 +139,8 @@ public abstract class Merger {
 	}
 
 	/**
+	 * Get the repository this merger operates on.
+	 *
 	 * @return the repository this merger operates on.
 	 */
 	@Nullable
@@ -146,8 +149,10 @@ public abstract class Merger {
 	}
 
 	/**
+	 * Get non-null repository instance
+	 *
 	 * @return non-null repository instance
-	 * @throws NullPointerException
+	 * @throws java.lang.NullPointerException
 	 *             if the merger was constructed without a repository.
 	 * @since 4.8
 	 */
@@ -159,8 +164,11 @@ public abstract class Merger {
 	}
 
 	/**
-	 * @return an object writer to create objects, writing objects to {@link
-	 * #getRepository()} (if a repository was provided).
+	 * Get an object writer to create objects, writing objects to
+	 * {@link #getRepository()}
+	 *
+	 * @return an object writer to create objects, writing objects to
+	 *         {@link #getRepository()} (if a repository was provided).
 	 */
 	public ObjectInserter getObjectInserter() {
 		return inserter;
@@ -203,11 +211,11 @@ public abstract class Merger {
 	 * @throws IncorrectObjectTypeException
 	 *             one of the input objects is not a commit, but the strategy
 	 *             requires it to be a commit.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             one or more sources could not be read, or outputs could not
 	 *             be written to the Repository.
 	 */
-	public boolean merge(final AnyObjectId... tips) throws IOException {
+	public boolean merge(AnyObjectId... tips) throws IOException {
 		return merge(true, tips);
 	}
 
@@ -231,11 +239,11 @@ public abstract class Merger {
 	 * @throws IncorrectObjectTypeException
 	 *             one of the input objects is not a commit, but the strategy
 	 *             requires it to be a commit.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             one or more sources could not be read, or outputs could not
 	 *             be written to the Repository.
 	 */
-	public boolean merge(final boolean flush, final AnyObjectId... tips)
+	public boolean merge(boolean flush, AnyObjectId... tips)
 			throws IOException {
 		sourceObjects = new RevObject[tips.length];
 		for (int i = 0; i < tips.length; i++)
@@ -267,6 +275,8 @@ public abstract class Merger {
 	}
 
 	/**
+	 * Get the ID of the commit that was used as merge base for merging
+	 *
 	 * @return the ID of the commit that was used as merge base for merging, or
 	 *         null if no merge base was used or it was set manually
 	 * @since 3.2
@@ -281,9 +291,9 @@ public abstract class Merger {
 	 * @param b
 	 *            the second commit in {@link #sourceObjects}.
 	 * @return the merge base of two commits
-	 * @throws IncorrectObjectTypeException
+	 * @throws org.eclipse.jgit.errors.IncorrectObjectTypeException
 	 *             one of the input objects is not a commit.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             objects are missing or multiple merge bases were found.
 	 * @since 3.0
 	 */
@@ -313,12 +323,12 @@ public abstract class Merger {
 	 * @param treeId
 	 *            the tree to scan; must be a tree (not a treeish).
 	 * @return an iterator for the tree.
-	 * @throws IncorrectObjectTypeException
+	 * @throws org.eclipse.jgit.errors.IncorrectObjectTypeException
 	 *             the input object is not a tree.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the tree object is not found or cannot be read.
 	 */
-	protected AbstractTreeIterator openTree(final AnyObjectId treeId)
+	protected AbstractTreeIterator openTree(AnyObjectId treeId)
 			throws IncorrectObjectTypeException, IOException {
 		return new CanonicalTreeParser(null, reader, treeId);
 	}
@@ -336,13 +346,15 @@ public abstract class Merger {
 	 * @throws IncorrectObjectTypeException
 	 *             one of the input objects is not a commit, but the strategy
 	 *             requires it to be a commit.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             one or more sources could not be read, or outputs could not
 	 *             be written to the Repository.
 	 */
 	protected abstract boolean mergeImpl() throws IOException;
 
 	/**
+	 * Get resulting tree.
+	 *
 	 * @return resulting tree, if {@link #merge(AnyObjectId[])} returned true.
 	 */
 	public abstract ObjectId getResultTreeId();

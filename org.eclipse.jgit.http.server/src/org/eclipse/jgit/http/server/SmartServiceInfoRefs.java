@@ -75,21 +75,24 @@ abstract class SmartServiceInfoRefs implements Filter {
 
 	private final Filter[] filters;
 
-	SmartServiceInfoRefs(final String service, final List<Filter> filters) {
+	SmartServiceInfoRefs(String service, List<Filter> filters) {
 		this.svc = service;
 		this.filters = filters.toArray(new Filter[filters.size()]);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void init(FilterConfig config) throws ServletException {
 		// Do nothing.
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void destroy() {
 		// Do nothing.
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void doFilter(ServletRequest request, ServletResponse response,
 			FilterChain chain) throws IOException, ServletException {
@@ -130,9 +133,7 @@ abstract class SmartServiceInfoRefs implements Filter {
 			res.setContentType(infoRefsResultType(svc));
 
 			final PacketLineOut out = new PacketLineOut(buf);
-			out.writeString("# service=" + svc + "\n");
-			out.end();
-			advertise(req, new PacketLineOutRefAdvertiser(out));
+			respond(req, out, svc);
 			buf.close();
 		} catch (ServiceNotAuthorizedException e) {
 			res.sendError(SC_UNAUTHORIZED, e.getMessage());
@@ -146,13 +147,65 @@ abstract class SmartServiceInfoRefs implements Filter {
 		}
 	}
 
+	/**
+	 * Begin service.
+	 *
+	 * @param req
+	 *            request
+	 * @param db
+	 *            repository
+	 * @throws IOException
+	 * @throws ServiceNotEnabledException
+	 * @throws ServiceNotAuthorizedException
+	 */
 	protected abstract void begin(HttpServletRequest req, Repository db)
 			throws IOException, ServiceNotEnabledException,
 			ServiceNotAuthorizedException;
 
+	/**
+	 * Advertise.
+	 *
+	 * @param req
+	 *            request
+	 * @param pck
+	 * @throws IOException
+	 * @throws ServiceNotEnabledException
+	 * @throws ServiceNotAuthorizedException
+	 */
 	protected abstract void advertise(HttpServletRequest req,
 			PacketLineOutRefAdvertiser pck) throws IOException,
 			ServiceNotEnabledException, ServiceNotAuthorizedException;
+
+	/**
+	 * Writes the appropriate response to an info/refs request received by
+	 * a smart service. In protocol v0, this starts with "#
+	 * service=serviceName" followed by a flush packet, but this is not
+	 * necessarily the case in other protocol versions.
+	 * <p>
+	 * The default implementation writes "# service=serviceName" and a
+	 * flush packet, then calls {@link #advertise}. Subclasses should
+	 * override this method if they support protocol versions other than
+	 * protocol v0.
+	 *
+	 * @param req
+	 *            request
+	 * @param pckOut
+	 *            destination of response
+	 * @param serviceName
+	 *            service name to be written out in protocol v0; may or may
+	 *            not be used in other versions
+	 * @throws IOException
+	 * @throws ServiceNotEnabledException
+	 * @throws ServiceNotAuthorizedException
+	 */
+	protected void respond(HttpServletRequest req,
+			PacketLineOut pckOut, String serviceName)
+			throws IOException, ServiceNotEnabledException,
+			ServiceNotAuthorizedException {
+		pckOut.writeString("# service=" + svc + '\n'); //$NON-NLS-1$
+		pckOut.end();
+		advertise(req, new PacketLineOutRefAdvertiser(pckOut));
+	}
 
 	private class Chain implements FilterChain {
 		private int filterIdx;

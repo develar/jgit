@@ -52,6 +52,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
+import org.eclipse.jgit.dircache.DirCacheIterator;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
@@ -63,9 +64,11 @@ import org.eclipse.jgit.util.FS;
  * Working directory iterator for standard Java IO.
  * <p>
  * This iterator uses the standard <code>java.io</code> package to read the
- * specified working directory as part of a {@link TreeWalk}.
+ * specified working directory as part of a
+ * {@link org.eclipse.jgit.treewalk.TreeWalk}.
  */
 public class FileTreeIterator extends WorkingTreeIterator {
+
 	/**
 	 * the starting directory of this Iterator. All entries are located directly
 	 * in this directory.
@@ -108,7 +111,6 @@ public class FileTreeIterator extends WorkingTreeIterator {
 	 * @param fileModeStrategy
 	 *            the strategy to use to determine the FileMode for a FileEntry;
 	 *            controls gitlinks etc.
-	 *
 	 * @since 4.3
 	 */
 	public FileTreeIterator(Repository repo, FileModeStrategy fileModeStrategy) {
@@ -130,7 +132,7 @@ public class FileTreeIterator extends WorkingTreeIterator {
 	 * @param options
 	 *            working tree options to be used
 	 */
-	public FileTreeIterator(final File root, FS fs, WorkingTreeOptions options) {
+	public FileTreeIterator(File root, FS fs, WorkingTreeOptions options) {
 		this(root, fs, options, DefaultFileModeStrategy.INSTANCE);
 	}
 
@@ -148,7 +150,6 @@ public class FileTreeIterator extends WorkingTreeIterator {
 	 * @param fileModeStrategy
 	 *            the strategy to use to determine the FileMode for a FileEntry;
 	 *            controls gitlinks etc.
-	 *
 	 * @since 4.3
 	 */
 	public FileTreeIterator(final File root, FS fs, WorkingTreeOptions options,
@@ -172,28 +173,6 @@ public class FileTreeIterator extends WorkingTreeIterator {
 	 *            the file system abstraction which will be necessary to perform
 	 *            certain file system operations.
 	 * @since 4.3
-	 * @deprecated use {@link #FileTreeIterator(FileTreeIterator, File, FS)}
-	 *             instead.
-	 */
-	@Deprecated
-	protected FileTreeIterator(final WorkingTreeIterator p, final File root,
-			FS fs) {
-		this(p, root, fs, DefaultFileModeStrategy.INSTANCE);
-	}
-
-	/**
-	 * Create a new iterator to traverse a subdirectory.
-	 *
-	 * @param p
-	 *            the parent iterator we were created from.
-	 * @param root
-	 *            the subdirectory. This should be a directory contained within
-	 *            the parent directory.
-	 * @param fs
-	 *            the file system abstraction which will be necessary to perform
-	 *            certain file system operations.
-	 *
-	 * @since 4.3
 	 */
 	protected FileTreeIterator(final FileTreeIterator p, final File root,
 			FS fs) {
@@ -215,7 +194,6 @@ public class FileTreeIterator extends WorkingTreeIterator {
 	 * @param fileModeStrategy
 	 *            the strategy to use to determine the FileMode for a given
 	 *            FileEntry.
-	 *
 	 * @since 4.3
 	 */
 	protected FileTreeIterator(final WorkingTreeIterator p, final File root,
@@ -227,20 +205,41 @@ public class FileTreeIterator extends WorkingTreeIterator {
 		init(entries());
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public AbstractTreeIterator createSubtreeIterator(final ObjectReader reader)
+	public AbstractTreeIterator createSubtreeIterator(ObjectReader reader)
 			throws IncorrectObjectTypeException, IOException {
-		return new FileTreeIterator(this, ((FileEntry) current()).getFile(), fs, fileModeStrategy);
+		if (!walksIgnoredDirectories() && isEntryIgnored()) {
+			DirCacheIterator iterator = getDirCacheIterator();
+			if (iterator == null) {
+				return new EmptyTreeIterator(this);
+			}
+			// Only enter if we have an associated DirCacheIterator that is
+			// at the same entry (which indicates there is some already
+			// tracked file underneath this directory). Otherwise the
+			// directory is indeed ignored and can be skipped entirely.
+		}
+		return enterSubtree();
+	}
+
+
+	/**
+	 * Create a new iterator for the current entry's subtree.
+	 * <p>
+	 * The parent reference of the iterator must be <code>this</code>, otherwise
+	 * the caller would not be able to exit out of the subtree iterator
+	 * correctly and return to continue walking <code>this</code>.
+	 *
+	 * @return a new iterator that walks over the current subtree.
+	 * @since 5.0
+	 */
+	protected AbstractTreeIterator enterSubtree() {
+		return new FileTreeIterator(this, ((FileEntry) current()).getFile(), fs,
+				fileModeStrategy);
 	}
 
 	private Entry[] entries() {
-		final File[] all = directory.listFiles();
-		if (all == null)
-			return EOF;
-		final Entry[] r = new Entry[all.length];
-		for (int i = 0; i < r.length; i++)
-			r[i] = new FileEntry(all[i], fs, fileModeStrategy);
-		return r;
+		return fs.list(directory, fileModeStrategy);
 	}
 
 	/**
@@ -269,7 +268,7 @@ public class FileTreeIterator extends WorkingTreeIterator {
 	 *
 	 * @since 4.3
 	 */
-	static public class DefaultFileModeStrategy implements FileModeStrategy {
+	public static class DefaultFileModeStrategy implements FileModeStrategy {
 		/**
 		 * a singleton instance of the default FileModeStrategy
 		 */
@@ -302,7 +301,7 @@ public class FileTreeIterator extends WorkingTreeIterator {
 	 *
 	 * @since 4.3
 	 */
-	static public class NoGitlinksStrategy implements FileModeStrategy {
+	public static class NoGitlinksStrategy implements FileModeStrategy {
 
 		/**
 		 * a singleton instance of the default FileModeStrategy
@@ -327,7 +326,7 @@ public class FileTreeIterator extends WorkingTreeIterator {
 	/**
 	 * Wrapper for a standard Java IO file
 	 */
-	static public class FileEntry extends Entry {
+	public static class FileEntry extends Entry {
 		private final FileMode mode;
 
 		private FS.Attributes attributes;
@@ -366,6 +365,29 @@ public class FileTreeIterator extends WorkingTreeIterator {
 			mode = fileModeStrategy.getMode(f, attributes);
 		}
 
+		/**
+		 * Create a new file entry given the specified FileModeStrategy
+		 *
+		 * @param f
+		 *            file
+		 * @param fs
+		 *            file system
+		 * @param attributes
+		 *            of the file
+		 * @param fileModeStrategy
+		 *            the strategy to use when determining the FileMode of a
+		 *            file; controls gitlinks etc.
+		 *
+		 * @since 5.0
+		 */
+		public FileEntry(File f, FS fs, FS.Attributes attributes,
+				FileModeStrategy fileModeStrategy) {
+			this.fs = fs;
+			this.attributes = attributes;
+			f = fs.normalize(f);
+			mode = fileModeStrategy.getMode(f, attributes);
+		}
+
 		@Override
 		public FileMode getMode() {
 			return mode;
@@ -388,12 +410,12 @@ public class FileTreeIterator extends WorkingTreeIterator {
 
 		@Override
 		public InputStream openInputStream() throws IOException {
-			if (fs.isSymLink(getFile()))
+			if (attributes.isSymbolicLink()) {
 				return new ByteArrayInputStream(fs.readSymLink(getFile())
-						.getBytes(
-						Constants.CHARACTER_ENCODING));
-			else
+						.getBytes(Constants.CHARACTER_ENCODING));
+			} else {
 				return new FileInputStream(getFile());
+			}
 		}
 
 		/**
@@ -407,6 +429,8 @@ public class FileTreeIterator extends WorkingTreeIterator {
 	}
 
 	/**
+	 * <p>Getter for the field <code>directory</code>.</p>
+	 *
 	 * @return The root directory of this iterator
 	 */
 	public File getDirectory() {
@@ -414,6 +438,8 @@ public class FileTreeIterator extends WorkingTreeIterator {
 	}
 
 	/**
+	 * Get the location of the working file.
+	 *
 	 * @return The location of the working file. This is the same as {@code new
 	 *         File(getDirectory(), getEntryPath())} but may be faster by
 	 *         reusing an internal File instance.
@@ -422,11 +448,13 @@ public class FileTreeIterator extends WorkingTreeIterator {
 		return ((FileEntry) current()).getFile();
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	protected byte[] idSubmodule(final Entry e) {
+	protected byte[] idSubmodule(Entry e) {
 		return idSubmodule(getDirectory(), e);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	protected String readSymlinkTarget(Entry entry) throws IOException {
 		return fs.readSymLink(getEntryFile());

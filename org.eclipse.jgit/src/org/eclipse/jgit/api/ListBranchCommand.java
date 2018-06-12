@@ -95,12 +95,16 @@ public class ListBranchCommand extends GitCommand<List<Ref>> {
 	}
 
 	/**
+	 * Constructor for ListBranchCommand.
+	 *
 	 * @param repo
+	 *            a {@link org.eclipse.jgit.lib.Repository} object.
 	 */
 	protected ListBranchCommand(Repository repo) {
 		super(repo);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public List<Ref> call() throws GitAPIException {
 		checkCallable();
@@ -154,6 +158,8 @@ public class ListBranchCommand extends GitCommand<List<Ref>> {
 	}
 
 	/**
+	 * Set the list mode
+	 *
 	 * @param listMode
 	 *            optional: corresponds to the -r/-a options; by default, only
 	 *            local branches will be listed
@@ -181,6 +187,6 @@ public class ListBranchCommand extends GitCommand<List<Ref>> {
 	}
 
 	private Collection<Ref> getRefs(String prefix) throws IOException {
-		return repo.getRefDatabase().getRefs(prefix).values();
+		return repo.getRefDatabase().getRefsByPrefix(prefix);
 	}
 }

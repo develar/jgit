@@ -19,6 +19,10 @@ def tests(tests):
     if 'lib' not in labels:
       labels.append('lib')
 
+    # TODO(http://eclip.se/534285): Make this test pass reliably
+    # and remove the flaky attribute.
+    flaky = src.endswith("CrissCrossMergeTest.java")
+
     additional_deps = []
     if src.endswith("RootLocaleTest.java"):
       additional_deps = [
@@ -29,6 +33,18 @@ def tests(tests):
       additional_deps = [
         '//org.eclipse.jgit:insecure_cipher_factory',
       ]
+    if src.endswith("OpenSshConfigTest.java"):
+      additional_deps = [
+        '//lib:jsch',
+      ]
+    if src.endswith("JschConfigSessionFactoryTest.java"):
+      additional_deps = [
+        '//lib:jsch',
+      ]
+
+    heap_size = "-Xmx256m"
+    if src.endswith("HugeCommitMessageTest.java"):
+      heap_size = "-Xmx512m"
 
     junit_tests(
       name = name,
@@ -44,5 +60,6 @@ def tests(tests):
         '//org.eclipse.jgit.junit:junit',
         '//org.eclipse.jgit.lfs:jgit-lfs',
       ],
-      jvm_flags = ["-Xmx256m", "-Dfile.encoding=UTF-8"],
+      flaky = flaky,
+      jvm_flags = [heap_size, "-Dfile.encoding=UTF-8"],
     )

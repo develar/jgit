@@ -66,10 +66,18 @@ abstract class AbstractFetchCommand extends TextBuiltin {
 	@Option(name = "--verbose", aliases = { "-v" }, usage = "usage_beMoreVerbose")
 	private boolean verbose;
 
-	protected void showFetchResult(final FetchResult r) throws IOException {
+	/**
+	 * Show fetch result.
+	 *
+	 * @param r
+	 *            a {@link org.eclipse.jgit.transport.FetchResult} object.
+	 * @throws java.io.IOException
+	 *             if any.
+	 */
+	protected void showFetchResult(FetchResult r) throws IOException {
 		try (ObjectReader reader = db.newObjectReader()) {
 			boolean shownURI = false;
-			for (final TrackingRefUpdate u : r.getTrackingRefUpdates()) {
+			for (TrackingRefUpdate u : r.getTrackingRefUpdates()) {
 				if (!verbose && u.getResult() == RefUpdate.Result.NO_CHANGE)
 					continue;
 
@@ -173,7 +181,7 @@ abstract class AbstractFetchCommand extends TextBuiltin {
 		}
 	}
 
-	private static char shortTypeOf(final RefUpdate.Result r) {
+	private static char shortTypeOf(RefUpdate.Result r) {
 		if (r == RefUpdate.Result.LOCK_FAILURE)
 			return '!';
 		if (r == RefUpdate.Result.IO_FAILURE)

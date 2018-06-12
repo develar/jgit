@@ -95,7 +95,7 @@ public class URIish implements Serializable {
 	 * Part of a pattern which matches the optional port part of URIs. Defines
 	 * one capturing group containing the port without the preceding colon.
 	 */
-	private static final String OPT_PORT_P = "(?::(\\d+))?"; //$NON-NLS-1$
+	private static final String OPT_PORT_P = "(?::(\\d*))?"; //$NON-NLS-1$
 
 	/**
 	 * Part of a pattern which matches the ~username part (e.g. /~root in
@@ -200,10 +200,12 @@ public class URIish implements Serializable {
 	private String host;
 
 	/**
-	 * Parse and construct an {@link URIish} from a string
+	 * Parse and construct an {@link org.eclipse.jgit.transport.URIish} from a
+	 * string
 	 *
 	 * @param s
-	 * @throws URISyntaxException
+	 *            a {@link java.lang.String} object.
+	 * @throws java.net.URISyntaxException
 	 */
 	public URIish(String s) throws URISyntaxException {
 		if (StringUtils.isEmptyOrNull(s)) {
@@ -222,11 +224,23 @@ public class URIish implements Serializable {
 			scheme = matcher.group(1);
 			user = unescape(matcher.group(2));
 			pass = unescape(matcher.group(3));
-			host = unescape(matcher.group(4));
-			if (matcher.group(5) != null)
-				port = Integer.parseInt(matcher.group(5));
-			rawPath = cleanLeadingSlashes(
-					n2e(matcher.group(6)) + n2e(matcher.group(7)), scheme);
+			// empty ports are in general allowed, except for URLs like
+			// file://D:/path for which it is more desirable to parse with
+			// host=null and path=D:/path
+			String portString = matcher.group(5);
+			if ("file".equals(scheme) && "".equals(portString)) { //$NON-NLS-1$ //$NON-NLS-2$
+				rawPath = cleanLeadingSlashes(
+						n2e(matcher.group(4)) + ":" + portString //$NON-NLS-1$
+								+ n2e(matcher.group(6)) + n2e(matcher.group(7)),
+						scheme);
+			} else {
+				host = unescape(matcher.group(4));
+				if (portString != null && portString.length() > 0) {
+					port = Integer.parseInt(portString);
+				}
+				rawPath = cleanLeadingSlashes(
+						n2e(matcher.group(6)) + n2e(matcher.group(7)), scheme);
+			}
 			path = unescape(rawPath);
 			return;
 		}
@@ -373,7 +387,7 @@ public class URIish implements Serializable {
 	 * @param u
 	 *            the source URL to convert from.
 	 */
-	public URIish(final URL u) {
+	public URIish(URL u) {
 		scheme = u.getProtocol();
 		path = u.getPath();
 		path = cleanLeadingSlashes(path, scheme);
@@ -395,12 +409,14 @@ public class URIish implements Serializable {
 		host = u.getHost();
 	}
 
-	/** Create an empty, non-configured URI. */
+	/**
+	 * Create an empty, non-configured URI.
+	 */
 	public URIish() {
 		// Configure nothing.
 	}
 
-	private URIish(final URIish u) {
+	private URIish(URIish u) {
 		this.scheme = u.scheme;
 		this.rawPath = u.rawPath;
 		this.path = u.path;
@@ -411,6 +427,8 @@ public class URIish implements Serializable {
 	}
 
 	/**
+	 * Whether this URI references a repository on another system.
+	 *
 	 * @return true if this URI references a repository on another system.
 	 */
 	public boolean isRemote() {
@@ -418,6 +436,8 @@ public class URIish implements Serializable {
 	}
 
 	/**
+	 * Get host name part.
+	 *
 	 * @return host name part or null
 	 */
 	public String getHost() {
@@ -431,13 +451,15 @@ public class URIish implements Serializable {
 	 *            the new value for host.
 	 * @return a new URI with the updated value.
 	 */
-	public URIish setHost(final String n) {
+	public URIish setHost(String n) {
 		final URIish r = new URIish(this);
 		r.host = n;
 		return r;
 	}
 
 	/**
+	 * Get protocol name
+	 *
 	 * @return protocol name or null for local references
 	 */
 	public String getScheme() {
@@ -451,13 +473,15 @@ public class URIish implements Serializable {
 	 *            the new value for scheme.
 	 * @return a new URI with the updated value.
 	 */
-	public URIish setScheme(final String n) {
+	public URIish setScheme(String n) {
 		final URIish r = new URIish(this);
 		r.scheme = n;
 		return r;
 	}
 
 	/**
+	 * Get path name component
+	 *
 	 * @return path name component
 	 */
 	public String getPath() {
@@ -465,6 +489,8 @@ public class URIish implements Serializable {
 	}
 
 	/**
+	 * Get path name component
+	 *
 	 * @return path name component
 	 */
 	public String getRawPath() {
@@ -478,7 +504,7 @@ public class URIish implements Serializable {
 	 *            the new value for path.
 	 * @return a new URI with the updated value.
 	 */
-	public URIish setPath(final String n) {
+	public URIish setPath(String n) {
 		final URIish r = new URIish(this);
 		r.path = n;
 		r.rawPath = n;
@@ -491,9 +517,9 @@ public class URIish implements Serializable {
 	 * @param n
 	 *            the new value for path.
 	 * @return a new URI with the updated value.
-	 * @throws URISyntaxException
+	 * @throws java.net.URISyntaxException
 	 */
-	public URIish setRawPath(final String n) throws URISyntaxException {
+	public URIish setRawPath(String n) throws URISyntaxException {
 		final URIish r = new URIish(this);
 		r.path = unescape(n);
 		r.rawPath = n;
@@ -501,6 +527,8 @@ public class URIish implements Serializable {
 	}
 
 	/**
+	 * Get user name requested for transfer
+	 *
 	 * @return user name requested for transfer or null
 	 */
 	public String getUser() {
@@ -514,13 +542,15 @@ public class URIish implements Serializable {
 	 *            the new value for user.
 	 * @return a new URI with the updated value.
 	 */
-	public URIish setUser(final String n) {
+	public URIish setUser(String n) {
 		final URIish r = new URIish(this);
 		r.user = n;
 		return r;
 	}
 
 	/**
+	 * Get password requested for transfer
+	 *
 	 * @return password requested for transfer or null
 	 */
 	public String getPass() {
@@ -534,13 +564,15 @@ public class URIish implements Serializable {
 	 *            the new value for password.
 	 * @return a new URI with the updated value.
 	 */
-	public URIish setPass(final String n) {
+	public URIish setPass(String n) {
 		final URIish r = new URIish(this);
 		r.pass = n;
 		return r;
 	}
 
 	/**
+	 * Get port number requested for transfer or -1 if not explicit
+	 *
 	 * @return port number requested for transfer or -1 if not explicit
 	 */
 	public int getPort() {
@@ -554,12 +586,13 @@ public class URIish implements Serializable {
 	 *            the new value for port.
 	 * @return a new URI with the updated value.
 	 */
-	public URIish setPort(final int n) {
+	public URIish setPort(int n) {
 		final URIish r = new URIish(this);
 		r.port = n > 0 ? n : -1;
 		return r;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public int hashCode() {
 		int hc = 0;
@@ -578,8 +611,9 @@ public class URIish implements Serializable {
 		return hc;
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public boolean equals(final Object obj) {
+	public boolean equals(Object obj) {
 		if (!(obj instanceof URIish))
 			return false;
 		final URIish b = (URIish) obj;
@@ -598,7 +632,7 @@ public class URIish implements Serializable {
 		return true;
 	}
 
-	private static boolean eq(final String a, final String b) {
+	private static boolean eq(String a, String b) {
 		if (a == b)
 			return true;
 		if (StringUtils.isEmptyOrNull(a) && StringUtils.isEmptyOrNull(b))
@@ -617,12 +651,13 @@ public class URIish implements Serializable {
 		return format(true, false);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public String toString() {
 		return format(false, false);
 	}
 
-	private String format(final boolean includePassword, boolean escapeNonAscii) {
+	private String format(boolean includePassword, boolean escapeNonAscii) {
 		final StringBuilder r = new StringBuilder();
 		if (getScheme() != null) {
 			r.append(getScheme());
@@ -666,6 +701,8 @@ public class URIish implements Serializable {
 	}
 
 	/**
+	 * Get the URI as an ASCII string.
+	 *
 	 * @return the URI as an ASCII string. Password is not included.
 	 */
 	public String toASCIIString() {
@@ -673,6 +710,9 @@ public class URIish implements Serializable {
 	}
 
 	/**
+	 * Convert the URI including password, formatted with only ASCII characters
+	 * such that it will be valid for use over the network.
+	 *
 	 * @return the URI including password, formatted with only ASCII characters
 	 *         such that it will be valid for use over the network.
 	 */
@@ -713,7 +753,7 @@ public class URIish implements Serializable {
 	 *
 	 * @return the "humanish" part of the path. May be an empty string. Never
 	 *         {@code null}.
-	 * @throws IllegalArgumentException
+	 * @throws java.lang.IllegalArgumentException
 	 *             if it's impossible to determine a humanish part, or path is
 	 *             {@code null} or empty
 	 * @see #getPath

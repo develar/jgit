@@ -43,12 +43,16 @@
  */
 package org.eclipse.jgit.api;
 
+import static org.eclipse.jgit.treewalk.TreeWalk.OperationType.CHECKOUT_OP;
+
 import java.io.IOException;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 
 import org.eclipse.jgit.api.CheckoutResult.Status;
 import org.eclipse.jgit.api.errors.CheckoutConflictException;
@@ -66,13 +70,16 @@ import org.eclipse.jgit.dircache.DirCacheEntry;
 import org.eclipse.jgit.dircache.DirCacheIterator;
 import org.eclipse.jgit.errors.AmbiguousObjectException;
 import org.eclipse.jgit.errors.UnmergedPathException;
+import org.eclipse.jgit.events.WorkingTreeModifiedEvent;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.CoreConfig.EolStreamType;
 import org.eclipse.jgit.lib.FileMode;
+import org.eclipse.jgit.lib.NullProgressMonitor;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
+import org.eclipse.jgit.lib.ProgressMonitor;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.lib.RefUpdate.Result;
@@ -86,7 +93,7 @@ import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
 /**
  * Checkout a branch to the working tree.
  * <p>
- * Examples (<code>git</code> is a {@link Git} instance):
+ * Examples (<code>git</code> is a {@link org.eclipse.jgit.api.Git} instance):
  * <p>
  * Check out an existing branch:
  *
@@ -121,9 +128,9 @@ import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
  * 		.setStartPoint(&quot;origin/stable&quot;).call();
  * </pre>
  *
- * @see <a
- *      href="http://www.kernel.org/pub/software/scm/git/docs/git-checkout.html"
- *      >Git documentation about Checkout</a>
+ * @see <a href=
+ *      "http://www.kernel.org/pub/software/scm/git/docs/git-checkout.html" >Git
+ *      documentation about Checkout</a>
  */
 public class CheckoutCommand extends GitCommand<Ref> {
 
@@ -175,27 +182,22 @@ public class CheckoutCommand extends GitCommand<Ref> {
 
 	private boolean checkoutAllPaths;
 
+	private Set<String> actuallyModifiedPaths;
+
+	private ProgressMonitor monitor = NullProgressMonitor.INSTANCE;
+
 	/**
+	 * Constructor for CheckoutCommand
+	 *
 	 * @param repo
+	 *            the {@link org.eclipse.jgit.lib.Repository}
 	 */
     public CheckoutCommand(Repository repo) {
 		super(repo);
 		this.paths = new LinkedList<>();
 	}
 
-	/**
-	 * @throws RefAlreadyExistsException
-	 *             when trying to create (without force) a branch with a name
-	 *             that already exists
-	 * @throws RefNotFoundException
-	 *             if the start point or branch can not be found
-	 * @throws InvalidRefNameException
-	 *             if the provided name is <code>null</code> or otherwise
-	 *             invalid
-	 * @throws CheckoutConflictException
-	 *             if the checkout results in a conflict
-	 * @return the newly created branch
-	 */
+	/** {@inheritDoc} */
 	@Override
 	public Ref call() throws GitAPIException, RefAlreadyExistsException,
 			RefNotFoundException, InvalidRefNameException,
@@ -268,6 +270,7 @@ public class CheckoutCommand extends GitCommand<Ref> {
 				dco = new DirCacheCheckout(repo, headTree, dc,
 						newCommit.getTree());
 				dco.setFailOnConflict(true);
+				dco.setProgressMonitor(monitor);
 				try {
 					dco.checkout();
 				} catch (org.eclipse.jgit.errors.CheckoutConflictException e) {
@@ -349,6 +352,20 @@ public class CheckoutCommand extends GitCommand<Ref> {
 	}
 
 	/**
+	 * @param monitor
+	 *            a progress monitor
+	 * @return this instance
+	 * @since 4.11
+	 */
+	public CheckoutCommand setProgressMonitor(ProgressMonitor monitor) {
+		if (monitor == null) {
+			monitor = NullProgressMonitor.INSTANCE;
+		}
+		this.monitor = monitor;
+		return this;
+	}
+
+	/**
 	 * Add a single slash-separated path to the list of paths to check out. To
 	 * check out all paths, use {@link #setAllPaths(boolean)}.
 	 * <p>
@@ -410,14 +427,17 @@ public class CheckoutCommand extends GitCommand<Ref> {
 	}
 
 	/**
-	 * Checkout paths into index and working directory
+	 * Checkout paths into index and working directory, firing a
+	 * {@link org.eclipse.jgit.events.WorkingTreeModifiedEvent} if the working
+	 * tree was modified.
 	 *
 	 * @return this instance
-	 * @throws IOException
-	 * @throws RefNotFoundException
+	 * @throws java.io.IOException
+	 * @throws org.eclipse.jgit.api.errors.RefNotFoundException
 	 */
 	protected CheckoutCommand checkoutPaths() throws IOException,
 			RefNotFoundException {
+		actuallyModifiedPaths = new HashSet<>();
 		DirCache dc = repo.lockDirCache();
 		try (RevWalk revWalk = new RevWalk(repo);
 				TreeWalk treeWalk = new TreeWalk(repo,
@@ -432,7 +452,16 @@ public class CheckoutCommand extends GitCommand<Ref> {
 				checkoutPathsFromCommit(treeWalk, dc, commit);
 			}
 		} finally {
-			dc.unlock();
+			try {
+				dc.unlock();
+			} finally {
+				WorkingTreeModifiedEvent event = new WorkingTreeModifiedEvent(
+						actuallyModifiedPaths, null);
+				actuallyModifiedPaths = null;
+				if (!event.isEmpty()) {
+					repo.fireEvent(event);
+				}
+			}
 		}
 		return this;
 	}
@@ -452,7 +481,8 @@ public class CheckoutCommand extends GitCommand<Ref> {
 			if (path.equals(previousPath))
 				continue;
 
-			final EolStreamType eolStreamType = treeWalk.getEolStreamType();
+			final EolStreamType eolStreamType = treeWalk
+					.getEolStreamType(CHECKOUT_OP);
 			final String filterCommand = treeWalk
 					.getFilterCommand(Constants.ATTR_FILTER_TYPE_SMUDGE);
 			editor.add(new PathEdit(path) {
@@ -461,9 +491,11 @@ public class CheckoutCommand extends GitCommand<Ref> {
 					int stage = ent.getStage();
 					if (stage > DirCacheEntry.STAGE_0) {
 						if (checkoutStage != null) {
-							if (stage == checkoutStage.number)
+							if (stage == checkoutStage.number) {
 								checkoutPath(ent, r, new CheckoutMetadata(
 										eolStreamType, filterCommand));
+								actuallyModifiedPaths.add(path);
+							}
 						} else {
 							UnmergedPathException e = new UnmergedPathException(
 									ent);
@@ -472,6 +504,7 @@ public class CheckoutCommand extends GitCommand<Ref> {
 					} else {
 						checkoutPath(ent, r, new CheckoutMetadata(eolStreamType,
 								filterCommand));
+						actuallyModifiedPaths.add(path);
 					}
 				}
 			});
@@ -489,16 +522,19 @@ public class CheckoutCommand extends GitCommand<Ref> {
 		while (treeWalk.next()) {
 			final ObjectId blobId = treeWalk.getObjectId(0);
 			final FileMode mode = treeWalk.getFileMode(0);
-			final EolStreamType eolStreamType = treeWalk.getEolStreamType();
+			final EolStreamType eolStreamType = treeWalk
+					.getEolStreamType(CHECKOUT_OP);
 			final String filterCommand = treeWalk
 					.getFilterCommand(Constants.ATTR_FILTER_TYPE_SMUDGE);
-			editor.add(new PathEdit(treeWalk.getPathString()) {
+			final String path = treeWalk.getPathString();
+			editor.add(new PathEdit(path) {
 				@Override
 				public void apply(DirCacheEntry ent) {
 					ent.setObjectId(blobId);
 					ent.setFileMode(mode);
 					checkoutPath(ent, r,
 							new CheckoutMetadata(eolStreamType, filterCommand));
+					actuallyModifiedPaths.add(path);
 				}
 			});
 		}
@@ -714,6 +750,8 @@ public class CheckoutCommand extends GitCommand<Ref> {
 	}
 
 	/**
+	 * Get the result, never <code>null</code>
+	 *
 	 * @return the result, never <code>null</code>
 	 */
 	public CheckoutResult getResult() {

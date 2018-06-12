@@ -58,11 +58,8 @@ import org.eclipse.jgit.lfs.errors.InvalidLongObjectIdException;
 import org.eclipse.jgit.lfs.lib.AnyLongObjectId;
 import org.eclipse.jgit.lfs.lib.Constants;
 import org.eclipse.jgit.lfs.lib.LongObjectId;
+import org.eclipse.jgit.lfs.server.internal.LfsGson;
 import org.eclipse.jgit.lfs.server.internal.LfsServerText;
-
-import com.google.gson.FieldNamingPolicy;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 
 /**
  * Servlet supporting upload and download of large objects as defined by the
@@ -81,9 +78,9 @@ public class FileLfsServlet extends HttpServlet {
 
 	private final long timeout;
 
-	private static Gson gson = createGson();
-
 	/**
+	 * <p>Constructor for FileLfsServlet.</p>
+	 *
 	 * @param repository
 	 *            the repository storing the large objects
 	 * @param timeout
@@ -95,16 +92,9 @@ public class FileLfsServlet extends HttpServlet {
 	}
 
 	/**
-	 * Handles object downloads
+	 * {@inheritDoc}
 	 *
-	 * @param req
-	 *            servlet request
-	 * @param rsp
-	 *            servlet response
-	 * @throws ServletException
-	 *             if a servlet-specific error occurs
-	 * @throws IOException
-	 *             if an I/O error occurs
+	 * Handle object downloads
 	 */
 	@Override
 	protected void doGet(HttpServletRequest req,
@@ -134,9 +124,9 @@ public class FileLfsServlet extends HttpServlet {
 	 *            servlet response
 	 * @return object id, or <code>null</code> if the object id could not be
 	 *         retrieved
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             if an I/O error occurs
-         * @since 4.6
+	 * @since 4.6
 	 */
 	protected AnyLongObjectId getObjectToTransfer(HttpServletRequest req,
 			HttpServletResponse rsp) throws IOException {
@@ -156,16 +146,9 @@ public class FileLfsServlet extends HttpServlet {
 	}
 
 	/**
-	 * Handle object uploads
+	 * {@inheritDoc}
 	 *
-	 * @param req
-	 *            servlet request
-	 * @param rsp
-	 *            servlet response
-	 * @throws ServletException
-	 *             if a servlet-specific error occurs
-	 * @throws IOException
-	 *             if an I/O error occurs
+	 * Handle object uploads
 	 */
 	@Override
 	protected void doPut(HttpServletRequest req,
@@ -179,14 +162,6 @@ public class FileLfsServlet extends HttpServlet {
 		}
 	}
 
-	static class Error {
-		String message;
-
-		Error(String m) {
-			this.message = m;
-		}
-	}
-
 	/**
 	 * Send an error response.
 	 *
@@ -196,25 +171,17 @@ public class FileLfsServlet extends HttpServlet {
 	 *            HTTP status code
 	 * @param message
 	 *            error message
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             on failure to send the response
 	 * @since 4.6
 	 */
 	protected static void sendError(HttpServletResponse rsp, int status, String message)
 			throws IOException {
 		rsp.setStatus(status);
-		PrintWriter writer = rsp.getWriter();
-		gson.toJson(new Error(message), writer);
-		writer.flush();
-		writer.close();
+		try (PrintWriter writer = rsp.getWriter()) {
+			LfsGson.toJson(message, writer);
+			writer.flush();
+		}
 		rsp.flushBuffer();
-	}
-
-	private static Gson createGson() {
-		GsonBuilder gb = new GsonBuilder()
-				.setFieldNamingPolicy(
-						FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES)
-				.setPrettyPrinting().disableHtmlEscaping();
-		return gb.create();
 	}
 }

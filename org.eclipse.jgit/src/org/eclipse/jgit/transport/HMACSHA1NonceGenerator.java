@@ -42,8 +42,10 @@
  */
 package org.eclipse.jgit.transport;
 
+import static java.nio.charset.StandardCharsets.ISO_8859_1;
+import static org.eclipse.jgit.lib.Constants.CHARSET;
+
 import java.io.File;
-import java.io.UnsupportedEncodingException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 
@@ -64,12 +66,15 @@ public class HMACSHA1NonceGenerator implements NonceGenerator {
 	private Mac mac;
 
 	/**
+	 * Constructor for HMACSHA1NonceGenerator.
+	 *
 	 * @param seed
-	 * @throws IllegalStateException
+	 *            seed the generator
+	 * @throws java.lang.IllegalStateException
 	 */
 	public HMACSHA1NonceGenerator(String seed) throws IllegalStateException {
 		try {
-			byte[] keyBytes = seed.getBytes("ISO-8859-1"); //$NON-NLS-1$
+			byte[] keyBytes = seed.getBytes(ISO_8859_1);
 			SecretKeySpec signingKey = new SecretKeySpec(keyBytes, "HmacSHA1"); //$NON-NLS-1$
 			mac = Mac.getInstance("HmacSHA1"); //$NON-NLS-1$
 			mac.init(signingKey);
@@ -77,11 +82,10 @@ public class HMACSHA1NonceGenerator implements NonceGenerator {
 			throw new IllegalStateException(e);
 		} catch (NoSuchAlgorithmException e) {
 			throw new IllegalStateException(e);
-		} catch (UnsupportedEncodingException e) {
-			throw new IllegalStateException(e);
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public synchronized String createNonce(Repository repo, long timestamp)
 			throws IllegalStateException {
@@ -98,15 +102,11 @@ public class HMACSHA1NonceGenerator implements NonceGenerator {
 		}
 
 		String input = path + ":" + String.valueOf(timestamp); //$NON-NLS-1$
-		byte[] rawHmac;
-		try {
-			rawHmac = mac.doFinal(input.getBytes("UTF-8")); //$NON-NLS-1$
-		} catch (UnsupportedEncodingException e) {
-			throw new IllegalStateException(e);
-		}
+		byte[] rawHmac = mac.doFinal(input.getBytes(CHARSET));
 		return Long.toString(timestamp) + "-" + toHex(rawHmac); //$NON-NLS-1$
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public NonceStatus verify(String received, String sent,
 			Repository db, boolean allowSlop, int slop) {

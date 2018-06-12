@@ -69,8 +69,8 @@ import org.eclipse.jgit.treewalk.filter.TreeFilter;
  * .gitmodules file and the repository config file, and also add the submodule
  * and .gitmodules file to the index.
  *
- * @see <a
- *      href="http://www.kernel.org/pub/software/scm/git/docs/git-submodule.html"
+ * @see <a href=
+ *      "http://www.kernel.org/pub/software/scm/git/docs/git-submodule.html"
  *      >Git documentation about submodules</a>
  */
 public class SubmoduleAddCommand extends
@@ -83,9 +83,12 @@ public class SubmoduleAddCommand extends
 	private ProgressMonitor monitor;
 
 	/**
+	 * Constructor for SubmoduleAddCommand.
+	 *
 	 * @param repo
+	 *            a {@link org.eclipse.jgit.lib.Repository} object.
 	 */
-	public SubmoduleAddCommand(final Repository repo) {
+	public SubmoduleAddCommand(Repository repo) {
 		super(repo);
 	}
 
@@ -96,7 +99,7 @@ public class SubmoduleAddCommand extends
 	 *            (with <code>/</code> as separator)
 	 * @return this command
 	 */
-	public SubmoduleAddCommand setPath(final String path) {
+	public SubmoduleAddCommand setPath(String path) {
 		this.path = path;
 		return this;
 	}
@@ -105,9 +108,10 @@ public class SubmoduleAddCommand extends
 	 * Set URI to clone submodule from
 	 *
 	 * @param uri
+	 *            a {@link java.lang.String} object.
 	 * @return this command
 	 */
-	public SubmoduleAddCommand setURI(final String uri) {
+	public SubmoduleAddCommand setURI(String uri) {
 		this.uri = uri;
 		return this;
 	}
@@ -118,9 +122,10 @@ public class SubmoduleAddCommand extends
 	 *
 	 * @see NullProgressMonitor
 	 * @param monitor
+	 *            a {@link org.eclipse.jgit.lib.ProgressMonitor} object.
 	 * @return this command
 	 */
-	public SubmoduleAddCommand setProgressMonitor(final ProgressMonitor monitor) {
+	public SubmoduleAddCommand setProgressMonitor(ProgressMonitor monitor) {
 		this.monitor = monitor;
 		return this;
 	}
@@ -129,7 +134,7 @@ public class SubmoduleAddCommand extends
 	 * Is the configured already a submodule in the index?
 	 *
 	 * @return true if submodule exists in index, false otherwise
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
 	protected boolean submoduleExists() throws IOException {
 		TreeFilter filter = PathFilter.create(path);
@@ -139,15 +144,14 @@ public class SubmoduleAddCommand extends
 	}
 
 	/**
+	 * {@inheritDoc}
+	 * <p>
 	 * Executes the {@code SubmoduleAddCommand}
 	 *
 	 * The {@code Repository} instance returned by this command needs to be
 	 * closed by the caller to free resources held by the {@code Repository}
 	 * instance. It is recommended to call this method as soon as you don't need
 	 * a reference to this {@code Repository} instance anymore.
-	 *
-	 * @return the newly created {@link Repository}
-	 * @throws GitAPIException
 	 */
 	@Override
 	public Repository call() throws GitAPIException {

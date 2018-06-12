@@ -61,6 +61,7 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectIdRef;
 import org.eclipse.jgit.lib.ObjectInserter;
 import org.eclipse.jgit.lib.Ref;
+import org.eclipse.jgit.lib.SymbolicRef;
 import org.eclipse.jgit.revwalk.RevObject;
 import org.eclipse.jgit.revwalk.RevTag;
 import org.eclipse.jgit.revwalk.RevWalk;
@@ -68,25 +69,31 @@ import org.eclipse.jgit.transport.ReceiveCommand;
 import org.eclipse.jgit.transport.ReceiveCommand.Result;
 
 /**
- * Command to create, update or delete an entry inside a {@link RefTree}.
+ * Command to create, update or delete an entry inside a
+ * {@link org.eclipse.jgit.internal.storage.reftree.RefTree}.
  * <p>
- * Unlike {@link ReceiveCommand} (which can only update a reference to an
- * {@link ObjectId}), a RefTree Command can also create, modify or delete
- * symbolic references to a target reference.
+ * Unlike {@link org.eclipse.jgit.transport.ReceiveCommand} (which can only
+ * update a reference to an {@link org.eclipse.jgit.lib.ObjectId}), a RefTree
+ * Command can also create, modify or delete symbolic references to a target
+ * reference.
  * <p>
  * RefTree Commands may wrap a {@code ReceiveCommand} to allow callers to
  * process an existing ReceiveCommand against a RefTree.
  * <p>
- * Commands should be passed into {@link RefTree#apply(java.util.Collection)}
+ * Commands should be passed into
+ * {@link org.eclipse.jgit.internal.storage.reftree.RefTree#apply(java.util.Collection)}
  * for processing.
  */
 public class Command {
 	/**
 	 * Set unprocessed commands as failed due to transaction aborted.
 	 * <p>
-	 * If a command is still {@link Result#NOT_ATTEMPTED} it will be set to
-	 * {@link Result#REJECTED_OTHER_REASON}. If {@code why} is non-null its
-	 * contents will be used as the message for the first command status.
+	 * If a command is still
+	 * {@link org.eclipse.jgit.transport.ReceiveCommand.Result#NOT_ATTEMPTED} it
+	 * will be set to
+	 * {@link org.eclipse.jgit.transport.ReceiveCommand.Result#REJECTED_OTHER_REASON}.
+	 * If {@code why} is non-null its contents will be used as the message for
+	 * the first command status.
 	 *
 	 * @param commands
 	 *            commands to mark as failed.
@@ -146,21 +153,27 @@ public class Command {
 	 *            walk instance to peel the {@code newId}.
 	 * @param cmd
 	 *            command received from a push client.
-	 * @throws MissingObjectException
+	 * @throws org.eclipse.jgit.errors.MissingObjectException
 	 *             {@code oldId} or {@code newId} is missing.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             {@code oldId} or {@code newId} cannot be peeled.
 	 */
 	public Command(RevWalk rw, ReceiveCommand cmd)
 			throws MissingObjectException, IOException {
-		this.oldRef = toRef(rw, cmd.getOldId(), cmd.getRefName(), false);
-		this.newRef = toRef(rw, cmd.getNewId(), cmd.getRefName(), true);
+		this.oldRef = toRef(rw, cmd.getOldId(), cmd.getOldSymref(),
+				cmd.getRefName(), false);
+		this.newRef = toRef(rw, cmd.getNewId(), cmd.getNewSymref(),
+				cmd.getRefName(), true);
 		this.cmd = cmd;
 	}
 
-	static Ref toRef(RevWalk rw, ObjectId id, String name,
-			boolean mustExist) throws MissingObjectException, IOException {
-		if (ObjectId.zeroId().equals(id)) {
+	static Ref toRef(RevWalk rw, ObjectId id, @Nullable String target,
+			String name, boolean mustExist)
+			throws MissingObjectException, IOException {
+		if (target != null) {
+			return new SymbolicRef(name,
+					new ObjectIdRef.Unpeeled(NETWORK, target, id));
+		} else if (ObjectId.zeroId().equals(id)) {
 			return null;
 		}
 
@@ -179,7 +192,11 @@ public class Command {
 		}
 	}
 
-	/** @return name of the reference affected by this command. */
+	/**
+	 * Get name of the reference affected by this command.
+	 *
+	 * @return name of the reference affected by this command.
+	 */
 	public String getRefName() {
 		if (cmd != null) {
 			return cmd.getRefName();
@@ -215,12 +232,20 @@ public class Command {
 		}
 	}
 
-	/** @return result of executing this command. */
+	/**
+	 * Get result of executing this command.
+	 *
+	 * @return result of executing this command.
+	 */
 	public Result getResult() {
 		return cmd != null ? cmd.getResult() : result;
 	}
 
-	/** @return optional message explaining command failure. */
+	/**
+	 * Get optional message explaining command failure.
+	 *
+	 * @return optional message explaining command failure.
+	 */
 	@Nullable
 	public String getMessage() {
 		return cmd != null ? cmd.getMessage() : null;
@@ -246,6 +271,7 @@ public class Command {
 		return newRef;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public String toString() {
 		StringBuilder s = new StringBuilder();

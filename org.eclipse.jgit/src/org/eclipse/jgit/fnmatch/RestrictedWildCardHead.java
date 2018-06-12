@@ -47,16 +47,18 @@ package org.eclipse.jgit.fnmatch;
 final class RestrictedWildCardHead extends AbstractHead {
 	private final char excludedCharacter;
 
-	RestrictedWildCardHead(final char excludedCharacter, final boolean star) {
+	RestrictedWildCardHead(char excludedCharacter, boolean star) {
 		super(star);
 		this.excludedCharacter = excludedCharacter;
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	protected final boolean matches(final char c) {
+	protected final boolean matches(char c) {
 		return c != excludedCharacter;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public String toString() {
 		return isStar() ? "*" : "?"; //$NON-NLS-1$ //$NON-NLS-2$

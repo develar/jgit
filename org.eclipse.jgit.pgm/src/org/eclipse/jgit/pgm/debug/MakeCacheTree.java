@@ -57,6 +57,7 @@ import org.eclipse.jgit.pgm.internal.CLIText;
 
 @Command(usage = "usage_MakeCacheTree")
 class MakeCacheTree extends TextBuiltin {
+	/** {@inheritDoc} */
 	@Override
 	protected void run() throws Exception {
 		final DirCache cache = db.readDirCache();
@@ -64,7 +65,7 @@ class MakeCacheTree extends TextBuiltin {
 		show(tree);
 	}
 
-	private void show(final DirCacheTree tree) throws IOException {
+	private void show(DirCacheTree tree) throws IOException {
 		outw.println(MessageFormat.format(CLIText.get().cacheTreePathInfo,
 				tree.getPathString(), valueOf(tree.getEntrySpan()),
 				valueOf(tree.getChildCount())));

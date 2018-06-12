@@ -55,7 +55,10 @@ import java.text.MessageFormat;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.Config;
 
-/** Configuration parameters for {@link DfsBlockCache}. */
+/**
+ * Configuration parameters for
+ * {@link org.eclipse.jgit.internal.storage.dfs.DfsBlockCache}.
+ */
 public class DfsBlockCacheConfig {
 	/** 1024 (number of bytes in one kibibyte/kilobyte) */
 	public static final int KB = 1024;
@@ -68,7 +71,9 @@ public class DfsBlockCacheConfig {
 	private double streamRatio;
 	private int concurrencyLevel;
 
-	/** Create a default configuration. */
+	/**
+	 * Create a default configuration.
+	 */
 	public DfsBlockCacheConfig() {
 		setBlockLimit(32 * MB);
 		setBlockSize(64 * KB);
@@ -77,6 +82,9 @@ public class DfsBlockCacheConfig {
 	}
 
 	/**
+	 * Get maximum number bytes of heap memory to dedicate to caching pack file
+	 * data.
+	 *
 	 * @return maximum number bytes of heap memory to dedicate to caching pack
 	 *         file data. <b>Default is 32 MB.</b>
 	 */
@@ -85,17 +93,33 @@ public class DfsBlockCacheConfig {
 	}
 
 	/**
+	 * Set maximum number bytes of heap memory to dedicate to caching pack file
+	 * data.
+	 * <p>
+	 * It is strongly recommended to set the block limit to be an integer multiple
+	 * of the block size. This constraint is not enforced by this method (since
+	 * it may be called before {@link #setBlockSize(int)}), but it is enforced by
+	 * {@link #fromConfig(Config)}.
+	 *
 	 * @param newLimit
 	 *            maximum number bytes of heap memory to dedicate to caching
-	 *            pack file data.
+	 *            pack file data; must be positive.
 	 * @return {@code this}
 	 */
-	public DfsBlockCacheConfig setBlockLimit(final long newLimit) {
+	public DfsBlockCacheConfig setBlockLimit(long newLimit) {
+		if (newLimit <= 0) {
+			throw new IllegalArgumentException(MessageFormat.format(
+					JGitText.get().blockLimitNotPositive,
+					Long.valueOf(newLimit)));
+		}
 		blockLimit = newLimit;
 		return this;
 	}
 
 	/**
+	 * Get size in bytes of a single window mapped or read in from the pack
+	 * file.
+	 *
 	 * @return size in bytes of a single window mapped or read in from the pack
 	 *         file. <b>Default is 64 KB.</b>
 	 */
@@ -104,12 +128,14 @@ public class DfsBlockCacheConfig {
 	}
 
 	/**
+	 * Set size in bytes of a single window read in from the pack file.
+	 *
 	 * @param newSize
 	 *            size in bytes of a single window read in from the pack file.
 	 *            The value must be a power of 2.
 	 * @return {@code this}
 	 */
-	public DfsBlockCacheConfig setBlockSize(final int newSize) {
+	public DfsBlockCacheConfig setBlockSize(int newSize) {
 		int size = Math.max(512, newSize);
 		if ((size & (size - 1)) != 0) {
 			throw new IllegalArgumentException(
@@ -120,6 +146,8 @@ public class DfsBlockCacheConfig {
 	}
 
 	/**
+	 * Get the estimated number of threads concurrently accessing the cache.
+	 *
 	 * @return the estimated number of threads concurrently accessing the cache.
 	 *         <b>Default is 32.</b>
 	 */
@@ -128,6 +156,8 @@ public class DfsBlockCacheConfig {
 	}
 
 	/**
+	 * Set the estimated number of threads concurrently accessing the cache.
+	 *
 	 * @param newConcurrencyLevel
 	 *            the estimated number of threads concurrently accessing the
 	 *            cache.
@@ -140,6 +170,9 @@ public class DfsBlockCacheConfig {
 	}
 
 	/**
+	 * Get highest percentage of {@link #getBlockLimit()} a single pack can
+	 * occupy while being copied by the pack reuse strategy.
+	 *
 	 * @return highest percentage of {@link #getBlockLimit()} a single pack can
 	 *         occupy while being copied by the pack reuse strategy. <b>Default
 	 *         is 0.30, or 30%</b>.
@@ -149,6 +182,8 @@ public class DfsBlockCacheConfig {
 	}
 
 	/**
+	 * Set percentage of cache to occupy with a copied pack.
+	 *
 	 * @param ratio
 	 *            percentage of cache to occupy with a copied pack.
 	 * @return {@code this}
@@ -163,23 +198,34 @@ public class DfsBlockCacheConfig {
 	 * <p>
 	 * If a property is not defined in the configuration, then it is left
 	 * unmodified.
+	 * <p>
+	 * Enforces certain constraints on the combination of settings in the config,
+	 * for example that the block limit is a multiple of the block size.
 	 *
 	 * @param rc
 	 *            configuration to read properties from.
 	 * @return {@code this}
 	 */
-	public DfsBlockCacheConfig fromConfig(final Config rc) {
-		setBlockLimit(rc.getLong(
+	public DfsBlockCacheConfig fromConfig(Config rc) {
+		long cfgBlockLimit = rc.getLong(
 				CONFIG_CORE_SECTION,
 				CONFIG_DFS_SECTION,
 				CONFIG_KEY_BLOCK_LIMIT,
-				getBlockLimit()));
-
-		setBlockSize(rc.getInt(
+				getBlockLimit());
+		int cfgBlockSize = rc.getInt(
 				CONFIG_CORE_SECTION,
 				CONFIG_DFS_SECTION,
 				CONFIG_KEY_BLOCK_SIZE,
-				getBlockSize()));
+				getBlockSize());
+		if (cfgBlockLimit % cfgBlockSize != 0) {
+			throw new IllegalArgumentException(MessageFormat.format(
+					JGitText.get().blockLimitNotMultipleOfBlockSize,
+					Long.valueOf(cfgBlockLimit),
+					Long.valueOf(cfgBlockSize)));
+		}
+
+		setBlockLimit(cfgBlockLimit);
+		setBlockSize(cfgBlockSize);
 
 		setConcurrencyLevel(rc.getInt(
 				CONFIG_CORE_SECTION,

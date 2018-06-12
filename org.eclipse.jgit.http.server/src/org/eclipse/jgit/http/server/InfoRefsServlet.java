@@ -44,18 +44,15 @@
 package org.eclipse.jgit.http.server;
 
 import static org.eclipse.jgit.http.server.ServletUtils.getRepository;
-import static org.eclipse.jgit.lib.RefDatabase.ALL;
 
 import java.io.IOException;
 import java.io.OutputStreamWriter;
-import java.util.Map;
 
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.eclipse.jgit.lib.Constants;
-import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.transport.RefAdvertiser;
 import org.eclipse.jgit.util.HttpSupport;
@@ -64,6 +61,7 @@ import org.eclipse.jgit.util.HttpSupport;
 class InfoRefsServlet extends HttpServlet {
 	private static final long serialVersionUID = 1L;
 
+	/** {@inheritDoc} */
 	@Override
 	public void doGet(final HttpServletRequest req,
 			final HttpServletResponse rsp) throws IOException {
@@ -73,29 +71,27 @@ class InfoRefsServlet extends HttpServlet {
 		rsp.setCharacterEncoding(Constants.CHARACTER_ENCODING);
 
 		final Repository db = getRepository(req);
-		final OutputStreamWriter out = new OutputStreamWriter(
+		try (OutputStreamWriter out = new OutputStreamWriter(
 				new SmartOutputStream(req, rsp, true),
-				Constants.CHARSET);
-		final RefAdvertiser adv = new RefAdvertiser() {
-			@Override
-			protected void writeOne(final CharSequence line) throws IOException {
-				// Whoever decided that info/refs should use a different
-				// delimiter than the native git:// protocol shouldn't
-				// be allowed to design this sort of stuff. :-(
-				out.append(line.toString().replace(' ', '\t'));
-			}
+				Constants.CHARSET)) {
+			final RefAdvertiser adv = new RefAdvertiser() {
+				@Override
+				protected void writeOne(CharSequence line)
+						throws IOException {
+					// Whoever decided that info/refs should use a different
+					// delimiter than the native git:// protocol shouldn't
+					// be allowed to design this sort of stuff. :-(
+					out.append(line.toString().replace(' ', '\t'));
+				}
 
-			@Override
-			protected void end() {
-				// No end marker required for info/refs format.
-			}
-		};
-		adv.init(db);
-		adv.setDerefTags(true);
-
-		Map<String, Ref> refs = db.getRefDatabase().getRefs(ALL);
-		refs.remove(Constants.HEAD);
-		adv.send(refs);
-		out.close();
+				@Override
+				protected void end() {
+					// No end marker required for info/refs format.
+				}
+			};
+			adv.init(db);
+			adv.setDerefTags(true);
+			adv.send(db.getRefDatabase().getRefsByPrefix(Constants.R_REFS));
+		}
 	}
 }

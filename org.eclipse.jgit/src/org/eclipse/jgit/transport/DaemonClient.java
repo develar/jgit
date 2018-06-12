@@ -50,11 +50,15 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.util.Arrays;
+import java.util.Collection;
 
 import org.eclipse.jgit.transport.resolver.ServiceNotAuthorizedException;
 import org.eclipse.jgit.transport.resolver.ServiceNotEnabledException;
 
-/** Active network client of {@link Daemon}. */
+/**
+ * Active network client of {@link org.eclipse.jgit.transport.Daemon}.
+ */
 public class DaemonClient {
 	private final Daemon daemon;
 
@@ -64,35 +68,51 @@ public class DaemonClient {
 
 	private OutputStream rawOut;
 
-	DaemonClient(final Daemon d) {
+	DaemonClient(Daemon d) {
 		daemon = d;
 	}
 
-	void setRemoteAddress(final InetAddress ia) {
+	void setRemoteAddress(InetAddress ia) {
 		peer = ia;
 	}
 
-	/** @return the daemon which spawned this client. */
+	/**
+	 * Get the daemon which spawned this client.
+	 *
+	 * @return the daemon which spawned this client.
+	 */
 	public Daemon getDaemon() {
 		return daemon;
 	}
 
-	/** @return Internet address of the remote client. */
+	/**
+	 * Get Internet address of the remote client.
+	 *
+	 * @return Internet address of the remote client.
+	 */
 	public InetAddress getRemoteAddress() {
 		return peer;
 	}
 
-	/** @return input stream to read from the connected client. */
+	/**
+	 * Get input stream to read from the connected client.
+	 *
+	 * @return input stream to read from the connected client.
+	 */
 	public InputStream getInputStream() {
 		return rawIn;
 	}
 
-	/** @return output stream to send data to the connected client. */
+	/**
+	 * Get output stream to send data to the connected client.
+	 *
+	 * @return output stream to send data to the connected client.
+	 */
 	public OutputStream getOutputStream() {
 		return rawOut;
 	}
 
-	void execute(final Socket sock) throws IOException,
+	void execute(Socket sock) throws IOException,
 			ServiceNotEnabledException, ServiceNotAuthorizedException {
 		rawIn = new BufferedInputStream(sock.getInputStream());
 		rawOut = new BufferedOutputStream(sock.getOutputStream());
@@ -100,6 +120,14 @@ public class DaemonClient {
 		if (0 < daemon.getTimeout())
 			sock.setSoTimeout(daemon.getTimeout() * 1000);
 		String cmd = new PacketLineIn(rawIn).readStringRaw();
+
+		Collection<String> extraParameters = null;
+
+		int nulnul = cmd.indexOf("\0\0"); //$NON-NLS-1$
+		if (nulnul != -1) {
+			extraParameters = Arrays.asList(cmd.substring(nulnul + 2).split("\0")); //$NON-NLS-1$
+		}
+
 		final int nul = cmd.indexOf('\0');
 		if (nul >= 0) {
 			// Newer clients hide a "host" header behind this byte.
@@ -113,6 +141,6 @@ public class DaemonClient {
 		if (srv == null)
 			return;
 		sock.setSoTimeout(0);
-		srv.execute(this, cmd);
+		srv.execute(this, cmd, extraParameters);
 	}
 }

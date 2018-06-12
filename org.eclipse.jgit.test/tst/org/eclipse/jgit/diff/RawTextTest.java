@@ -44,6 +44,8 @@
 
 package org.eclipse.jgit.diff;
 
+import static org.eclipse.jgit.lib.Constants.CHARSET;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -51,7 +53,6 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.util.RawParseUtils;
@@ -62,6 +63,16 @@ public class RawTextTest {
 	public void testEmpty() {
 		final RawText r = new RawText(new byte[0]);
 		assertEquals(0, r.size());
+	}
+
+	@Test
+	public void testBinary() {
+		String input = "foo-a\nf\0o-b\n";
+		byte[] data = Constants.encodeASCII(input);
+		final RawText a = new RawText(data);
+		assertArrayEquals(a.content, data);
+		assertEquals(a.size(), 1);
+		assertEquals(a.getString(0, 1, false), input);
 	}
 
 	@Test
@@ -110,8 +121,7 @@ public class RawTextTest {
 	}
 
 	@Test
-	public void testComparatorReduceCommonStartEnd()
-			throws UnsupportedEncodingException {
+	public void testComparatorReduceCommonStartEnd() {
 		final RawTextComparator c = RawTextComparator.DEFAULT;
 		Edit e;
 
@@ -137,54 +147,51 @@ public class RawTextTest {
 		e = c.reduceCommonStartEnd(t("abQxy"), t("abRxy"), e);
 		assertEquals(new Edit(2, 3, 2, 3), e);
 
-		RawText a = new RawText("p\na b\nQ\nc d\n".getBytes("UTF-8"));
-		RawText b = new RawText("p\na  b \nR\n c  d \n".getBytes("UTF-8"));
+		RawText a = new RawText("p\na b\nQ\nc d\n".getBytes(CHARSET));
+		RawText b = new RawText("p\na  b \nR\n c  d \n".getBytes(CHARSET));
 		e = new Edit(0, 4, 0, 4);
 		e = RawTextComparator.WS_IGNORE_ALL.reduceCommonStartEnd(a, b, e);
 		assertEquals(new Edit(2, 3, 2, 3), e);
 	}
 
 	@Test
-	public void testComparatorReduceCommonStartEnd_EmptyLine()
-			throws UnsupportedEncodingException {
+	public void testComparatorReduceCommonStartEnd_EmptyLine() {
 		RawText a;
 		RawText b;
 		Edit e;
 
-		a = new RawText("R\n y\n".getBytes("UTF-8"));
-		b = new RawText("S\n\n y\n".getBytes("UTF-8"));
+		a = new RawText("R\n y\n".getBytes(CHARSET));
+		b = new RawText("S\n\n y\n".getBytes(CHARSET));
 		e = new Edit(0, 2, 0, 3);
 		e = RawTextComparator.DEFAULT.reduceCommonStartEnd(a, b, e);
 		assertEquals(new Edit(0, 1, 0, 2), e);
 
-		a = new RawText("S\n\n y\n".getBytes("UTF-8"));
-		b = new RawText("R\n y\n".getBytes("UTF-8"));
+		a = new RawText("S\n\n y\n".getBytes(CHARSET));
+		b = new RawText("R\n y\n".getBytes(CHARSET));
 		e = new Edit(0, 3, 0, 2);
 		e = RawTextComparator.DEFAULT.reduceCommonStartEnd(a, b, e);
 		assertEquals(new Edit(0, 2, 0, 1), e);
 	}
 
 	@Test
-	public void testComparatorReduceCommonStartButLastLineNoEol()
-			throws UnsupportedEncodingException {
+	public void testComparatorReduceCommonStartButLastLineNoEol() {
 		RawText a;
 		RawText b;
 		Edit e;
-		a = new RawText("start".getBytes("UTF-8"));
-		b = new RawText("start of line".getBytes("UTF-8"));
+		a = new RawText("start".getBytes(CHARSET));
+		b = new RawText("start of line".getBytes(CHARSET));
 		e = new Edit(0, 1, 0, 1);
 		e = RawTextComparator.DEFAULT.reduceCommonStartEnd(a, b, e);
 		assertEquals(new Edit(0, 1, 0, 1), e);
 	}
 
 	@Test
-	public void testComparatorReduceCommonStartButLastLineNoEol_2()
-			throws UnsupportedEncodingException {
+	public void testComparatorReduceCommonStartButLastLineNoEol_2() {
 		RawText a;
 		RawText b;
 		Edit e;
-		a = new RawText("start".getBytes("UTF-8"));
-		b = new RawText("start of\nlastline".getBytes("UTF-8"));
+		a = new RawText("start".getBytes(CHARSET));
+		b = new RawText("start of\nlastline".getBytes(CHARSET));
 		e = new Edit(0, 1, 0, 2);
 		e = RawTextComparator.DEFAULT.reduceCommonStartEnd(a, b, e);
 		assertEquals(new Edit(0, 1, 0, 2), e);
@@ -243,10 +250,6 @@ public class RawTextTest {
 			r.append(text.charAt(i));
 			r.append('\n');
 		}
-		try {
-			return new RawText(r.toString().getBytes("UTF-8"));
-		} catch (UnsupportedEncodingException e) {
-			throw new RuntimeException(e);
-		}
+		return new RawText(r.toString().getBytes(CHARSET));
 	}
 }

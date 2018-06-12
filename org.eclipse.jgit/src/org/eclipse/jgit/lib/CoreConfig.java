@@ -57,12 +57,7 @@ import org.eclipse.jgit.lib.Config.SectionParser;
  */
 public class CoreConfig {
 	/** Key for {@link Config#get(SectionParser)}. */
-	public static final Config.SectionParser<CoreConfig> KEY = new SectionParser<CoreConfig>() {
-		@Override
-		public CoreConfig parse(final Config cfg) {
-			return new CoreConfig(cfg);
-		}
-	};
+	public static final Config.SectionParser<CoreConfig> KEY = CoreConfig::new;
 
 	/** Permissible values for {@code core.autocrlf}. */
 	public static enum AutoCRLF {
@@ -171,7 +166,7 @@ public class CoreConfig {
 		DOTGITONLY
 	}
 
-	private CoreConfig(final Config rc) {
+	private CoreConfig(Config rc) {
 		compression = rc.getInt(ConfigConstants.CONFIG_CORE_SECTION,
 				ConfigConstants.CONFIG_KEY_COMPRESSION, DEFAULT_COMPRESSION);
 		packIndexVersion = rc.getInt(ConfigConstants.CONFIG_PACK_SECTION,
@@ -185,6 +180,8 @@ public class CoreConfig {
 	}
 
 	/**
+	 * Get the compression level to use when storing loose objects
+	 *
 	 * @return The compression level to use when storing loose objects
 	 */
 	public int getCompression() {
@@ -192,6 +189,8 @@ public class CoreConfig {
 	}
 
 	/**
+	 * Get the preferred pack index file format; 0 for oldest possible.
+	 *
 	 * @return the preferred pack index file format; 0 for oldest possible.
 	 */
 	public int getPackIndexVersion() {
@@ -199,6 +198,8 @@ public class CoreConfig {
 	}
 
 	/**
+	 * Whether to log all refUpdates
+	 *
 	 * @return whether to log all refUpdates
 	 */
 	public boolean isLogAllRefUpdates() {
@@ -206,6 +207,8 @@ public class CoreConfig {
 	}
 
 	/**
+	 * Get path of excludesfile
+	 *
 	 * @return path of excludesfile
 	 */
 	public String getExcludesFile() {
@@ -213,6 +216,8 @@ public class CoreConfig {
 	}
 
 	/**
+	 * Get path of attributesfile
+	 *
 	 * @return path of attributesfile
 	 * @since 3.7
 	 */

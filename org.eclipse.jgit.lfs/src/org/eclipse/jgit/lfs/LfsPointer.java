@@ -42,6 +42,8 @@
  */
 package org.eclipse.jgit.lfs;
 
+import static org.eclipse.jgit.lib.Constants.CHARSET;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -49,7 +51,6 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
-import java.nio.charset.StandardCharsets;
 import java.nio.charset.UnsupportedCharsetException;
 import java.util.Locale;
 
@@ -63,7 +64,7 @@ import org.eclipse.jgit.lfs.lib.LongObjectId;
  *
  * @since 4.6
  */
-public class LfsPointer {
+public class LfsPointer implements Comparable<LfsPointer> {
 	/**
 	 * The version of the LfsPointer file format
 	 */
@@ -74,6 +75,13 @@ public class LfsPointer {
 	 * @since 4.7
 	 */
 	public static final String VERSION_LEGACY = "https://hawser.github.com/spec/v1"; //$NON-NLS-1$
+
+	/**
+	 * Don't inspect files that are larger than this threshold to avoid
+	 * excessive reading. No pointer file should be larger than this.
+	 * @since 4.11
+	 */
+	public static final int SIZE_THRESHOLD = 200;
 
 	/**
 	 * The name of the hash function as used in the pointer files. This will
@@ -87,6 +95,8 @@ public class LfsPointer {
 	private long size;
 
 	/**
+	 * <p>Constructor for LfsPointer.</p>
+	 *
 	 * @param oid
 	 *            the id of the content
 	 * @param size
@@ -98,6 +108,8 @@ public class LfsPointer {
 	}
 
 	/**
+	 * <p>Getter for the field <code>oid</code>.</p>
+	 *
 	 * @return the id of the content
 	 */
 	public AnyLongObjectId getOid() {
@@ -105,6 +117,8 @@ public class LfsPointer {
 	}
 
 	/**
+	 * <p>Getter for the field <code>size</code>.</p>
+	 *
 	 * @return the size of the content
 	 */
 	public long getSize() {
@@ -115,12 +129,12 @@ public class LfsPointer {
 	 * Encode this object into the LFS format defined by {@link #VERSION}
 	 *
 	 * @param out
-	 *            the {@link OutputStream} into which the encoded data should be
+	 *            the {@link java.io.OutputStream} into which the encoded data should be
 	 *            written
 	 */
 	public void encode(OutputStream out) {
 		try (PrintStream ps = new PrintStream(out, false,
-				StandardCharsets.UTF_8.name())) {
+				CHARSET.name())) {
 			ps.print("version "); //$NON-NLS-1$
 			ps.print(VERSION + "\n"); //$NON-NLS-1$
 			ps.print("oid " + HASH_FUNCTION_NAME + ":"); //$NON-NLS-1$ //$NON-NLS-2$
@@ -129,8 +143,7 @@ public class LfsPointer {
 			ps.print(size + "\n"); //$NON-NLS-1$
 		} catch (UnsupportedEncodingException e) {
 			// should not happen, we are using a standard charset
-			throw new UnsupportedCharsetException(
-					StandardCharsets.UTF_8.name());
+			throw new UnsupportedCharsetException(CHARSET.name());
 		}
 	}
 
@@ -139,10 +152,10 @@ public class LfsPointer {
 	 * {@link #VERSION}
 	 *
 	 * @param in
-	 *            the {@link InputStream} from where to read the data
-	 * @return an {@link LfsPointer} or <code>null</code> if the stream was not
-	 *         parseable as LfsPointer
-	 * @throws IOException
+	 *            the {@link java.io.InputStream} from where to read the data
+	 * @return an {@link org.eclipse.jgit.lfs.LfsPointer} or <code>null</code>
+	 *         if the stream was not parseable as LfsPointer
+	 * @throws java.io.IOException
 	 */
 	@Nullable
 	public static LfsPointer parseLfsPointer(InputStream in)
@@ -152,7 +165,7 @@ public class LfsPointer {
 		long sz = -1;
 
 		try (BufferedReader br = new BufferedReader(
-				new InputStreamReader(in, StandardCharsets.UTF_8.name()))) {
+				new InputStreamReader(in, CHARSET))) {
 			for (String s = br.readLine(); s != null; s = br.readLine()) {
 				if (s.startsWith("#") || s.length() == 0) { //$NON-NLS-1$
 					continue;
@@ -173,10 +186,24 @@ public class LfsPointer {
 		return null;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public String toString() {
 		return "LfsPointer: oid=" + oid.name() + ", size=" //$NON-NLS-1$ //$NON-NLS-2$
 				+ size;
+	}
+
+	/**
+	 * @since 4.11
+	 */
+	@Override
+	public int compareTo(LfsPointer o) {
+		int x = getOid().compareTo(o.getOid());
+		if (x != 0) {
+			return x;
+		}
+
+		return (int) (getSize() - o.getSize());
 	}
 }
 

@@ -66,9 +66,9 @@ import org.eclipse.jgit.diff.DiffAlgorithm.SupportedAlgorithm;
 import org.eclipse.jgit.diff.DiffEntry.ChangeType;
 import org.eclipse.jgit.dircache.DirCacheIterator;
 import org.eclipse.jgit.errors.AmbiguousObjectException;
+import org.eclipse.jgit.errors.BinaryBlobException;
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
-import org.eclipse.jgit.errors.LargeObjectException;
 import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.AbbreviatedObjectId;
@@ -84,7 +84,6 @@ import org.eclipse.jgit.lib.ProgressMonitor;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.patch.FileHeader;
 import org.eclipse.jgit.patch.FileHeader.PatchType;
-import org.eclipse.jgit.patch.HunkHeader;
 import org.eclipse.jgit.revwalk.FollowFilter;
 import org.eclipse.jgit.revwalk.RevTree;
 import org.eclipse.jgit.revwalk.RevWalk;
@@ -99,8 +98,8 @@ import org.eclipse.jgit.treewalk.filter.IndexDiffFilter;
 import org.eclipse.jgit.treewalk.filter.NotIgnoredFilter;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
+import org.eclipse.jgit.util.LfsFactory;
 import org.eclipse.jgit.util.QuotedString;
-import org.eclipse.jgit.util.io.DisabledOutputStream;
 
 /**
  * Format a Git style patch script.
@@ -112,9 +111,6 @@ public class DiffFormatter implements AutoCloseable {
 
 	/** Magic return content indicating it is empty or no content present. */
 	private static final byte[] EMPTY = new byte[] {};
-
-	/** Magic return indicating the content is binary. */
-	private static final byte[] BINARY = new byte[] {};
 
 	private final OutputStream out;
 
@@ -146,6 +142,8 @@ public class DiffFormatter implements AutoCloseable {
 
 	private ContentSource.Pair source;
 
+	private Repository repository;
+
 	/**
 	 * Create a new formatter with a default level of context.
 	 *
@@ -158,7 +156,11 @@ public class DiffFormatter implements AutoCloseable {
 		this.out = out;
 	}
 
-	/** @return the stream we are outputting data to. */
+	/**
+	 * Get output stream
+	 *
+	 * @return the stream we are outputting data to
+	 */
 	protected OutputStream getOutputStream() {
 		return out;
 	}
@@ -173,6 +175,7 @@ public class DiffFormatter implements AutoCloseable {
 	 *            source repository holding referenced objects.
 	 */
 	public void setRepository(Repository repository) {
+		this.repository = repository;
 		setReader(repository.newObjectReader(), repository.getConfig(), true);
 	}
 
@@ -219,7 +222,7 @@ public class DiffFormatter implements AutoCloseable {
 	 *            modification and after the last modification within a hunk of
 	 *            the modified file.
 	 */
-	public void setContext(final int lineCount) {
+	public void setContext(int lineCount) {
 		if (lineCount < 0)
 			throw new IllegalArgumentException(
 					JGitText.get().contextMustBeNonNegative);
@@ -232,7 +235,7 @@ public class DiffFormatter implements AutoCloseable {
 	 * @param count
 	 *            number of digits to show in an ObjectId.
 	 */
-	public void setAbbreviationLength(final int count) {
+	public void setAbbreviationLength(int count) {
 		if (count < 0)
 			throw new IllegalArgumentException(
 					JGitText.get().abbreviationLengthMustBeNonNegative);
@@ -327,7 +330,11 @@ public class DiffFormatter implements AutoCloseable {
 		return this.newPrefix;
 	}
 
-	/** @return true if rename detection is enabled. */
+	/**
+	 * Get if rename detection is enabled
+	 *
+	 * @return true if rename detection is enabled
+	 */
 	public boolean isDetectRenames() {
 		return renameDetector != null;
 	}
@@ -351,7 +358,11 @@ public class DiffFormatter implements AutoCloseable {
 			renameDetector = null;
 	}
 
-	/** @return the rename detector if rename detection is enabled. */
+	/**
+	 * Get rename detector
+	 *
+	 * @return the rename detector if rename detection is enabled
+	 */
 	public RenameDetector getRenameDetector() {
 		return renameDetector;
 	}
@@ -369,9 +380,10 @@ public class DiffFormatter implements AutoCloseable {
 	/**
 	 * Set the filter to produce only specific paths.
 	 *
-	 * If the filter is an instance of {@link FollowFilter}, the filter path
-	 * will be updated during successive scan or format invocations. The updated
-	 * path can be obtained from {@link #getPathFilter()}.
+	 * If the filter is an instance of
+	 * {@link org.eclipse.jgit.revwalk.FollowFilter}, the filter path will be
+	 * updated during successive scan or format invocations. The updated path
+	 * can be obtained from {@link #getPathFilter()}.
 	 *
 	 * @param filter
 	 *            the tree filter to apply.
@@ -380,7 +392,11 @@ public class DiffFormatter implements AutoCloseable {
 		pathFilter = filter != null ? filter : TreeFilter.ALL;
 	}
 
-	/** @return the current path filter. */
+	/**
+	 * Get path filter
+	 *
+	 * @return the current path filter
+	 */
 	public TreeFilter getPathFilter() {
 		return pathFilter;
 	}
@@ -388,7 +404,7 @@ public class DiffFormatter implements AutoCloseable {
 	/**
 	 * Flush the underlying output stream of this formatter.
 	 *
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the stream's own flush method threw an exception.
 	 */
 	public void flush() throws IOException {
@@ -396,6 +412,8 @@ public class DiffFormatter implements AutoCloseable {
 	}
 
 	/**
+	 * {@inheritDoc}
+	 * <p>
 	 * Release the internal ObjectReader state.
 	 *
 	 * @since 4.0
@@ -412,8 +430,8 @@ public class DiffFormatter implements AutoCloseable {
 	 *
 	 * No output is created, instead only the file paths that are different are
 	 * returned. Callers may choose to format these paths themselves, or convert
-	 * them into {@link FileHeader} instances with a complete edit list by
-	 * calling {@link #toFileHeader(DiffEntry)}.
+	 * them into {@link org.eclipse.jgit.patch.FileHeader} instances with a
+	 * complete edit list by calling {@link #toFileHeader(DiffEntry)}.
 	 * <p>
 	 * Either side may be null to indicate that the tree has beed added or
 	 * removed. The diff will be computed against nothing.
@@ -423,7 +441,7 @@ public class DiffFormatter implements AutoCloseable {
 	 * @param b
 	 *            the new (or updated) side or null
 	 * @return the paths that are different.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             trees cannot be read or file contents cannot be read.
 	 */
 	public List<DiffEntry> scan(AnyObjectId a, AnyObjectId b)
@@ -442,8 +460,8 @@ public class DiffFormatter implements AutoCloseable {
 	 *
 	 * No output is created, instead only the file paths that are different are
 	 * returned. Callers may choose to format these paths themselves, or convert
-	 * them into {@link FileHeader} instances with a complete edit list by
-	 * calling {@link #toFileHeader(DiffEntry)}.
+	 * them into {@link org.eclipse.jgit.patch.FileHeader} instances with a
+	 * complete edit list by calling {@link #toFileHeader(DiffEntry)}.
 	 * <p>
 	 * Either side may be null to indicate that the tree has beed added or
 	 * removed. The diff will be computed against nothing.
@@ -453,7 +471,7 @@ public class DiffFormatter implements AutoCloseable {
 	 * @param b
 	 *            the new (or updated) side or null
 	 * @return the paths that are different.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             trees cannot be read or file contents cannot be read.
 	 */
 	public List<DiffEntry> scan(RevTree a, RevTree b) throws IOException {
@@ -479,15 +497,15 @@ public class DiffFormatter implements AutoCloseable {
 	 *
 	 * No output is created, instead only the file paths that are different are
 	 * returned. Callers may choose to format these paths themselves, or convert
-	 * them into {@link FileHeader} instances with a complete edit list by
-	 * calling {@link #toFileHeader(DiffEntry)}.
+	 * them into {@link org.eclipse.jgit.patch.FileHeader} instances with a
+	 * complete edit list by calling {@link #toFileHeader(DiffEntry)}.
 	 *
 	 * @param a
 	 *            the old (or previous) side.
 	 * @param b
 	 *            the new (or updated) side.
 	 * @return the paths that are different.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             trees cannot be read or file contents cannot be read.
 	 */
 	public List<DiffEntry> scan(AbstractTreeIterator a, AbstractTreeIterator b)
@@ -599,7 +617,7 @@ public class DiffFormatter implements AutoCloseable {
 	 *            the old (or previous) side or null
 	 * @param b
 	 *            the new (or updated) side or null
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             trees cannot be read, file contents cannot be read, or the
 	 *             patch cannot be output.
 	 */
@@ -621,7 +639,7 @@ public class DiffFormatter implements AutoCloseable {
 	 *            the old (or previous) side or null
 	 * @param b
 	 *            the new (or updated) side or null
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             trees cannot be read, file contents cannot be read, or the
 	 *             patch cannot be output.
 	 */
@@ -642,7 +660,7 @@ public class DiffFormatter implements AutoCloseable {
 	 *            the old (or previous) side or null
 	 * @param b
 	 *            the new (or updated) side or null
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             trees cannot be read, file contents cannot be read, or the
 	 *             patch cannot be output.
 	 */
@@ -658,7 +676,7 @@ public class DiffFormatter implements AutoCloseable {
 	 *
 	 * @param entries
 	 *            entries describing the affected files.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             a file's content cannot be read, or the output stream cannot
 	 *             be written to.
 	 */
@@ -672,7 +690,7 @@ public class DiffFormatter implements AutoCloseable {
 	 *
 	 * @param ent
 	 *            the entry to be formatted.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             a file's content cannot be read, or the output stream cannot
 	 *             be written to.
 	 */
@@ -715,14 +733,16 @@ public class DiffFormatter implements AutoCloseable {
 	 *            existing file header containing the header lines to copy.
 	 * @param a
 	 *            text source for the pre-image version of the content. This
-	 *            must match the content of {@link FileHeader#getOldId()}.
+	 *            must match the content of
+	 *            {@link org.eclipse.jgit.patch.FileHeader#getOldId()}.
 	 * @param b
 	 *            text source for the post-image version of the content. This
-	 *            must match the content of {@link FileHeader#getNewId()}.
-	 * @throws IOException
+	 *            must match the content of
+	 *            {@link org.eclipse.jgit.patch.FileHeader#getNewId()}.
+	 * @throws java.io.IOException
 	 *             writing to the supplied stream failed.
 	 */
-	public void format(final FileHeader head, final RawText a, final RawText b)
+	public void format(FileHeader head, RawText a, RawText b)
 			throws IOException {
 		// Reuse the existing FileHeader as-is by blindly copying its
 		// header lines, but avoiding its hunks. Instead we recreate
@@ -746,9 +766,9 @@ public class DiffFormatter implements AutoCloseable {
 	 *            the text A which was compared
 	 * @param b
 	 *            the text B which was compared
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
-	public void format(final EditList edits, final RawText a, final RawText b)
+	public void format(EditList edits, RawText a, RawText b)
 			throws IOException {
 		for (int curIdx = 0; curIdx < edits.size();) {
 			Edit curEdit = edits.get(curIdx);
@@ -794,14 +814,14 @@ public class DiffFormatter implements AutoCloseable {
 	 *            RawText for accessing raw data
 	 * @param line
 	 *            the line number within text
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
-	protected void writeContextLine(final RawText text, final int line)
+	protected void writeContextLine(RawText text, int line)
 			throws IOException {
 		writeLine(' ', text, line);
 	}
 
-	private static boolean isEndOfLineMissing(final RawText text, final int line) {
+	private static boolean isEndOfLineMissing(RawText text, int line) {
 		return line + 1 == text.size() && text.isMissingNewlineAtEnd();
 	}
 
@@ -812,9 +832,9 @@ public class DiffFormatter implements AutoCloseable {
 	 *            RawText for accessing raw data
 	 * @param line
 	 *            the line number within text
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
-	protected void writeAddedLine(final RawText text, final int line)
+	protected void writeAddedLine(RawText text, int line)
 			throws IOException {
 		writeLine('+', text, line);
 	}
@@ -826,9 +846,9 @@ public class DiffFormatter implements AutoCloseable {
 	 *            RawText for accessing raw data
 	 * @param line
 	 *            the line number within text
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
-	protected void writeRemovedLine(final RawText text, final int line)
+	protected void writeRemovedLine(RawText text, int line)
 			throws IOException {
 		writeLine('-', text, line);
 	}
@@ -844,7 +864,7 @@ public class DiffFormatter implements AutoCloseable {
 	 *            within second source
 	 * @param bEndLine
 	 *            within second source
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
 	protected void writeHunkHeader(int aStartLine, int aEndLine,
 			int bStartLine, int bEndLine) throws IOException {
@@ -858,7 +878,7 @@ public class DiffFormatter implements AutoCloseable {
 		out.write('\n');
 	}
 
-	private void writeRange(final char prefix, final int begin, final int cnt)
+	private void writeRange(char prefix, int begin, int cnt)
 			throws IOException {
 		out.write(' ');
 		out.write(prefix);
@@ -897,7 +917,7 @@ public class DiffFormatter implements AutoCloseable {
 	 *            the text object to obtain the line from.
 	 * @param cur
 	 *            line number to output.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the stream threw an exception while writing to it.
 	 */
 	protected void writeLine(final char prefix, final RawText text,
@@ -908,24 +928,26 @@ public class DiffFormatter implements AutoCloseable {
 	}
 
 	/**
-	 * Creates a {@link FileHeader} representing the given {@link DiffEntry}
+	 * Creates a {@link org.eclipse.jgit.patch.FileHeader} representing the
+	 * given {@link org.eclipse.jgit.diff.DiffEntry}
 	 * <p>
 	 * This method does not use the OutputStream associated with this
 	 * DiffFormatter instance. It is therefore safe to instantiate this
-	 * DiffFormatter instance with a {@link DisabledOutputStream} if this method
-	 * is the only one that will be used.
+	 * DiffFormatter instance with a
+	 * {@link org.eclipse.jgit.util.io.DisabledOutputStream} if this method is
+	 * the only one that will be used.
 	 *
 	 * @param ent
 	 *            the DiffEntry to create the FileHeader for
 	 * @return a FileHeader representing the DiffEntry. The FileHeader's buffer
 	 *         will contain only the header of the diff output. It will also
-	 *         contain one {@link HunkHeader}.
-	 * @throws IOException
+	 *         contain one {@link org.eclipse.jgit.patch.HunkHeader}.
+	 * @throws java.io.IOException
 	 *             the stream threw an exception while writing to it, or one of
 	 *             the blobs referenced by the DiffEntry could not be read.
-	 * @throws CorruptObjectException
+	 * @throws org.eclipse.jgit.errors.CorruptObjectException
 	 *             one of the blobs referenced by the DiffEntry is corrupt.
-	 * @throws MissingObjectException
+	 * @throws org.eclipse.jgit.errors.MissingObjectException
 	 *             one of the blobs referenced by the DiffEntry is missing.
 	 */
 	public FileHeader toFileHeader(DiffEntry ent) throws IOException,
@@ -954,46 +976,49 @@ public class DiffFormatter implements AutoCloseable {
 			// Content not changed (e.g. only mode, pure rename)
 			editList = new EditList();
 			type = PatchType.UNIFIED;
+			res.header = new FileHeader(buf.toByteArray(), editList, type);
+			return res;
+		}
 
+		assertHaveReader();
+
+		RawText aRaw = null;
+		RawText bRaw = null;
+		if (ent.getOldMode() == GITLINK || ent.getNewMode() == GITLINK) {
+			aRaw = new RawText(writeGitLinkText(ent.getOldId()));
+			bRaw = new RawText(writeGitLinkText(ent.getNewId()));
 		} else {
-			assertHaveReader();
-
-			byte[] aRaw, bRaw;
-
-			if (ent.getOldMode() == GITLINK || ent.getNewMode() == GITLINK) {
-				aRaw = writeGitLinkText(ent.getOldId());
-				bRaw = writeGitLinkText(ent.getNewId());
-			} else {
+			try {
 				aRaw = open(OLD, ent);
 				bRaw = open(NEW, ent);
-			}
-
-			if (aRaw == BINARY || bRaw == BINARY //
-					|| RawText.isBinary(aRaw) || RawText.isBinary(bRaw)) {
+			} catch (BinaryBlobException e) {
+				// Do nothing; we check for null below.
 				formatOldNewPaths(buf, ent);
 				buf.write(encodeASCII("Binary files differ\n")); //$NON-NLS-1$
 				editList = new EditList();
 				type = PatchType.BINARY;
-
-			} else {
-				res.a = new RawText(aRaw);
-				res.b = new RawText(bRaw);
-				editList = diff(res.a, res.b);
-				type = PatchType.UNIFIED;
-
-				switch (ent.getChangeType()) {
-				case RENAME:
-				case COPY:
-					if (!editList.isEmpty())
-						formatOldNewPaths(buf, ent);
-					break;
-
-				default:
-					formatOldNewPaths(buf, ent);
-					break;
-				}
+				res.header = new FileHeader(buf.toByteArray(), editList, type);
+				return res;
 			}
 		}
+
+		res.a = aRaw;
+		res.b = bRaw;
+		editList = diff(res.a, res.b);
+		type = PatchType.UNIFIED;
+
+		switch (ent.getChangeType()) {
+			case RENAME:
+			case COPY:
+				if (!editList.isEmpty())
+					formatOldNewPaths(buf, ent);
+				break;
+
+			default:
+				formatOldNewPaths(buf, ent);
+				break;
+		}
+
 
 		res.header = new FileHeader(buf.toByteArray(), editList, type);
 		return res;
@@ -1009,13 +1034,13 @@ public class DiffFormatter implements AutoCloseable {
 		}
 	}
 
-	private byte[] open(DiffEntry.Side side, DiffEntry entry)
-			throws IOException {
+	private RawText open(DiffEntry.Side side, DiffEntry entry)
+			throws IOException, BinaryBlobException {
 		if (entry.getMode(side) == FileMode.MISSING)
-			return EMPTY;
+			return RawText.EMPTY_TEXT;
 
 		if (entry.getMode(side).getObjectType() != Constants.OBJ_BLOB)
-			return EMPTY;
+			return RawText.EMPTY_TEXT;
 
 		AbbreviatedObjectId id = entry.getId(side);
 		if (!id.isComplete()) {
@@ -1036,23 +1061,9 @@ public class DiffFormatter implements AutoCloseable {
 				throw new AmbiguousObjectException(id, ids);
 		}
 
-		try {
-			ObjectLoader ldr = source.open(side, entry);
-			return ldr.getBytes(binaryFileThreshold);
-
-		} catch (LargeObjectException.ExceedsLimit overLimit) {
-			return BINARY;
-
-		} catch (LargeObjectException.ExceedsByteArrayLimit overLimit) {
-			return BINARY;
-
-		} catch (LargeObjectException.OutOfMemory tooBig) {
-			return BINARY;
-
-		} catch (LargeObjectException tooBig) {
-			tooBig.setObjectId(id.toObjectId());
-			throw tooBig;
-		}
+		ObjectLoader ldr = LfsFactory.getInstance().applySmudgeFilter(repository,
+				source.open(side, entry), entry.getDiffAttribute());
+		return RawText.load(ldr, binaryFileThreshold);
 	}
 
 	/**
@@ -1061,12 +1072,12 @@ public class DiffFormatter implements AutoCloseable {
 	 * @param o
 	 *            The stream the formatter will write the first header line to
 	 * @param type
-	 *            The {@link ChangeType}
+	 *            The {@link org.eclipse.jgit.diff.DiffEntry.ChangeType}
 	 * @param oldPath
 	 *            old path to the file
 	 * @param newPath
 	 *            new path to the file
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the stream threw an exception while writing to it.
 	 */
 	protected void formatGitDiffFirstHeaderLine(ByteArrayOutputStream o,
@@ -1151,11 +1162,13 @@ public class DiffFormatter implements AutoCloseable {
 	}
 
 	/**
+	 * Format index line
+	 *
 	 * @param o
 	 *            the stream the formatter will write line data to
 	 * @param ent
 	 *            the DiffEntry to create the FileHeader for
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             writing to the supplied stream failed.
 	 */
 	protected void formatIndexLine(OutputStream o, DiffEntry ent)
@@ -1200,7 +1213,7 @@ public class DiffFormatter implements AutoCloseable {
 		o.write(encode("+++ " + newp + "\n")); //$NON-NLS-1$ //$NON-NLS-2$
 	}
 
-	private int findCombinedEnd(final List<Edit> edits, final int i) {
+	private int findCombinedEnd(List<Edit> edits, int i) {
 		int end = i + 1;
 		while (end < edits.size()
 				&& (combineA(edits, end) || combineB(edits, end)))
@@ -1208,15 +1221,15 @@ public class DiffFormatter implements AutoCloseable {
 		return end - 1;
 	}
 
-	private boolean combineA(final List<Edit> e, final int i) {
+	private boolean combineA(List<Edit> e, int i) {
 		return e.get(i).getBeginA() - e.get(i - 1).getEndA() <= 2 * context;
 	}
 
-	private boolean combineB(final List<Edit> e, final int i) {
+	private boolean combineB(List<Edit> e, int i) {
 		return e.get(i).getBeginB() - e.get(i - 1).getEndB() <= 2 * context;
 	}
 
-	private static boolean end(final Edit edit, final int a, final int b) {
+	private static boolean end(Edit edit, int a, int b) {
 		return edit.getEndA() <= a && edit.getEndB() <= b;
 	}
 }

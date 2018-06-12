@@ -42,17 +42,33 @@
  */
 package org.eclipse.jgit.lfs;
 
+import static org.eclipse.jgit.lib.Constants.CHARSET;
+
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.text.MessageFormat;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.eclipse.jgit.attributes.FilterCommand;
 import org.eclipse.jgit.attributes.FilterCommandFactory;
 import org.eclipse.jgit.attributes.FilterCommandRegistry;
+import org.eclipse.jgit.lfs.internal.LfsConnectionFactory;
+import org.eclipse.jgit.lfs.internal.LfsText;
+import org.eclipse.jgit.lfs.lib.AnyLongObjectId;
 import org.eclipse.jgit.lfs.lib.Constants;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.transport.http.HttpConnection;
+import org.eclipse.jgit.util.HttpSupport;
+
+import com.google.gson.Gson;
+import com.google.gson.stream.JsonReader;
 
 /**
  * Built-in LFS smudge filter
@@ -61,15 +77,20 @@ import org.eclipse.jgit.lib.Repository;
  * and this filter is configured for that content, then this filter will replace
  * the content of LFS pointer files with the original content. This happens e.g.
  * when a checkout needs to update a working tree file which is under LFS
- * control. This implementation expects that the origin content is already
- * available in the .git/lfs/objects folder. This implementation will not
- * contact any LFS servers in order to get the missing content.
+ * control.
  *
  * @since 4.6
  */
 public class SmudgeFilter extends FilterCommand {
+
 	/**
-	 * The factory is responsible for creating instances of {@link SmudgeFilter}
+	 * Max number of bytes to copy in a single {@link #run()} call.
+	 */
+	private static final int MAX_COPY_BYTES = 1024 * 1024 * 256;
+
+	/**
+	 * The factory is responsible for creating instances of
+	 * {@link org.eclipse.jgit.lfs.SmudgeFilter}
 	 */
 	public final static FilterCommandFactory FACTORY = new FilterCommandFactory() {
 		@Override
@@ -80,46 +101,180 @@ public class SmudgeFilter extends FilterCommand {
 	};
 
 	/**
-	 * Registers this filter in JGit by calling
+	 * Register this filter in JGit
 	 */
-	public final static void register() {
-		FilterCommandRegistry.register(
-				org.eclipse.jgit.lib.Constants.BUILTIN_FILTER_PREFIX
-						+ "lfs/smudge", //$NON-NLS-1$
-				FACTORY);
+	static void register() {
+		FilterCommandRegistry
+				.register(org.eclipse.jgit.lib.Constants.BUILTIN_FILTER_PREFIX
+						+ Constants.ATTR_FILTER_DRIVER_PREFIX
+						+ org.eclipse.jgit.lib.Constants.ATTR_FILTER_TYPE_SMUDGE,
+						FACTORY);
 	}
 
-	private Lfs lfs;
-
 	/**
+	 * Constructor for SmudgeFilter.
+	 *
 	 * @param db
+	 *            a {@link org.eclipse.jgit.lib.Repository} object.
 	 * @param in
+	 *            a {@link java.io.InputStream} object. The stream is closed in
+	 *            any case.
 	 * @param out
-	 * @throws IOException
+	 *            a {@link java.io.OutputStream} object.
+	 * @throws java.io.IOException
+	 *             in case of an error
 	 */
 	public SmudgeFilter(Repository db, InputStream in, OutputStream out)
 			throws IOException {
 		super(in, out);
-		lfs = new Lfs(db.getDirectory().toPath().resolve(Constants.LFS));
-		LfsPointer res = LfsPointer.parseLfsPointer(in);
-		if (res != null) {
-			Path mediaFile = lfs.getMediaFile(res.getOid());
-			if (Files.exists(mediaFile)) {
+		try {
+			Lfs lfs = new Lfs(db);
+			LfsPointer res = LfsPointer.parseLfsPointer(in);
+			if (res != null) {
+				AnyLongObjectId oid = res.getOid();
+				Path mediaFile = lfs.getMediaFile(oid);
+				if (!Files.exists(mediaFile)) {
+					downloadLfsResource(lfs, db, res);
+				}
 				this.in = Files.newInputStream(mediaFile);
 			}
+		} finally {
+			in.close(); // make sure the swapped stream is closed properly.
 		}
 	}
 
+	/**
+	 * Download content which is hosted on a LFS server
+	 *
+	 * @param lfs
+	 *            local {@link Lfs} storage.
+	 * @param db
+	 *            the repository to work with
+	 * @param res
+	 *            the objects to download
+	 * @return the paths of all mediafiles which have been downloaded
+	 * @throws IOException
+	 * @since 4.11
+	 */
+	public static Collection<Path> downloadLfsResource(Lfs lfs, Repository db,
+			LfsPointer... res) throws IOException {
+		Collection<Path> downloadedPaths = new ArrayList<>();
+		Map<String, LfsPointer> oidStr2ptr = new HashMap<>();
+		for (LfsPointer p : res) {
+			oidStr2ptr.put(p.getOid().name(), p);
+		}
+		HttpConnection lfsServerConn = LfsConnectionFactory.getLfsConnection(db,
+				HttpSupport.METHOD_POST, Protocol.OPERATION_DOWNLOAD);
+		Gson gson = Protocol.gson();
+		lfsServerConn.getOutputStream()
+				.write(gson
+						.toJson(LfsConnectionFactory
+								.toRequest(Protocol.OPERATION_DOWNLOAD, res))
+						.getBytes(CHARSET));
+		int responseCode = lfsServerConn.getResponseCode();
+		if (responseCode != HttpConnection.HTTP_OK) {
+			throw new IOException(
+					MessageFormat.format(LfsText.get().serverFailure,
+							lfsServerConn.getURL(),
+							Integer.valueOf(responseCode)));
+		}
+		try (JsonReader reader = new JsonReader(
+				new InputStreamReader(lfsServerConn.getInputStream()))) {
+			Protocol.Response resp = gson.fromJson(reader,
+					Protocol.Response.class);
+			for (Protocol.ObjectInfo o : resp.objects) {
+				if (o.error != null) {
+					throw new IOException(
+							MessageFormat.format(LfsText.get().protocolError,
+									Integer.valueOf(o.error.code),
+									o.error.message));
+				}
+				if (o.actions == null) {
+					continue;
+				}
+				LfsPointer ptr = oidStr2ptr.get(o.oid);
+				if (ptr == null) {
+					// received an object we didn't request
+					continue;
+				}
+				if (ptr.getSize() != o.size) {
+					throw new IOException(MessageFormat.format(
+							LfsText.get().inconsistentContentLength,
+							lfsServerConn.getURL(), Long.valueOf(ptr.getSize()),
+							Long.valueOf(o.size)));
+				}
+				Protocol.Action downloadAction = o.actions
+						.get(Protocol.OPERATION_DOWNLOAD);
+				if (downloadAction == null || downloadAction.href == null) {
+					continue;
+				}
+
+				HttpConnection contentServerConn = LfsConnectionFactory
+						.getLfsContentConnection(db, downloadAction,
+								HttpSupport.METHOD_GET);
+
+				responseCode = contentServerConn.getResponseCode();
+				if (responseCode != HttpConnection.HTTP_OK) {
+					throw new IOException(
+							MessageFormat.format(LfsText.get().serverFailure,
+									contentServerConn.getURL(),
+									Integer.valueOf(responseCode)));
+				}
+				Path path = lfs.getMediaFile(ptr.getOid());
+				path.getParent().toFile().mkdirs();
+				try (InputStream contentIn = contentServerConn
+						.getInputStream()) {
+					long bytesCopied = Files.copy(contentIn, path);
+					if (bytesCopied != o.size) {
+						throw new IOException(MessageFormat.format(
+								LfsText.get().wrongAmoutOfDataReceived,
+								contentServerConn.getURL(),
+								Long.valueOf(bytesCopied),
+								Long.valueOf(o.size)));
+					}
+					downloadedPaths.add(path);
+				}
+			}
+		}
+		return downloadedPaths;
+	}
+
+	/** {@inheritDoc} */
 	@Override
 	public int run() throws IOException {
-		int b;
-		if (in != null) {
-			while ((b = in.read()) != -1) {
-				out.write(b);
+		try {
+			int totalRead = 0;
+			int length = 0;
+			if (in != null) {
+				byte[] buf = new byte[8192];
+				while ((length = in.read(buf)) != -1) {
+					out.write(buf, 0, length);
+					totalRead += length;
+
+					// when threshold reached, loop back to the caller.
+					// otherwise we could only support files up to 2GB (int
+					// return type) properly. we will be called again as long as
+					// we don't return -1 here.
+					if (totalRead >= MAX_COPY_BYTES) {
+						// leave streams open - we need them in the next call.
+						return totalRead;
+					}
+				}
 			}
-			in.close();
+
+			if (totalRead == 0 && length == -1) {
+				// we're totally done :) cleanup all streams
+				in.close();
+				out.close();
+				return length;
+			}
+
+			return totalRead;
+		} catch (IOException e) {
+			in.close(); // clean up - we swapped this stream.
+			out.close();
+			throw e;
 		}
-		out.close();
-		return -1;
 	}
+
 }

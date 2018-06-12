@@ -45,6 +45,8 @@
 
 package org.eclipse.jgit.lib;
 
+import static org.eclipse.jgit.lib.Constants.CHARSET;
+
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.text.MessageFormat;
@@ -73,16 +75,15 @@ public class BlobBasedConfig extends Config {
 	 *            the base configuration file
 	 * @param blob
 	 *            the byte array, should be UTF-8 encoded text.
-	 * @throws ConfigInvalidException
+	 * @throws org.eclipse.jgit.errors.ConfigInvalidException
 	 *             the byte array is not a valid configuration format.
 	 */
-	public BlobBasedConfig(Config base, final byte[] blob)
+	public BlobBasedConfig(Config base, byte[] blob)
 			throws ConfigInvalidException {
 		super(base);
 		final String decoded;
 		if (isUtf8(blob)) {
-			decoded = RawParseUtils.decode(RawParseUtils.UTF8_CHARSET,
-					blob, 3, blob.length);
+			decoded = RawParseUtils.decode(CHARSET, blob, 3, blob.length);
 		} else {
 			decoded = RawParseUtils.decode(blob);
 		}
@@ -98,9 +99,9 @@ public class BlobBasedConfig extends Config {
 	 *            the repository
 	 * @param objectId
 	 *            the object identifier
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the blob cannot be read from the repository.
-	 * @throws ConfigInvalidException
+	 * @throws org.eclipse.jgit.errors.ConfigInvalidException
 	 *             the blob is not a valid configuration format.
 	 */
 	public BlobBasedConfig(Config base, Repository db, AnyObjectId objectId)
@@ -134,11 +135,11 @@ public class BlobBasedConfig extends Config {
 	 *            the tree (or commit) that contains the object
 	 * @param path
 	 *            the path within the tree
-	 * @throws FileNotFoundException
+	 * @throws java.io.FileNotFoundException
 	 *             the path does not exist in the commit's tree.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the tree and/or blob cannot be accessed.
-	 * @throws ConfigInvalidException
+	 * @throws org.eclipse.jgit.errors.ConfigInvalidException
 	 *             the blob is not a valid configuration format.
 	 */
 	public BlobBasedConfig(Config base, Repository db, AnyObjectId treeish,

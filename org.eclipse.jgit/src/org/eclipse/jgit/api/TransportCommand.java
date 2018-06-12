@@ -47,11 +47,12 @@ import org.eclipse.jgit.transport.CredentialsProvider;
 import org.eclipse.jgit.transport.Transport;
 
 /**
- * Base class for commands that use a {@link Transport} during execution.
+ * Base class for commands that use a
+ * {@link org.eclipse.jgit.transport.Transport} during execution.
  * <p>
  * This class provides standard configuration of a transport for options such as
- * a {@link CredentialsProvider}, a timeout, and a
- * {@link TransportConfigCallback}.
+ * a {@link org.eclipse.jgit.transport.CredentialsProvider}, a timeout, and a
+ * {@link org.eclipse.jgit.api.TransportConfigCallback}.
  *
  * @param <C>
  * @param <T>
@@ -75,16 +76,21 @@ public abstract class TransportCommand<C extends GitCommand, T> extends
 	protected TransportConfigCallback transportConfigCallback;
 
 	/**
-	 * @param repo
+	 * <p>Constructor for TransportCommand.</p>
+	 *
+	 * @param repo a {@link org.eclipse.jgit.lib.Repository} object.
 	 */
-	protected TransportCommand(final Repository repo) {
+	protected TransportCommand(Repository repo) {
 		super(repo);
 		setCredentialsProvider(CredentialsProvider.getDefault());
 	}
 
 	/**
+	 * Set the <code>credentialsProvider</code>.
+	 *
 	 * @param credentialsProvider
-	 *            the {@link CredentialsProvider} to use
+	 *            the {@link org.eclipse.jgit.transport.CredentialsProvider} to
+	 *            use
 	 * @return {@code this}
 	 */
 	public C setCredentialsProvider(
@@ -94,8 +100,10 @@ public abstract class TransportCommand<C extends GitCommand, T> extends
 	}
 
 	/**
+	 * Set <code>timeout</code>.
+	 *
 	 * @param timeout
-	 *            the timeout used for the transport step
+	 *            the timeout (in seconds) used for the transport step
 	 * @return {@code this}
 	 */
 	public C setTimeout(int timeout) {
@@ -104,12 +112,15 @@ public abstract class TransportCommand<C extends GitCommand, T> extends
 	}
 
 	/**
+	 * Set the <code>TransportConfigCallback</code>.
+	 *
 	 * @param transportConfigCallback
 	 *            if set, the callback will be invoked after the
-	 *            {@link Transport} has created, but before the
-	 *            {@link Transport} is used. The callback can use this
-	 *            opportunity to set additional type-specific configuration on
-	 *            the {@link Transport} instance.
+	 *            {@link org.eclipse.jgit.transport.Transport} has created, but
+	 *            before the {@link org.eclipse.jgit.transport.Transport} is
+	 *            used. The callback can use this opportunity to set additional
+	 *            type-specific configuration on the
+	 *            {@link org.eclipse.jgit.transport.Transport} instance.
 	 * @return {@code this}
 	 */
 	public C setTransportConfigCallback(
@@ -118,7 +129,11 @@ public abstract class TransportCommand<C extends GitCommand, T> extends
 		return self();
 	}
 
-	/** @return {@code this} */
+	/**
+	 * Return this command cast to {@code C}
+	 *
+	 * @return {@code this} cast to {@code C}
+	 */
 	@SuppressWarnings("unchecked")
 	protected final C self() {
 		return (C) this;
@@ -129,9 +144,10 @@ public abstract class TransportCommand<C extends GitCommand, T> extends
 	 * callback
 	 *
 	 * @param transport
+	 *            a {@link org.eclipse.jgit.transport.Transport} object.
 	 * @return {@code this}
 	 */
-	protected C configure(final Transport transport) {
+	protected C configure(Transport transport) {
 		if (credentialsProvider != null)
 			transport.setCredentialsProvider(credentialsProvider);
 		transport.setTimeout(timeout);
@@ -145,9 +161,10 @@ public abstract class TransportCommand<C extends GitCommand, T> extends
 	 * {@code this} command
 	 *
 	 * @param childCommand
+	 *            a {@link org.eclipse.jgit.api.TransportCommand} object.
 	 * @return {@code this}
 	 */
-	protected C configure(final TransportCommand childCommand) {
+	protected C configure(TransportCommand childCommand) {
 		childCommand.setCredentialsProvider(credentialsProvider);
 		childCommand.setTimeout(timeout);
 		childCommand.setTransportConfigCallback(transportConfigCallback);

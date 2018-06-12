@@ -66,8 +66,8 @@ import com.jcraft.jsch.Session;
  * Run remote commands using Jsch.
  * <p>
  * This class is the default session implementation using Jsch. Note that
- * {@link JschConfigSessionFactory} is used to create the actual session passed
- * to the constructor.
+ * {@link org.eclipse.jgit.transport.JschConfigSessionFactory} is used to create
+ * the actual session passed to the constructor.
  */
 public class JschSession implements RemoteSession {
 	final Session sock;
@@ -82,16 +82,18 @@ public class JschSession implements RemoteSession {
 	 * @param uri
 	 *            the URI information for the remote connection
 	 */
-	public JschSession(final Session session, URIish uri) {
+	public JschSession(Session session, URIish uri) {
 		sock = session;
 		this.uri = uri;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public Process exec(String command, int timeout) throws IOException {
 		return new JschProcess(command, timeout);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void disconnect() {
 		if (sock.isConnected())
@@ -99,12 +101,13 @@ public class JschSession implements RemoteSession {
 	}
 
 	/**
-	 * A kludge to allow {@link TransportSftp} to get an Sftp channel from Jsch.
-	 * Ideally, this method would be generic, which would require implementing
-	 * generic Sftp channel operations in the RemoteSession class.
+	 * A kludge to allow {@link org.eclipse.jgit.transport.TransportSftp} to get
+	 * an Sftp channel from Jsch. Ideally, this method would be generic, which
+	 * would require implementing generic Sftp channel operations in the
+	 * RemoteSession class.
 	 *
 	 * @return a channel suitable for Sftp operations.
-	 * @throws JSchException
+	 * @throws com.jcraft.jsch.JSchException
 	 *             on problems getting the channel.
 	 */
 	public Channel getSftpChannel() throws JSchException {
@@ -142,7 +145,7 @@ public class JschSession implements RemoteSession {
 		 * @throws IOException
 		 *             on problems opening streams
 		 */
-		JschProcess(final String commandName, int tms)
+		JschProcess(String commandName, int tms)
 				throws TransportException, IOException {
 			timeout = tms;
 			try {
@@ -220,6 +223,7 @@ public class JschSession implements RemoteSession {
 		public void destroy() {
 			if (channel.isConnected())
 				channel.disconnect();
+			closeOutputStream();
 		}
 
 		@Override

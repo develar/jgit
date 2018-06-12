@@ -44,7 +44,7 @@
 
 package org.eclipse.jgit.pgm;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.eclipse.jgit.lib.Constants.CHARSET;
 
 import java.io.File;
 import java.io.IOException;
@@ -65,22 +65,24 @@ import java.util.concurrent.TimeUnit;
 import org.eclipse.jgit.awtui.AwtAuthenticator;
 import org.eclipse.jgit.awtui.AwtCredentialsProvider;
 import org.eclipse.jgit.errors.TransportException;
-import org.eclipse.jgit.lfs.CleanFilter;
-import org.eclipse.jgit.lfs.SmudgeFilter;
+import org.eclipse.jgit.lfs.BuiltinLFS;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.RepositoryBuilder;
 import org.eclipse.jgit.pgm.internal.CLIText;
 import org.eclipse.jgit.pgm.opt.CmdLineParser;
 import org.eclipse.jgit.pgm.opt.SubcommandHandler;
+import org.eclipse.jgit.storage.file.WindowCacheConfig;
 import org.eclipse.jgit.transport.HttpTransport;
 import org.eclipse.jgit.transport.http.apache.HttpClientConnectionFactory;
 import org.eclipse.jgit.util.CachedAuthenticator;
 import org.kohsuke.args4j.Argument;
 import org.kohsuke.args4j.CmdLineException;
-import org.kohsuke.args4j.ExampleMode;
 import org.kohsuke.args4j.Option;
+import org.kohsuke.args4j.OptionHandlerFilter;
 
-/** Command line entry point. */
+/**
+ * Command line entry point.
+ */
 public class Main {
 	@Option(name = "--help", usage = "usage_displayThisHelpText", aliases = { "-h" })
 	private boolean help;
@@ -104,13 +106,21 @@ public class Main {
 
 	private ExecutorService gcExecutor;
 
+	private static final int MB = 1024 * 1024;
+
 	/**
-	 *
+	 * <p>Constructor for Main.</p>
 	 */
 	public Main() {
+		final WindowCacheConfig c = new WindowCacheConfig();
+		c.setPackedGitMMAP(true);
+		c.setPackedGitWindowSize(8 * 1024);
+		c.setPackedGitLimit(10 * MB);
+		c.setDeltaBaseCacheLimit(10 * MB);
+		c.setStreamFileThreshold(50 * MB);
+		c.install();
 		HttpTransport.setConnectionFactory(new HttpClientConnectionFactory());
-		CleanFilter.register();
-		SmudgeFilter.register();
+		BuiltinLFS.register();
 		gcExecutor = Executors.newSingleThreadExecutor(new ThreadFactory() {
 			private final ThreadFactory baseFactory = Executors
 					.defaultThreadFactory();
@@ -129,9 +139,12 @@ public class Main {
 	 *
 	 * @param argv
 	 *            arguments.
-	 * @throws Exception
+	 * @throws java.lang.Exception
 	 */
-	public static void main(final String[] argv) throws Exception {
+	public static void main(String[] argv) throws Exception {
+		// make sure built-in filters are registered
+		BuiltinLFS.register();
+
 		new Main().run(argv);
 	}
 
@@ -150,9 +163,9 @@ public class Main {
 	 *
 	 * @param argv
 	 *            arguments.
-	 * @throws Exception
+	 * @throws java.lang.Exception
 	 */
-	protected void run(final String[] argv) throws Exception {
+	protected void run(String[] argv) throws Exception {
 		writer = createErrorWriter();
 		try {
 			if (!installConsole()) {
@@ -214,10 +227,10 @@ public class Main {
 	}
 
 	PrintWriter createErrorWriter() {
-		return new PrintWriter(new OutputStreamWriter(System.err, UTF_8));
+		return new PrintWriter(new OutputStreamWriter(System.err, CHARSET));
 	}
 
-	private void execute(final String[] argv) throws Exception {
+	private void execute(String[] argv) throws Exception {
 		final CmdLineParser clp = new SubcommandLineParser(this);
 
 		try {
@@ -231,7 +244,8 @@ public class Main {
 		}
 
 		if (argv.length == 0 || help) {
-			final String ex = clp.printExample(ExampleMode.ALL, CLIText.get().resourceBundle());
+			final String ex = clp.printExample(OptionHandlerFilter.ALL,
+					CLIText.get().resourceBundle());
 			writer.println("jgit" + ex + " command [ARG ...]"); //$NON-NLS-1$ //$NON-NLS-2$
 			if (help) {
 				writer.println();
@@ -242,12 +256,12 @@ public class Main {
 				writer.println(CLIText.get().mostCommonlyUsedCommandsAre);
 				final CommandRef[] common = CommandCatalog.common();
 				int width = 0;
-				for (final CommandRef c : common) {
+				for (CommandRef c : common) {
 					width = Math.max(width, c.getName().length());
 				}
 				width += 2;
 
-				for (final CommandRef c : common) {
+				for (CommandRef c : common) {
 					writer.print(' ');
 					writer.print(c.getName());
 					for (int i = c.getName().length(); i < width; i++) {
@@ -282,7 +296,7 @@ public class Main {
 		}
 	}
 
-	void init(final TextBuiltin cmd) throws IOException {
+	void init(TextBuiltin cmd) throws IOException {
 		if (cmd.requiresRepository()) {
 			cmd.init(openGitDir(gitdir), null);
 		} else {
@@ -308,7 +322,7 @@ public class Main {
 	 *            the {@code --git-dir} option given on the command line. May be
 	 *            null if it was not supplied.
 	 * @return the repository to operate on.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the repository cannot be opened.
 	 */
 	protected Repository openGitDir(String aGitdir) throws IOException {
@@ -346,7 +360,7 @@ public class Main {
 		}
 	}
 
-	private static void install(final String name)
+	private static void install(String name)
 			throws IllegalAccessException, InvocationTargetException,
 			NoSuchMethodException, ClassNotFoundException {
 		try {

@@ -44,6 +44,8 @@
 
 package org.eclipse.jgit.util;
 
+import static org.eclipse.jgit.lib.Constants.CHARACTER_ENCODING;
+
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.ConnectException;
@@ -65,7 +67,9 @@ import javax.net.ssl.X509TrustManager;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.transport.http.HttpConnection;
 
-/** Extra utilities to support usage of HTTP. */
+/**
+ * Extra utilities to support usage of HTTP.
+ */
 public class HttpSupport {
 	/** The {@code GET} HTTP method. */
 	public static final String METHOD_GET = "GET"; //$NON-NLS-1$
@@ -173,11 +177,11 @@ public class HttpSupport {
 	 * @param key
 	 *            value which must be encoded to protected special characters.
 	 */
-	public static void encode(final StringBuilder urlstr, final String key) {
+	public static void encode(StringBuilder urlstr, String key) {
 		if (key == null || key.length() == 0)
 			return;
 		try {
-			urlstr.append(URLEncoder.encode(key, "UTF-8")); //$NON-NLS-1$
+			urlstr.append(URLEncoder.encode(key, CHARACTER_ENCODING));
 		} catch (UnsupportedEncodingException e) {
 			throw new RuntimeException(JGitText.get().couldNotURLEncodeToUTF8, e);
 		}
@@ -192,12 +196,13 @@ public class HttpSupport {
 	 * @param c
 	 *            connection the code should be obtained from.
 	 * @return r HTTP status code, usually 200 to indicate success. See
-	 *         {@link HttpConnection} for other defined constants.
-	 * @throws IOException
+	 *         {@link org.eclipse.jgit.transport.http.HttpConnection} for other
+	 *         defined constants.
+	 * @throws java.io.IOException
 	 *             communications error prevented obtaining the response code.
 	 * @since 3.3
 	 */
-	public static int response(final HttpConnection c) throws IOException {
+	public static int response(HttpConnection c) throws IOException {
 		try {
 			return c.getResponseCode();
 		} catch (ConnectException ce) {
@@ -220,11 +225,12 @@ public class HttpSupport {
 	 * @param c
 	 *            connection the code should be obtained from.
 	 * @return r HTTP status code, usually 200 to indicate success. See
-	 *         {@link HttpConnection} for other defined constants.
-	 * @throws IOException
+	 *         {@link org.eclipse.jgit.transport.http.HttpConnection} for other
+	 *         defined constants.
+	 * @throws java.io.IOException
 	 *             communications error prevented obtaining the response code.
 	 */
-	public static int response(final java.net.HttpURLConnection c)
+	public static int response(java.net.HttpURLConnection c)
 			throws IOException {
 		try {
 			return c.getResponseCode();
@@ -248,7 +254,7 @@ public class HttpSupport {
 	 * @param headerName
 	 *            the header name
 	 * @return the header value
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             communications error prevented obtaining the header.
 	 * @since 4.7
 	 */
@@ -265,11 +271,11 @@ public class HttpSupport {
 	 * @param u
 	 *            location of the server caller wants to talk to.
 	 * @return proxy to communicate with the supplied URL.
-	 * @throws ConnectException
+	 * @throws java.net.ConnectException
 	 *             the proxy could not be computed as the supplied URL could not
 	 *             be read. This failure should never occur.
 	 */
-	public static Proxy proxyFor(final ProxySelector proxySelector, final URL u)
+	public static Proxy proxyFor(ProxySelector proxySelector, URL u)
 			throws ConnectException {
 		try {
 			return proxySelector.select(u.toURI()).get(0);
@@ -285,7 +291,9 @@ public class HttpSupport {
 	 * Disable SSL and hostname verification for given HTTP connection
 	 *
 	 * @param conn
-	 * @throws IOException
+	 *            a {@link org.eclipse.jgit.transport.http.HttpConnection}
+	 *            object.
+	 * @throws java.io.IOException
 	 * @since 4.3
 	 */
 	public static void disableSslVerify(HttpConnection conn)

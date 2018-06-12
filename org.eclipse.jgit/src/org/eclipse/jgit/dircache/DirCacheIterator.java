@@ -61,7 +61,8 @@ import org.eclipse.jgit.treewalk.EmptyTreeIterator;
 import org.eclipse.jgit.util.RawParseUtils;
 
 /**
- * Iterate a {@link DirCache} as part of a <code>TreeWalk</code>.
+ * Iterate a {@link org.eclipse.jgit.dircache.DirCache} as part of a
+ * <code>TreeWalk</code>.
  * <p>
  * This is an iterator to adapt a loaded <code>DirCache</code> instance (such as
  * read from an existing <code>.git/index</code> file) to the tree structure
@@ -113,7 +114,7 @@ public class DirCacheIterator extends AbstractTreeIterator {
 	 * @param dc
 	 *            the cache to walk. It must be already loaded into memory.
 	 */
-	public DirCacheIterator(final DirCache dc) {
+	public DirCacheIterator(DirCache dc) {
 		cache = dc;
 		tree = dc.getCacheTree(true);
 		treeStart = 0;
@@ -123,7 +124,7 @@ public class DirCacheIterator extends AbstractTreeIterator {
 			parseEntry();
 	}
 
-	DirCacheIterator(final DirCacheIterator p, final DirCacheTree dct) {
+	DirCacheIterator(DirCacheIterator p, DirCacheTree dct) {
 		super(p, p.path, p.pathLen + 1);
 		cache = p.cache;
 		tree = dct;
@@ -134,8 +135,9 @@ public class DirCacheIterator extends AbstractTreeIterator {
 		parseEntry();
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public AbstractTreeIterator createSubtreeIterator(final ObjectReader reader)
+	public AbstractTreeIterator createSubtreeIterator(ObjectReader reader)
 			throws IncorrectObjectTypeException, IOException {
 		if (currentSubtree == null)
 			throw new IncorrectObjectTypeException(getEntryObjectId(),
@@ -143,6 +145,7 @@ public class DirCacheIterator extends AbstractTreeIterator {
 		return new DirCacheIterator(this, currentSubtree);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public EmptyTreeIterator createEmptyTreeIterator() {
 		final byte[] n = new byte[Math.max(pathLen + 1, DEFAULT_PATH_SIZE)];
@@ -151,6 +154,7 @@ public class DirCacheIterator extends AbstractTreeIterator {
 		return new EmptyTreeIterator(this, n, pathLen + 1);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean hasId() {
 		if (currentSubtree != null)
@@ -158,6 +162,7 @@ public class DirCacheIterator extends AbstractTreeIterator {
 		return currentEntry != null;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public byte[] idBuffer() {
 		if (currentSubtree != null)
@@ -167,6 +172,7 @@ public class DirCacheIterator extends AbstractTreeIterator {
 		return zeroid;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public int idOffset() {
 		if (currentSubtree != null)
@@ -176,6 +182,7 @@ public class DirCacheIterator extends AbstractTreeIterator {
 		return 0;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void reset() {
 		if (!first()) {
@@ -188,16 +195,19 @@ public class DirCacheIterator extends AbstractTreeIterator {
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean first() {
 		return ptr == treeStart;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean eof() {
 		return ptr == treeEnd;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void next(int delta) {
 		while (--delta >= 0) {
@@ -211,6 +221,7 @@ public class DirCacheIterator extends AbstractTreeIterator {
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void back(int delta) {
 		while (--delta >= 0) {
@@ -282,12 +293,15 @@ public class DirCacheIterator extends AbstractTreeIterator {
 	}
 
 	/**
-	 * Retrieves the {@link AttributesNode} for the current entry.
+	 * Retrieves the {@link org.eclipse.jgit.attributes.AttributesNode} for the
+	 * current entry.
 	 *
 	 * @param reader
-	 *            {@link ObjectReader} used to parse the .gitattributes entry.
-	 * @return {@link AttributesNode} for the current entry.
-	 * @throws IOException
+	 *            {@link org.eclipse.jgit.lib.ObjectReader} used to parse the
+	 *            .gitattributes entry.
+	 * @return {@link org.eclipse.jgit.attributes.AttributesNode} for the
+	 *         current entry.
+	 * @throws java.io.IOException
 	 * @since 3.7
 	 */
 	public AttributesNode getEntryAttributesNode(ObjectReader reader)
@@ -315,11 +329,8 @@ public class DirCacheIterator extends AbstractTreeIterator {
 			AttributesNode r = new AttributesNode();
 			ObjectLoader loader = reader.open(objectId);
 			if (loader != null) {
-				InputStream in = loader.openStream();
-				try {
+				try (InputStream in = loader.openStream()) {
 					r.parse(in);
-				} finally {
-					in.close();
 				}
 			}
 			return r.getRules().isEmpty() ? null : r;

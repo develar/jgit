@@ -53,19 +53,27 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.ConnectException;
 import java.net.UnknownHostException;
+import java.text.MessageFormat;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import org.eclipse.jgit.errors.TransportException;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.util.FS;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import com.jcraft.jsch.ConfigRepository;
+import com.jcraft.jsch.ConfigRepository.Config;
 import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.JSchException;
 import com.jcraft.jsch.Session;
-import com.jcraft.jsch.UserInfo;
 
 /**
  * The base session factory that loads known hosts and private keys from
@@ -76,16 +84,29 @@ import com.jcraft.jsch.UserInfo;
  * used by C Git.
  * <p>
  * The factory does not provide UI behavior. Override the method
- * {@link #configure(org.eclipse.jgit.transport.OpenSshConfig.Host, Session)}
- * to supply appropriate {@link UserInfo} to the session.
+ * {@link #configure(org.eclipse.jgit.transport.OpenSshConfig.Host, Session)} to
+ * supply appropriate {@link com.jcraft.jsch.UserInfo} to the session.
  */
 public abstract class JschConfigSessionFactory extends SshSessionFactory {
+
+	private static final Logger LOG = LoggerFactory
+			.getLogger(JschConfigSessionFactory.class);
+
+	/**
+	 * We use different Jsch instances for hosts that have an IdentityFile
+	 * configured in ~/.ssh/config. Jsch by default would cache decrypted keys
+	 * only per session, which results in repeated password prompts. Using
+	 * different Jsch instances, we can cache the keys on these instances so
+	 * that they will be re-used for successive sessions, and thus the user is
+	 * prompted for a key password only once while Eclipse runs.
+	 */
 	private final Map<String, JSch> byIdentityFile = new HashMap<>();
 
 	private JSch defaultJSch;
 
 	private OpenSshConfig config;
 
+	/** {@inheritDoc} */
 	@Override
 	public synchronized RemoteSession getSession(URIish uri,
 			CredentialsProvider credentialsProvider, FS fs, int tms)
@@ -101,7 +122,6 @@ public abstract class JschConfigSessionFactory extends SshSessionFactory {
 				config = OpenSshConfig.get(fs);
 
 			final OpenSshConfig.Host hc = config.lookup(host);
-			host = hc.getHostName();
 			if (port <= 0)
 				port = hc.getPort();
 			if (user == null)
@@ -170,10 +190,18 @@ public abstract class JschConfigSessionFactory extends SshSessionFactory {
 		return e.getCause() == null && e.getMessage().equals("Auth cancel"); //$NON-NLS-1$
 	}
 
-	private Session createSession(CredentialsProvider credentialsProvider,
+	// Package visibility for tests
+	Session createSession(CredentialsProvider credentialsProvider,
 			FS fs, String user, final String pass, String host, int port,
 			final OpenSshConfig.Host hc) throws JSchException {
 		final Session session = createSession(hc, user, host, port, fs);
+		// Jsch will have overridden the explicit user by the one from the SSH
+		// config file...
+		setUserName(session, user);
+		// Jsch will also have overridden the port.
+		if (port > 0 && port != session.getPort()) {
+			session.setPort(port);
+		}
 		// We retry already in getSession() method. JSch must not retry
 		// on its own.
 		session.setConfig("MaxAuthTries", "1"); //$NON-NLS-1$ //$NON-NLS-2$
@@ -192,8 +220,50 @@ public abstract class JschConfigSessionFactory extends SshSessionFactory {
 			session.setUserInfo(new CredentialsProviderUserInfo(session,
 					credentialsProvider));
 		}
+		safeConfig(session, hc.getConfig());
 		configure(hc, session);
 		return session;
+	}
+
+	private void safeConfig(Session session, Config cfg) {
+		// Ensure that Jsch checks all configured algorithms, not just its
+		// built-in ones. Otherwise it may propose an algorithm for which it
+		// doesn't have an implementation, and then run into an NPE if that
+		// algorithm ends up being chosen.
+		copyConfigValueToSession(session, cfg, "Ciphers", "CheckCiphers"); //$NON-NLS-1$ //$NON-NLS-2$
+		copyConfigValueToSession(session, cfg, "KexAlgorithms", "CheckKexes"); //$NON-NLS-1$ //$NON-NLS-2$
+		copyConfigValueToSession(session, cfg, "HostKeyAlgorithms", //$NON-NLS-1$
+				"CheckSignatures"); //$NON-NLS-1$
+	}
+
+	private void copyConfigValueToSession(Session session, Config cfg,
+			String from, String to) {
+		String value = cfg.getValue(from);
+		if (value != null) {
+			session.setConfig(to, value);
+		}
+	}
+
+	private void setUserName(Session session, String userName) {
+		// Jsch 0.1.54 picks up the user name from the ssh config, even if an
+		// explicit user name was given! We must correct that if ~/.ssh/config
+		// has a different user name.
+		if (userName == null || userName.isEmpty()
+				|| userName.equals(session.getUserName())) {
+			return;
+		}
+		try {
+			Class<?>[] parameterTypes = { String.class };
+			Method method = Session.class.getDeclaredMethod("setUserName", //$NON-NLS-1$
+					parameterTypes);
+			method.setAccessible(true);
+			method.invoke(session, userName);
+		} catch (NullPointerException | IllegalAccessException
+				| IllegalArgumentException | InvocationTargetException
+				| NoSuchMethodException | SecurityException e) {
+			LOG.error(MessageFormat.format(JGitText.get().sshUserNameError,
+					userName, session.getUserName()), e);
+		}
 	}
 
 	/**
@@ -211,7 +281,7 @@ public abstract class JschConfigSessionFactory extends SshSessionFactory {
 	 *            the file system abstraction which will be necessary to
 	 *            perform certain file system operations.
 	 * @return new session instance, but otherwise unconfigured.
-	 * @throws JSchException
+	 * @throws com.jcraft.jsch.JSchException
 	 *             the session could not be created.
 	 */
 	protected Session createSession(final OpenSshConfig.Host hc,
@@ -235,7 +305,8 @@ public abstract class JschConfigSessionFactory extends SshSessionFactory {
 
 	/**
 	 * Provide additional configuration for the session based on the host
-	 * information. This method could be used to supply {@link UserInfo}.
+	 * information. This method could be used to supply
+	 * {@link com.jcraft.jsch.UserInfo}.
 	 *
 	 * @param hc
 	 *            host configuration
@@ -253,12 +324,16 @@ public abstract class JschConfigSessionFactory extends SshSessionFactory {
 	 *            the file system abstraction which will be necessary to
 	 *            perform certain file system operations.
 	 * @return the JSch instance to use.
-	 * @throws JSchException
+	 * @throws com.jcraft.jsch.JSchException
 	 *             the user configuration could not be created.
 	 */
-	protected JSch getJSch(final OpenSshConfig.Host hc, FS fs) throws JSchException {
+	protected JSch getJSch(OpenSshConfig.Host hc, FS fs) throws JSchException {
 		if (defaultJSch == null) {
 			defaultJSch = createDefaultJSch(fs);
+			if (defaultJSch.getConfigRepository() == null) {
+				defaultJSch.setConfigRepository(
+						new JschBugFixingConfigRepository(config));
+			}
 			for (Object name : defaultJSch.getIdentityNames())
 				byIdentityFile.put((String) name, defaultJSch);
 		}
@@ -272,6 +347,9 @@ public abstract class JschConfigSessionFactory extends SshSessionFactory {
 		if (jsch == null) {
 			jsch = new JSch();
 			configureJSch(jsch);
+			if (jsch.getConfigRepository() == null) {
+				jsch.setConfigRepository(defaultJSch.getConfigRepository());
+			}
 			jsch.setHostKeyRepository(defaultJSch.getHostKeyRepository());
 			jsch.addIdentity(identityKey);
 			byIdentityFile.put(identityKey, jsch);
@@ -280,11 +358,13 @@ public abstract class JschConfigSessionFactory extends SshSessionFactory {
 	}
 
 	/**
+	 * Create default instance of jsch
+	 *
 	 * @param fs
-	 *            the file system abstraction which will be necessary to
-	 *            perform certain file system operations.
+	 *            the file system abstraction which will be necessary to perform
+	 *            certain file system operations.
 	 * @return the new default JSch implementation.
-	 * @throws JSchException
+	 * @throws com.jcraft.jsch.JSchException
 	 *             known host keys cannot be loaded.
 	 */
 	protected JSch createDefaultJSch(FS fs) throws JSchException {
@@ -295,18 +375,13 @@ public abstract class JschConfigSessionFactory extends SshSessionFactory {
 		return jsch;
 	}
 
-	private static void knownHosts(final JSch sch, FS fs) throws JSchException {
+	private static void knownHosts(JSch sch, FS fs) throws JSchException {
 		final File home = fs.userHome();
 		if (home == null)
 			return;
 		final File known_hosts = new File(new File(home, ".ssh"), "known_hosts"); //$NON-NLS-1$ //$NON-NLS-2$
-		try {
-			final FileInputStream in = new FileInputStream(known_hosts);
-			try {
-				sch.setKnownHosts(in);
-			} finally {
-				in.close();
-			}
+		try (FileInputStream in = new FileInputStream(known_hosts)) {
+			sch.setKnownHosts(in);
 		} catch (FileNotFoundException none) {
 			// Oh well. They don't have a known hosts in home.
 		} catch (IOException err) {
@@ -314,7 +389,7 @@ public abstract class JschConfigSessionFactory extends SshSessionFactory {
 		}
 	}
 
-	private static void identities(final JSch sch, FS fs) {
+	private static void identities(JSch sch, FS fs) {
 		final File home = fs.userHome();
 		if (home == null)
 			return;
@@ -326,7 +401,7 @@ public abstract class JschConfigSessionFactory extends SshSessionFactory {
 		}
 	}
 
-	private static void loadIdentity(final JSch sch, final File priv) {
+	private static void loadIdentity(JSch sch, File priv) {
 		if (priv.isFile()) {
 			try {
 				sch.addIdentity(priv.getAbsolutePath());
@@ -334,5 +409,102 @@ public abstract class JschConfigSessionFactory extends SshSessionFactory {
 				// Instead, pretend the key doesn't exist.
 			}
 		}
+	}
+
+	private static class JschBugFixingConfigRepository
+			implements ConfigRepository {
+
+		private final ConfigRepository base;
+
+		public JschBugFixingConfigRepository(ConfigRepository base) {
+			this.base = base;
+		}
+
+		@Override
+		public Config getConfig(String host) {
+			return new JschBugFixingConfig(base.getConfig(host));
+		}
+
+		/**
+		 * A {@link com.jcraft.jsch.ConfigRepository.Config} that transforms
+		 * some values from the config file into the format Jsch 0.1.54 expects.
+		 * This is a work-around for bugs in Jsch.
+		 * <p>
+		 * Additionally, this config hides the IdentityFile config entries from
+		 * Jsch; we manage those ourselves. Otherwise Jsch would cache passwords
+		 * (or rather, decrypted keys) only for a single session, resulting in
+		 * multiple password prompts for user operations that use several Jsch
+		 * sessions.
+		 */
+		private static class JschBugFixingConfig implements Config {
+
+			private static final String[] NO_IDENTITIES = {};
+
+			private final Config real;
+
+			public JschBugFixingConfig(Config delegate) {
+				real = delegate;
+			}
+
+			@Override
+			public String getHostname() {
+				return real.getHostname();
+			}
+
+			@Override
+			public String getUser() {
+				return real.getUser();
+			}
+
+			@Override
+			public int getPort() {
+				return real.getPort();
+			}
+
+			@Override
+			public String getValue(String key) {
+				String k = key.toUpperCase(Locale.ROOT);
+				if ("IDENTITYFILE".equals(k)) { //$NON-NLS-1$
+					return null;
+				}
+				String result = real.getValue(key);
+				if (result != null) {
+					if ("SERVERALIVEINTERVAL".equals(k) //$NON-NLS-1$
+							|| "CONNECTTIMEOUT".equals(k)) { //$NON-NLS-1$
+						// These values are in seconds. Jsch 0.1.54 passes them
+						// on as is to java.net.Socket.setSoTimeout(), which
+						// expects milliseconds. So convert here to
+						// milliseconds.
+						try {
+							int timeout = Integer.parseInt(result);
+							result = Long.toString(
+									TimeUnit.SECONDS.toMillis(timeout));
+						} catch (NumberFormatException e) {
+							// Ignore
+						}
+					}
+				}
+				return result;
+			}
+
+			@Override
+			public String[] getValues(String key) {
+				String k = key.toUpperCase(Locale.ROOT);
+				if ("IDENTITYFILE".equals(k)) { //$NON-NLS-1$
+					return NO_IDENTITIES;
+				}
+				return real.getValues(key);
+			}
+		}
+	}
+
+	/**
+	 * Set the {@link OpenSshConfig} to use. Intended for use in tests.
+	 *
+	 * @param config
+	 *            to use
+	 */
+	void setConfig(OpenSshConfig config) {
+		this.config = config;
 	}
 }

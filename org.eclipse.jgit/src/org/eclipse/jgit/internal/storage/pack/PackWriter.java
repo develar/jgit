@@ -81,6 +81,7 @@ import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 
 import org.eclipse.jgit.annotations.NonNull;
+import org.eclipse.jgit.annotations.Nullable;
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.errors.LargeObjectException;
@@ -107,6 +108,7 @@ import org.eclipse.jgit.lib.ProgressMonitor;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.ThreadSafeProgressMonitor;
 import org.eclipse.jgit.revwalk.AsyncRevObjectQueue;
+import org.eclipse.jgit.revwalk.BitmapWalker;
 import org.eclipse.jgit.revwalk.DepthWalk;
 import org.eclipse.jgit.revwalk.ObjectWalk;
 import org.eclipse.jgit.revwalk.RevCommit;
@@ -134,8 +136,8 @@ import org.eclipse.jgit.util.TemporaryBuffer;
  * <li>(usually) by providing sets of interesting and uninteresting objects in
  * repository - all interesting objects and their ancestors except uninteresting
  * objects and their ancestors will be included in pack, or</li>
- * <li>by providing iterator of {@link RevObject} specifying exact list and
- * order of objects in pack</li>
+ * <li>by providing iterator of {@link org.eclipse.jgit.revwalk.RevObject}
+ * specifying exact list and order of objects in pack</li>
  * </ul>
  * <p>
  * Typical usage consists of creating an instance, configuring options,
@@ -148,10 +150,11 @@ import org.eclipse.jgit.util.TemporaryBuffer;
  * followed by {@link #writeBitmapIndex(OutputStream)}.
  * </p>
  * <p>
- * Class provide set of configurable options and {@link ProgressMonitor}
- * support, as operations may take a long time for big repositories. Deltas
- * searching algorithm is <b>NOT IMPLEMENTED</b> yet - this implementation
- * relies only on deltas and objects reuse.
+ * Class provide set of configurable options and
+ * {@link org.eclipse.jgit.lib.ProgressMonitor} support, as operations may take
+ * a long time for big repositories. Deltas searching algorithm is <b>NOT
+ * IMPLEMENTED</b> yet - this implementation relies only on deltas and objects
+ * reuse.
  * </p>
  * <p>
  * This class is not thread safe. It is intended to be used in one thread as a
@@ -209,7 +212,11 @@ public class PackWriter implements AutoCloseable {
 		}
 	};
 
-	/** @return all allocated, non-released PackWriters instances. */
+	/**
+	 * Get all allocated, non-released PackWriters instances.
+	 *
+	 * @return all allocated, non-released PackWriters instances.
+	 */
 	public static Iterable<PackWriter> getInstances() {
 		return instancesIterable;
 	}
@@ -296,6 +303,8 @@ public class PackWriter implements AutoCloseable {
 
 	private ObjectCountCallback callback;
 
+	private long filterBlobLimit = -1;
+
 	/**
 	 * Create writer for specified repository.
 	 * <p>
@@ -305,7 +314,7 @@ public class PackWriter implements AutoCloseable {
 	 * @param repo
 	 *            repository where objects are stored.
 	 */
-	public PackWriter(final Repository repo) {
+	public PackWriter(Repository repo) {
 		this(repo, repo.newObjectReader());
 	}
 
@@ -318,7 +327,7 @@ public class PackWriter implements AutoCloseable {
 	 * @param reader
 	 *            reader to read from the repository with.
 	 */
-	public PackWriter(final ObjectReader reader) {
+	public PackWriter(ObjectReader reader) {
 		this(new PackConfig(), reader);
 	}
 
@@ -333,7 +342,7 @@ public class PackWriter implements AutoCloseable {
 	 * @param reader
 	 *            reader to read from the repository with.
 	 */
-	public PackWriter(final Repository repo, final ObjectReader reader) {
+	public PackWriter(Repository repo, ObjectReader reader) {
 		this(new PackConfig(repo), reader);
 	}
 
@@ -348,7 +357,25 @@ public class PackWriter implements AutoCloseable {
 	 * @param reader
 	 *            reader to read from the repository with.
 	 */
-	public PackWriter(final PackConfig config, final ObjectReader reader) {
+	public PackWriter(PackConfig config, ObjectReader reader) {
+		this(config, reader, null);
+	}
+
+	/**
+	 * Create writer with a specified configuration.
+	 * <p>
+	 * Objects for packing are specified in {@link #preparePack(Iterator)} or
+	 * {@link #preparePack(ProgressMonitor, Set, Set)}.
+	 *
+	 * @param config
+	 *            configuration for the pack writer.
+	 * @param reader
+	 *            reader to read from the repository with.
+	 * @param statsAccumulator
+	 *            accumulator for statics
+	 */
+	public PackWriter(PackConfig config, final ObjectReader reader,
+			@Nullable PackStatistics.Accumulator statsAccumulator) {
 		this.config = config;
 		this.reader = reader;
 		if (reader instanceof ObjectReuseAsIs)
@@ -359,7 +386,8 @@ public class PackWriter implements AutoCloseable {
 		deltaBaseAsOffset = config.isDeltaBaseAsOffset();
 		reuseDeltas = config.isReuseDeltas();
 		reuseValidate = true; // be paranoid by default
-		stats = new PackStatistics.Accumulator();
+		stats = statsAccumulator != null ? statsAccumulator
+				: new PackStatistics.Accumulator();
 		state = new MutableState();
 		selfRef = new WeakReference<>(this);
 		instances.put(selfRef, Boolean.TRUE);
@@ -373,7 +401,6 @@ public class PackWriter implements AutoCloseable {
 	 *
 	 * @param callback
 	 *            the callback to set
-	 *
 	 * @return this object for chaining.
 	 */
 	public PackWriter setObjectCountCallback(ObjectCountCallback callback) {
@@ -465,12 +492,19 @@ public class PackWriter implements AutoCloseable {
 		reuseValidate = validate;
 	}
 
-	/** @return true if this writer is producing a thin pack. */
+	/**
+	 * Whether this writer is producing a thin pack.
+	 *
+	 * @return true if this writer is producing a thin pack.
+	 */
 	public boolean isThin() {
 		return thin;
 	}
 
 	/**
+	 * Whether writer may pack objects with delta base object not within set of
+	 * objects to pack
+	 *
 	 * @param packthin
 	 *            a boolean indicating whether writer may pack objects with
 	 *            delta base object not within set of objects to pack, but
@@ -478,20 +512,27 @@ public class PackWriter implements AutoCloseable {
 	 *            determined by set; this kind of pack is used only for
 	 *            transport; true - to produce thin pack, false - otherwise.
 	 */
-	public void setThin(final boolean packthin) {
+	public void setThin(boolean packthin) {
 		thin = packthin;
 	}
 
-	/** @return true to reuse cached packs. If true index creation isn't available. */
+	/**
+	 * Whether to reuse cached packs.
+	 *
+	 * @return {@code true} to reuse cached packs. If true index creation isn't
+	 *         available.
+	 */
 	public boolean isUseCachedPacks() {
 		return useCachedPacks;
 	}
 
 	/**
+	 * Whether to use cached packs
+	 *
 	 * @param useCached
-	 *            if set to true and a cached pack is present, it will be
-	 *            appended onto the end of a thin-pack, reducing the amount of
-	 *            working set space and CPU used by PackWriter. Enabling this
+	 *            if set to {@code true} and a cached pack is present, it will
+	 *            be appended onto the end of a thin-pack, reducing the amount
+	 *            of working set space and CPU used by PackWriter. Enabling this
 	 *            feature prevents PackWriter from creating an index for the
 	 *            newly created pack, so its only suitable for writing to a
 	 *            network client, where the client will make the index.
@@ -500,12 +541,18 @@ public class PackWriter implements AutoCloseable {
 		useCachedPacks = useCached;
 	}
 
-	/** @return true to use bitmaps for ObjectWalks, if available. */
+	/**
+	 * Whether to use bitmaps
+	 *
+	 * @return {@code true} to use bitmaps for ObjectWalks, if available.
+	 */
 	public boolean isUseBitmaps() {
 		return useBitmaps;
 	}
 
 	/**
+	 * Whether to use bitmaps
+	 *
 	 * @param useBitmaps
 	 *            if set to true, bitmaps will be used when preparing a pack.
 	 */
@@ -513,23 +560,33 @@ public class PackWriter implements AutoCloseable {
 		this.useBitmaps = useBitmaps;
 	}
 
-	/** @return true if the index file cannot be created by this PackWriter. */
+	/**
+	 * Whether the index file cannot be created by this PackWriter.
+	 *
+	 * @return {@code true} if the index file cannot be created by this
+	 *         PackWriter.
+	 */
 	public boolean isIndexDisabled() {
 		return indexDisabled || !cachedPacks.isEmpty();
 	}
 
 	/**
+	 * Whether to disable creation of the index file.
+	 *
 	 * @param noIndex
-	 *            true to disable creation of the index file.
+	 *            {@code true} to disable creation of the index file.
 	 */
 	public void setIndexDisabled(boolean noIndex) {
 		this.indexDisabled = noIndex;
 	}
 
 	/**
-	 * @return true to ignore objects that are uninteresting and also not found
-	 *         on local disk; false to throw a {@link MissingObjectException}
-	 *         out of {@link #preparePack(ProgressMonitor, Set, Set)} if an
+	 * Whether to ignore missing uninteresting objects
+	 *
+	 * @return {@code true} to ignore objects that are uninteresting and also
+	 *         not found on local disk; false to throw a
+	 *         {@link org.eclipse.jgit.errors.MissingObjectException} out of
+	 *         {@link #preparePack(ProgressMonitor, Set, Set)} if an
 	 *         uninteresting object is not in the source repository. By default,
 	 *         true, permitting gracefully ignoring of uninteresting objects.
 	 */
@@ -538,13 +595,15 @@ public class PackWriter implements AutoCloseable {
 	}
 
 	/**
+	 * Whether writer should ignore non existing uninteresting objects
+	 *
 	 * @param ignore
-	 *            true if writer should ignore non existing uninteresting
-	 *            objects during construction set of objects to pack; false
-	 *            otherwise - non existing uninteresting objects may cause
-	 *            {@link MissingObjectException}
+	 *            {@code true} if writer should ignore non existing
+	 *            uninteresting objects during construction set of objects to
+	 *            pack; false otherwise - non existing uninteresting objects may
+	 *            cause {@link org.eclipse.jgit.errors.MissingObjectException}
 	 */
-	public void setIgnoreMissingUninteresting(final boolean ignore) {
+	public void setIgnoreMissingUninteresting(boolean ignore) {
 		ignoreMissingUninteresting = ignore;
 	}
 
@@ -582,10 +641,18 @@ public class PackWriter implements AutoCloseable {
 	}
 
 	/**
+	 * @param bytes exclude blobs of size greater than this
+	 * @since 5.0
+	 */
+	public void setFilterBlobLimit(long bytes) {
+		filterBlobLimit = bytes;
+	}
+
+	/**
 	 * Returns objects number in a pack file that was created by this writer.
 	 *
 	 * @return number of objects in pack.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             a cached pack cannot supply its object count.
 	 */
 	public long getObjectCount() throws IOException {
@@ -612,7 +679,7 @@ public class PackWriter implements AutoCloseable {
 	 * been invoked and completed successfully.
 	 *
 	 * @return set of objects in pack.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             a cached pack cannot supply its object ids.
 	 */
 	public ObjectIdOwnerMap<ObjectIdOwnerMap.Entry> getObjectSet()
@@ -671,12 +738,14 @@ public class PackWriter implements AutoCloseable {
 	 * @param objectsSource
 	 *            iterator of object to store in a pack; order of objects within
 	 *            each type is important, ordering by type is not needed;
-	 *            allowed types for objects are {@link Constants#OBJ_COMMIT},
-	 *            {@link Constants#OBJ_TREE}, {@link Constants#OBJ_BLOB} and
-	 *            {@link Constants#OBJ_TAG}; objects returned by iterator may be
-	 *            later reused by caller as object id and type are internally
-	 *            copied in each iteration.
-	 * @throws IOException
+	 *            allowed types for objects are
+	 *            {@link org.eclipse.jgit.lib.Constants#OBJ_COMMIT},
+	 *            {@link org.eclipse.jgit.lib.Constants#OBJ_TREE},
+	 *            {@link org.eclipse.jgit.lib.Constants#OBJ_BLOB} and
+	 *            {@link org.eclipse.jgit.lib.Constants#OBJ_TAG}; objects
+	 *            returned by iterator may be later reused by caller as object
+	 *            id and type are internally copied in each iteration.
+	 * @throws java.io.IOException
 	 *             when some I/O problem occur during reading objects.
 	 */
 	public void preparePack(@NonNull Iterator<RevObject> objectsSource)
@@ -692,10 +761,10 @@ public class PackWriter implements AutoCloseable {
 	 * Basing on these 2 sets, another set of objects to put in a pack file is
 	 * created: this set consists of all objects reachable (ancestors) from
 	 * interesting objects, except uninteresting objects and their ancestors.
-	 * This method uses class {@link ObjectWalk} extensively to find out that
-	 * appropriate set of output objects and their optimal order in output pack.
-	 * Order is consistent with general git in-pack rules: sort by object type,
-	 * recency, path and delta-base first.
+	 * This method uses class {@link org.eclipse.jgit.revwalk.ObjectWalk}
+	 * extensively to find out that appropriate set of output objects and their
+	 * optimal order in output pack. Order is consistent with general git
+	 * in-pack rules: sort by object type, recency, path and delta-base first.
 	 * </p>
 	 *
 	 * @param countingMonitor
@@ -708,7 +777,7 @@ public class PackWriter implements AutoCloseable {
 	 *            points of graph traversal). Pass {@link #NONE} if all objects
 	 *            reachable from {@code want} are desired, such as when serving
 	 *            a clone.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             when some I/O problem occur during reading objects.
 	 */
 	public void preparePack(ProgressMonitor countingMonitor,
@@ -743,7 +812,7 @@ public class PackWriter implements AutoCloseable {
 	 *            {@code shallow} commits and earlier generations will be
 	 *            included in the pack if requested by {@code want}. Must not be
 	 *            {@code null}.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             an I/O problem occurred while reading objects.
 	 */
 	public void preparePack(ProgressMonitor countingMonitor,
@@ -782,7 +851,7 @@ public class PackWriter implements AutoCloseable {
 	 * @param noBitmaps
 	 *            collection of objects to be excluded from bitmap commit
 	 *            selection.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             an I/O problem occurred while reading objects.
 	 */
 	public void preparePack(ProgressMonitor countingMonitor,
@@ -807,10 +876,10 @@ public class PackWriter implements AutoCloseable {
 	 * Basing on these 2 sets, another set of objects to put in a pack file is
 	 * created: this set consists of all objects reachable (ancestors) from
 	 * interesting objects, except uninteresting objects and their ancestors.
-	 * This method uses class {@link ObjectWalk} extensively to find out that
-	 * appropriate set of output objects and their optimal order in output pack.
-	 * Order is consistent with general git in-pack rules: sort by object type,
-	 * recency, path and delta-base first.
+	 * This method uses class {@link org.eclipse.jgit.revwalk.ObjectWalk}
+	 * extensively to find out that appropriate set of output objects and their
+	 * optimal order in output pack. Order is consistent with general git
+	 * in-pack rules: sort by object type, recency, path and delta-base first.
 	 * </p>
 	 *
 	 * @param countingMonitor
@@ -828,7 +897,7 @@ public class PackWriter implements AutoCloseable {
 	 * @param noBitmaps
 	 *            collection of objects to be excluded from bitmap commit
 	 *            selection.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             when some I/O problem occur during reading objects.
 	 */
 	public void preparePack(ProgressMonitor countingMonitor,
@@ -852,10 +921,10 @@ public class PackWriter implements AutoCloseable {
 	 * @param id
 	 *            the object to test the existence of.
 	 * @return true if the object will appear in the output pack file.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             a cached pack cannot be examined.
 	 */
-	public boolean willInclude(final AnyObjectId id) throws IOException {
+	public boolean willInclude(AnyObjectId id) throws IOException {
 		ObjectToPack obj = objectsMap.get(id);
 		return obj != null && !obj.isEdge();
 	}
@@ -919,10 +988,10 @@ public class PackWriter implements AutoCloseable {
 	 * @param indexStream
 	 *            output for the index data. Caller is responsible for closing
 	 *            this stream.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the index data could not be written to the supplied stream.
 	 */
-	public void writeIndex(final OutputStream indexStream) throws IOException {
+	public void writeIndex(OutputStream indexStream) throws IOException {
 		if (isIndexDisabled())
 			throw new IOException(JGitText.get().cachedPacksPreventsIndexCreation);
 
@@ -941,10 +1010,10 @@ public class PackWriter implements AutoCloseable {
 	 * @param bitmapIndexStream
 	 *            output for the bitmap index data. Caller is responsible for
 	 *            closing this stream.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the index data could not be written to the supplied stream.
 	 */
-	public void writeBitmapIndex(final OutputStream bitmapIndexStream)
+	public void writeBitmapIndex(OutputStream bitmapIndexStream)
 			throws IOException {
 		if (writeBitmaps == null)
 			throw new IOException(JGitText.get().bitmapsMustBePrepared);
@@ -1026,13 +1095,13 @@ public class PackWriter implements AutoCloseable {
 	 * @param packStream
 	 *            output stream of pack data. The stream should be buffered by
 	 *            the caller. The caller is responsible for closing the stream.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             an error occurred reading a local object's data to include in
 	 *             the pack, or writing compressed object data to the output
 	 *             stream.
 	 * @throws WriteAbortedException
-	 *             the write operation is aborted by {@link ObjectCountCallback}
-	 *             .
+	 *             the write operation is aborted by
+	 *             {@link org.eclipse.jgit.transport.ObjectCountCallback} .
 	 */
 	public void writePack(ProgressMonitor compressMonitor,
 			ProgressMonitor writeMonitor, OutputStream packStream)
@@ -1121,6 +1190,9 @@ public class PackWriter implements AutoCloseable {
 	}
 
 	/**
+	 * Get statistics of what this PackWriter did in order to create the final
+	 * pack stream.
+	 *
 	 * @return description of what this PackWriter did in order to create the
 	 *         final pack stream. This should only be invoked after the calls to
 	 *         create the pack/index/bitmap have completed.
@@ -1129,12 +1201,18 @@ public class PackWriter implements AutoCloseable {
 		return new PackStatistics(stats);
 	}
 
-	/** @return snapshot of the current state of this PackWriter. */
+	/**
+	 * Get snapshot of the current state of this PackWriter.
+	 *
+	 * @return snapshot of the current state of this PackWriter.
+	 */
 	public State getState() {
 		return state.snapshot();
 	}
 
 	/**
+	 * {@inheritDoc}
+	 * <p>
 	 * Release all resources used by this writer.
 	 */
 	@Override
@@ -1448,7 +1526,7 @@ public class PackWriter implements AutoCloseable {
 			// The caller gave us an executor, but it might not do
 			// asynchronous execution.  Wrap everything and hope it
 			// can schedule these for us.
-			for (final DeltaTask task : taskBlock.tasks) {
+			for (DeltaTask task : taskBlock.tasks) {
 				executor.execute(new Runnable() {
 					@Override
 					public void run() {
@@ -1483,9 +1561,7 @@ public class PackWriter implements AutoCloseable {
 			if (err instanceof IOException)
 				throw (IOException) err;
 
-			IOException fail = new IOException(err.getMessage());
-			fail.initCause(err);
-			throw fail;
+			throw new IOException(err.getMessage(), err);
 		}
 		endPhase(monitor);
 	}
@@ -1657,7 +1733,7 @@ public class PackWriter implements AutoCloseable {
 		typeStats.deltaBytes += out.length() - otp.getOffset();
 	}
 
-	private TemporaryBuffer.Heap delta(final ObjectToPack otp)
+	private TemporaryBuffer.Heap delta(ObjectToPack otp)
 			throws IOException {
 		DeltaIndex index = new DeltaIndex(buffer(otp.getDeltaBaseId()));
 		byte[] res = buffer(otp);
@@ -1714,7 +1790,7 @@ public class PackWriter implements AutoCloseable {
 		if (!shallowPack && useBitmaps) {
 			BitmapIndex bitmapIndex = reader.getBitmapIndex();
 			if (bitmapIndex != null) {
-				PackWriterBitmapWalker bitmapWalker = new PackWriterBitmapWalker(
+				BitmapWalker bitmapWalker = new BitmapWalker(
 						walker, bitmapIndex, countingMonitor);
 				findObjectsToPackUsingBitmaps(bitmapWalker, want, have);
 				endPhase(countingMonitor);
@@ -1894,7 +1970,7 @@ public class PackWriter implements AutoCloseable {
 				byte[] pathBuf = walker.getPathBuffer();
 				int pathLen = walker.getPathLength();
 				bases.addBase(o.getType(), pathBuf, pathLen, pathHash);
-				addObject(o, pathHash);
+				filterAndAddObject(o, o.getType(), pathHash);
 				countingMonitor.update(1);
 			}
 		} else {
@@ -1904,7 +1980,7 @@ public class PackWriter implements AutoCloseable {
 					continue;
 				if (exclude(o))
 					continue;
-				addObject(o, walker.getPathHashCode());
+				filterAndAddObject(o, o.getType(), walker.getPathHashCode());
 				countingMonitor.update(1);
 			}
 		}
@@ -1917,7 +1993,7 @@ public class PackWriter implements AutoCloseable {
 	}
 
 	private void findObjectsToPackUsingBitmaps(
-			PackWriterBitmapWalker bitmapWalker, Set<? extends ObjectId> want,
+			BitmapWalker bitmapWalker, Set<? extends ObjectId> want,
 			Set<? extends ObjectId> have)
 			throws MissingObjectException, IncorrectObjectTypeException,
 			IOException {
@@ -1937,7 +2013,7 @@ public class PackWriter implements AutoCloseable {
 				needBitmap.remove(objectId);
 				continue;
 			}
-			addObject(objectId, obj.getType(), 0);
+			filterAndAddObject(objectId, obj.getType(), 0);
 		}
 
 		if (thin)
@@ -1971,16 +2047,16 @@ public class PackWriter implements AutoCloseable {
 	 *
 	 * @param object
 	 *            the object to add.
-	 * @throws IncorrectObjectTypeException
+	 * @throws org.eclipse.jgit.errors.IncorrectObjectTypeException
 	 *             the object is an unsupported type.
 	 */
-	public void addObject(final RevObject object)
+	public void addObject(RevObject object)
 			throws IncorrectObjectTypeException {
 		if (!exclude(object))
 			addObject(object, 0);
 	}
 
-	private void addObject(final RevObject object, final int pathHashCode) {
+	private void addObject(RevObject object, int pathHashCode) {
 		addObject(object, object.getType(), pathHashCode);
 	}
 
@@ -1994,6 +2070,21 @@ public class PackWriter implements AutoCloseable {
 		otp.setPathHash(pathHashCode);
 		objectsLists[type].add(otp);
 		objectsMap.add(otp);
+	}
+
+	// Adds the given object as an object to be packed, first performing
+	// filtering on blobs at or exceeding a given size.
+	private void filterAndAddObject(@NonNull AnyObjectId src, int type,
+			int pathHashCode) throws IOException {
+
+		// Check if this object needs to be rejected, doing the cheaper
+		// checks first.
+		boolean reject = filterBlobLimit >= 0 &&
+			type == OBJ_BLOB &&
+			reader.getObjectSize(src, OBJ_BLOB) > filterBlobLimit;
+		if (!reject) {
+			addObject(src, type, pathHashCode);
+		}
 	}
 
 	private boolean exclude(AnyObjectId objectId) {
@@ -2013,9 +2104,9 @@ public class PackWriter implements AutoCloseable {
 	/**
 	 * Select an object representation for this writer.
 	 * <p>
-	 * An {@link ObjectReader} implementation should invoke this method once for
-	 * each representation available for an object, to allow the writer to find
-	 * the most suitable one for the output.
+	 * An {@link org.eclipse.jgit.lib.ObjectReader} implementation should invoke
+	 * this method once for each representation available for an object, to
+	 * allow the writer to find the most suitable one for the output.
 	 *
 	 * @param otp
 	 *            the object being packed.
@@ -2096,7 +2187,7 @@ public class PackWriter implements AutoCloseable {
 	 * @param pm
 	 *            progress monitor to report bitmap building work.
 	 * @return whether a bitmap index may be written.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             when some I/O problem occur during reading objects.
 	 */
 	public boolean prepareBitmapIndex(ProgressMonitor pm) throws IOException {
@@ -2123,7 +2214,7 @@ public class PackWriter implements AutoCloseable {
 
 		beginPhase(PackingPhase.BUILDING_BITMAPS, pm, selectedCommits.size());
 
-		PackWriterBitmapWalker walker = bitmapPreparer.newBitmapWalker();
+		BitmapWalker walker = bitmapPreparer.newBitmapWalker();
 		AnyObjectId last = null;
 		for (PackWriterBitmapPreparer.BitmapCommit cmit : selectedCommits) {
 			if (!cmit.isReuseWalker()) {
@@ -2155,290 +2246,6 @@ public class PackWriter implements AutoCloseable {
 		if (type == OBJ_TAG)
 			return false;
 		return true;
-	}
-
-	/**
-	 * Summary of how PackWriter created the pack.
-	 *
-	 * @deprecated Use {@link PackStatistics} instead.
-	 */
-	@Deprecated
-	public static class Statistics {
-		/** Statistics about a single class of object. */
-		public static class ObjectType {
-			// All requests are forwarded to this object.
-			private PackStatistics.ObjectType objectType;
-
-			/**
-			 * Wraps an
-			 * {@link org.eclipse.jgit.storage.pack.PackStatistics.ObjectType}
-			 * instance to maintain backwards compatibility with existing API.
-			 *
-			 * @param type
-			 *            the wrapped instance
-			 */
-			public ObjectType(PackStatistics.ObjectType type) {
-				objectType = type;
-			}
-
-			/**
-			 * @return total number of objects output. This total includes the
-			 *         value of {@link #getDeltas()}.
-			 */
-			public long getObjects() {
-				return objectType.getObjects();
-			}
-
-			/**
-			 * @return total number of deltas output. This may be lower than the
-			 *         actual number of deltas if a cached pack was reused.
-			 */
-			public long getDeltas() {
-				return objectType.getDeltas();
-			}
-
-			/**
-			 * @return number of objects whose existing representation was
-			 *         reused in the output. This count includes
-			 *         {@link #getReusedDeltas()}.
-			 */
-			public long getReusedObjects() {
-				return objectType.getReusedObjects();
-			}
-
-			/**
-			 * @return number of deltas whose existing representation was reused
-			 *         in the output, as their base object was also output or
-			 *         was assumed present for a thin pack. This may be lower
-			 *         than the actual number of reused deltas if a cached pack
-			 *         was reused.
-			 */
-			public long getReusedDeltas() {
-				return objectType.getReusedDeltas();
-			}
-
-			/**
-			 * @return total number of bytes written. This size includes the
-			 *         object headers as well as the compressed data. This size
-			 *         also includes all of {@link #getDeltaBytes()}.
-			 */
-			public long getBytes() {
-				return objectType.getBytes();
-			}
-
-			/**
-			 * @return number of delta bytes written. This size includes the
-			 *         object headers for the delta objects.
-			 */
-			public long getDeltaBytes() {
-				return objectType.getDeltaBytes();
-			}
-		}
-
-		// All requests are forwarded to this object.
-		private PackStatistics statistics;
-
-		/**
-		 * Wraps a {@link PackStatistics} object to maintain backwards
-		 * compatibility with existing API.
-		 *
-		 * @param stats
-		 *            the wrapped PackStatitics object
-		 */
-		public Statistics(PackStatistics stats) {
-			statistics = stats;
-		}
-
-		/**
-		 * @return unmodifiable collection of objects to be included in the
-		 *         pack. May be null if the pack was hand-crafted in a unit
-		 *         test.
-		 */
-		public Set<ObjectId> getInterestingObjects() {
-			return statistics.getInterestingObjects();
-		}
-
-		/**
-		 * @return unmodifiable collection of objects that should be excluded
-		 *         from the pack, as the peer that will receive the pack already
-		 *         has these objects.
-		 */
-		public Set<ObjectId> getUninterestingObjects() {
-			return statistics.getUninterestingObjects();
-		}
-
-		/**
-		 * @return unmodifiable collection of the cached packs that were reused
-		 *         in the output, if any were selected for reuse.
-		 */
-		public Collection<CachedPack> getReusedPacks() {
-			return statistics.getReusedPacks();
-		}
-
-		/**
-		 * @return number of objects in the output pack that went through the
-		 *         delta search process in order to find a potential delta base.
-		 */
-		public int getDeltaSearchNonEdgeObjects() {
-			return statistics.getDeltaSearchNonEdgeObjects();
-		}
-
-		/**
-		 * @return number of objects in the output pack that went through delta
-		 *         base search and found a suitable base. This is a subset of
-		 *         {@link #getDeltaSearchNonEdgeObjects()}.
-		 */
-		public int getDeltasFound() {
-			return statistics.getDeltasFound();
-		}
-
-		/**
-		 * @return total number of objects output. This total includes the value
-		 *         of {@link #getTotalDeltas()}.
-		 */
-		public long getTotalObjects() {
-			return statistics.getTotalObjects();
-		}
-
-		/**
-		 * @return the count of objects that needed to be discovered through an
-		 *         object walk because they were not found in bitmap indices.
-		 *         Returns -1 if no bitmap indices were found.
-		 */
-		public long getBitmapIndexMisses() {
-			return statistics.getBitmapIndexMisses();
-		}
-
-		/**
-		 * @return total number of deltas output. This may be lower than the
-		 *         actual number of deltas if a cached pack was reused.
-		 */
-		public long getTotalDeltas() {
-			return statistics.getTotalDeltas();
-		}
-
-		/**
-		 * @return number of objects whose existing representation was reused in
-		 *         the output. This count includes {@link #getReusedDeltas()}.
-		 */
-		public long getReusedObjects() {
-			return statistics.getReusedObjects();
-		}
-
-		/**
-		 * @return number of deltas whose existing representation was reused in
-		 *         the output, as their base object was also output or was
-		 *         assumed present for a thin pack. This may be lower than the
-		 *         actual number of reused deltas if a cached pack was reused.
-		 */
-		public long getReusedDeltas() {
-			return statistics.getReusedDeltas();
-		}
-
-		/**
-		 * @return total number of bytes written. This size includes the pack
-		 *         header, trailer, thin pack, and reused cached pack(s).
-		 */
-		public long getTotalBytes() {
-			return statistics.getTotalBytes();
-		}
-
-		/**
-		 * @return size of the thin pack in bytes, if a thin pack was generated.
-		 *         A thin pack is created when the client already has objects
-		 *         and some deltas are created against those objects, or if a
-		 *         cached pack is being used and some deltas will reference
-		 *         objects in the cached pack. This size does not include the
-		 *         pack header or trailer.
-		 */
-		public long getThinPackBytes() {
-			return statistics.getThinPackBytes();
-		}
-
-		/**
-		 * @param typeCode
-		 *            object type code, e.g. OBJ_COMMIT or OBJ_TREE.
-		 * @return information about this type of object in the pack.
-		 */
-		public ObjectType byObjectType(int typeCode) {
-			return new ObjectType(statistics.byObjectType(typeCode));
-		}
-
-		/** @return true if the resulting pack file was a shallow pack. */
-		public boolean isShallow() {
-			return statistics.isShallow();
-		}
-
-		/** @return depth (in commits) the pack includes if shallow. */
-		public int getDepth() {
-			return statistics.getDepth();
-		}
-
-		/**
-		 * @return time in milliseconds spent enumerating the objects that need
-		 *         to be included in the output. This time includes any restarts
-		 *         that occur when a cached pack is selected for reuse.
-		 */
-		public long getTimeCounting() {
-			return statistics.getTimeCounting();
-		}
-
-		/**
-		 * @return time in milliseconds spent matching existing representations
-		 *         against objects that will be transmitted, or that the client
-		 *         can be assumed to already have.
-		 */
-		public long getTimeSearchingForReuse() {
-			return statistics.getTimeSearchingForReuse();
-		}
-
-		/**
-		 * @return time in milliseconds spent finding the sizes of all objects
-		 *         that will enter the delta compression search window. The
-		 *         sizes need to be known to better match similar objects
-		 *         together and improve delta compression ratios.
-		 */
-		public long getTimeSearchingForSizes() {
-			return statistics.getTimeSearchingForSizes();
-		}
-
-		/**
-		 * @return time in milliseconds spent on delta compression. This is
-		 *         observed wall-clock time and does not accurately track CPU
-		 *         time used when multiple threads were used to perform the
-		 *         delta compression.
-		 */
-		public long getTimeCompressing() {
-			return statistics.getTimeCompressing();
-		}
-
-		/**
-		 * @return time in milliseconds spent writing the pack output, from
-		 *         start of header until end of trailer. The transfer speed can
-		 *         be approximated by dividing {@link #getTotalBytes()} by this
-		 *         value.
-		 */
-		public long getTimeWriting() {
-			return statistics.getTimeWriting();
-		}
-
-		/** @return total time spent processing this pack. */
-		public long getTimeTotal() {
-			return statistics.getTimeTotal();
-		}
-
-		/**
-		 * @return get the average output speed in terms of bytes-per-second.
-		 *         {@code getTotalBytes() / (getTimeWriting() / 1000.0)}.
-		 */
-		public double getTransferRate() {
-			return statistics.getTransferRate();
-		}
-
-		/** @return formatted message string for display to clients. */
-		public String getMessage() {
-			return statistics.getMessage();
-		}
 	}
 
 	private class MutableState {

@@ -55,6 +55,7 @@ import org.eclipse.jgit.attributes.FilterCommandRegistry;
 import org.eclipse.jgit.lfs.errors.CorruptMediaFile;
 import org.eclipse.jgit.lfs.internal.AtomicObjectOutputStream;
 import org.eclipse.jgit.lfs.lib.AnyLongObjectId;
+import org.eclipse.jgit.lfs.lib.Constants;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.util.FileUtils;
 
@@ -66,7 +67,7 @@ import org.eclipse.jgit.util.FileUtils;
  * content with content of a so-called LFS pointer file. The pointer file
  * content will then be added to the git repository. Additionally this filter
  * writes the original content in a so-called 'media file' to '.git/lfs/objects/
- * <first-two-characters-of-contentid>/<rest-of-contentid>'
+ * &lt;first-two-characters-of-contentid&gt;/&lt;rest-of-contentid&gt;'
  *
  * @see <a href="https://github.com/github/git-lfs/blob/master/docs/spec.md">Git
  *      LFS Specification</a>
@@ -74,7 +75,8 @@ import org.eclipse.jgit.util.FileUtils;
  */
 public class CleanFilter extends FilterCommand {
 	/**
-	 * The factory is responsible for creating instances of {@link CleanFilter}
+	 * The factory is responsible for creating instances of
+	 * {@link org.eclipse.jgit.lfs.CleanFilter}
 	 */
 	public final static FilterCommandFactory FACTORY = new FilterCommandFactory() {
 
@@ -89,11 +91,12 @@ public class CleanFilter extends FilterCommand {
 	 * Registers this filter by calling
 	 * {@link FilterCommandRegistry#register(String, FilterCommandFactory)}
 	 */
-	public final static void register() {
-		FilterCommandRegistry.register(
-				org.eclipse.jgit.lib.Constants.BUILTIN_FILTER_PREFIX
-						+ "lfs/clean", //$NON-NLS-1$
-				FACTORY);
+	static void register() {
+		FilterCommandRegistry
+				.register(org.eclipse.jgit.lib.Constants.BUILTIN_FILTER_PREFIX
+						+ Constants.ATTR_FILTER_DRIVER_PREFIX
+						+ org.eclipse.jgit.lib.Constants.ATTR_FILTER_TYPE_CLEAN,
+						FACTORY);
 	}
 
 	// Used to compute the hash for the original content
@@ -109,27 +112,30 @@ public class CleanFilter extends FilterCommand {
 	private Path tmpFile;
 
 	/**
+	 * Constructor for CleanFilter.
+	 *
 	 * @param db
 	 *            the repository
 	 * @param in
-	 *            an {@link InputStream} providing the original content
+	 *            an {@link java.io.InputStream} providing the original content
 	 * @param out
-	 *            the {@link OutputStream} into which the content of the pointer
-	 *            file should be written. That's the content which will be added
-	 *            to the git repository
-	 * @throws IOException
+	 *            the {@link java.io.OutputStream} into which the content of the
+	 *            pointer file should be written. That's the content which will
+	 *            be added to the git repository
+	 * @throws java.io.IOException
 	 *             when the creation of the temporary file fails or when no
-	 *             {@link OutputStream} for this file can be created
+	 *             {@link java.io.OutputStream} for this file can be created
 	 */
 	public CleanFilter(Repository db, InputStream in, OutputStream out)
 			throws IOException {
 		super(in, out);
-		lfsUtil = new Lfs(db.getDirectory().toPath().resolve("lfs")); //$NON-NLS-1$
+		lfsUtil = new Lfs(db);
 		Files.createDirectories(lfsUtil.getLfsTmpDir());
 		tmpFile = lfsUtil.createTmpFile();
 		this.aOut = new AtomicObjectOutputStream(tmpFile.toAbsolutePath());
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public int run() throws IOException {
 		try {
@@ -161,6 +167,7 @@ public class CleanFilter extends FilterCommand {
 				}
 				LfsPointer lfsPointer = new LfsPointer(loid, size);
 				lfsPointer.encode(out);
+				in.close();
 				out.close();
 				return -1;
 			}
@@ -168,6 +175,7 @@ public class CleanFilter extends FilterCommand {
 			if (aOut != null) {
 				aOut.abort();
 			}
+			in.close();
 			out.close();
 			throw e;
 		}

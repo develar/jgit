@@ -55,10 +55,11 @@ import org.eclipse.jgit.util.RawParseUtils;
 /**
  * Includes tree entries only if they match one or more configured paths.
  * <p>
- * Operates like {@link PathFilter} but causes the walk to abort as soon as the
- * tree can no longer match any of the paths within the group. This may bypass
- * the boolean logic of a higher level AND or OR group, but does improve
- * performance for the common case of examining one or more modified paths.
+ * Operates like {@link org.eclipse.jgit.treewalk.filter.PathFilter} but causes
+ * the walk to abort as soon as the tree can no longer match any of the paths
+ * within the group. This may bypass the boolean logic of a higher level AND or
+ * OR group, but does improve performance for the common case of examining one
+ * or more modified paths.
  * <p>
  * This filter is effectively an OR group around paths, with the early abort
  * feature described above.
@@ -81,13 +82,13 @@ public class PathFilterGroup {
 	 *            the paths to test against. Must have at least one entry.
 	 * @return a new filter for the list of paths supplied.
 	 */
-	public static TreeFilter createFromStrings(final Collection<String> paths) {
+	public static TreeFilter createFromStrings(Collection<String> paths) {
 		if (paths.isEmpty())
 			throw new IllegalArgumentException(
 					JGitText.get().atLeastOnePathIsRequired);
 		final PathFilter[] p = new PathFilter[paths.size()];
 		int i = 0;
-		for (final String s : paths)
+		for (String s : paths)
 			p[i++] = PathFilter.create(s);
 		return create(p);
 	}
@@ -108,7 +109,7 @@ public class PathFilterGroup {
 	 *            the paths to test against. Must have at least one entry.
 	 * @return a new filter for the paths supplied.
 	 */
-	public static TreeFilter createFromStrings(final String... paths) {
+	public static TreeFilter createFromStrings(String... paths) {
 		if (paths.length == 0)
 			throw new IllegalArgumentException(
 					JGitText.get().atLeastOnePathIsRequired);
@@ -130,7 +131,7 @@ public class PathFilterGroup {
 	 *            the paths to test against. Must have at least one entry.
 	 * @return a new filter for the list of paths supplied.
 	 */
-	public static TreeFilter create(final Collection<PathFilter> paths) {
+	public static TreeFilter create(Collection<PathFilter> paths) {
 		if (paths.isEmpty())
 			throw new IllegalArgumentException(
 					JGitText.get().atLeastOnePathIsRequired);
@@ -139,7 +140,7 @@ public class PathFilterGroup {
 		return create(p);
 	}
 
-	private static TreeFilter create(final PathFilter[] p) {
+	private static TreeFilter create(PathFilter[] p) {
 		if (p.length == 1)
 			return new Single(p[0]);
 		return new Group(p);
@@ -150,13 +151,13 @@ public class PathFilterGroup {
 
 		private final byte[] raw;
 
-		private Single(final PathFilter p) {
+		private Single(PathFilter p) {
 			path = p;
 			raw = path.pathRaw;
 		}
 
 		@Override
-		public boolean include(final TreeWalk walker) {
+		public boolean include(TreeWalk walker) {
 			final int cmp = walker.isPathPrefix(raw, raw.length);
 			if (cmp > 0)
 				throw StopWalkException.INSTANCE;
@@ -187,7 +188,7 @@ public class PathFilterGroup {
 
 		private byte[] max;
 
-		private Group(final PathFilter[] pathFilters) {
+		private Group(PathFilter[] pathFilters) {
 			fullpaths = new ByteArraySet(pathFilters.length);
 			prefixes = new ByteArraySet(pathFilters.length / 5);
 			// 5 is an empirically derived ratio of #paths/#prefixes from:
@@ -238,7 +239,7 @@ public class PathFilterGroup {
 		}
 
 		@Override
-		public boolean include(final TreeWalk walker) {
+		public boolean include(TreeWalk walker) {
 
 			byte[] rp = walker.getRawPath();
 			Hasher hasher = new Hasher(rp, walker.getPathLength());

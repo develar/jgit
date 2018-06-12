@@ -50,6 +50,7 @@ import java.io.PrintStream;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -58,8 +59,11 @@ import java.util.Set;
 
 import org.eclipse.jgit.api.errors.JGitInternalException;
 import org.eclipse.jgit.errors.CommandFailedException;
+import org.eclipse.jgit.errors.ConfigInvalidException;
+import org.eclipse.jgit.lib.ConfigConstants;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.storage.file.FileBasedConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -74,7 +78,17 @@ public class FS_POSIX extends FS {
 	private static final int DEFAULT_UMASK = 0022;
 	private volatile int umask = -1;
 
-	/** Default constructor. */
+	private volatile boolean supportsUnixNLink = true;
+
+	private volatile AtomicFileCreation supportsAtomicCreateNewFile = AtomicFileCreation.UNDEFINED;
+
+	private enum AtomicFileCreation {
+		SUPPORTED, NOT_SUPPORTED, UNDEFINED
+	}
+
+	/**
+	 * Default constructor.
+	 */
 	protected FS_POSIX() {
 	}
 
@@ -91,6 +105,38 @@ public class FS_POSIX extends FS {
 		}
 	}
 
+	private void determineAtomicFileCreationSupport() {
+		// @TODO: enhance SystemReader to support this without copying code
+		AtomicFileCreation ret = getAtomicFileCreationSupportOption(
+				SystemReader.getInstance().openUserConfig(null, this));
+		if (ret == AtomicFileCreation.UNDEFINED
+				&& StringUtils.isEmptyOrNull(SystemReader.getInstance()
+						.getenv(Constants.GIT_CONFIG_NOSYSTEM_KEY))) {
+			ret = getAtomicFileCreationSupportOption(
+					SystemReader.getInstance().openSystemConfig(null, this));
+		}
+		supportsAtomicCreateNewFile = ret;
+	}
+
+	private AtomicFileCreation getAtomicFileCreationSupportOption(
+			FileBasedConfig config) {
+		try {
+			config.load();
+			String value = config.getString(ConfigConstants.CONFIG_CORE_SECTION,
+					null,
+					ConfigConstants.CONFIG_KEY_SUPPORTSATOMICFILECREATION);
+			if (value == null) {
+				return AtomicFileCreation.UNDEFINED;
+			}
+			return StringUtils.toBoolean(value)
+					? AtomicFileCreation.SUPPORTED
+					: AtomicFileCreation.NOT_SUPPORTED;
+		} catch (IOException | ConfigInvalidException e) {
+			return AtomicFileCreation.SUPPORTED;
+		}
+	}
+
+	/** {@inheritDoc} */
 	@Override
 	public FS newInstance() {
 		return new FS_POSIX(this);
@@ -138,6 +184,7 @@ public class FS_POSIX extends FS {
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	protected File discoverGitExe() {
 		String path = SystemReader.getInstance().getenv("PATH"); //$NON-NLS-1$
@@ -168,30 +215,34 @@ public class FS_POSIX extends FS {
 		return gitExe;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean isCaseSensitive() {
 		return !SystemReader.getInstance().isMacOS();
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean supportsExecute() {
 		return true;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean canExecute(File f) {
 		return FileUtils.canExecute(f);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean setExecute(File f, boolean canExecute) {
 		if (!isFile(f))
 			return false;
 		if (!canExecute)
-			return f.setExecutable(false);
+			return f.setExecutable(false, false);
 
 		try {
-			Path path = f.toPath();
+			Path path = FileUtils.toPath(f);
 			Set<PosixFilePermission> pset = Files.getPosixFilePermissions(path);
 
 			// owner (user) is always allowed to execute.
@@ -223,6 +274,7 @@ public class FS_POSIX extends FS {
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public ProcessBuilder runInShell(String cmd, String[] args) {
 		List<String> argv = new ArrayList<>(4 + args.length);
@@ -236,9 +288,7 @@ public class FS_POSIX extends FS {
 		return proc;
 	}
 
-	/**
-	 * @since 4.0
-	 */
+	/** {@inheritDoc} */
 	@Override
 	public ProcessResult runHookIfPresent(Repository repository, String hookName,
 			String[] args, PrintStream outRedirect, PrintStream errRedirect,
@@ -247,48 +297,43 @@ public class FS_POSIX extends FS {
 				errRedirect, stdinArgs);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean retryFailedLockFileCommit() {
 		return false;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean supportsSymlinks() {
 		return true;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void setHidden(File path, boolean hidden) throws IOException {
 		// no action on POSIX
 	}
 
-	/**
-	 * @since 3.3
-	 */
+	/** {@inheritDoc} */
 	@Override
 	public Attributes getAttributes(File path) {
 		return FileUtils.getFileAttributesPosix(this, path);
 	}
 
-	/**
-	 * @since 3.3
-	 */
+	/** {@inheritDoc} */
 	@Override
 	public File normalize(File file) {
 		return FileUtils.normalize(file);
 	}
 
-	/**
-	 * @since 3.3
-	 */
+	/** {@inheritDoc} */
 	@Override
 	public String normalize(String name) {
 		return FileUtils.normalize(name);
 	}
 
-	/**
-	 * @since 3.7
-	 */
+	/** {@inheritDoc} */
 	@Override
 	public File findHook(Repository repository, String hookName) {
 		final File gitdir = repository.getDirectory();
@@ -300,5 +345,60 @@ public class FS_POSIX extends FS {
 		if (Files.isExecutable(hookPath))
 			return hookPath.toFile();
 		return null;
+	}
+
+	/** {@inheritDoc} */
+	@Override
+	public boolean supportsAtomicCreateNewFile() {
+		if (supportsAtomicCreateNewFile == AtomicFileCreation.UNDEFINED) {
+			determineAtomicFileCreationSupport();
+		}
+		return supportsAtomicCreateNewFile == AtomicFileCreation.SUPPORTED;
+	}
+
+	@Override
+	@SuppressWarnings("boxing")
+	/**
+	 * {@inheritDoc}
+	 * <p>
+	 * An implementation of the File#createNewFile() semantics which works also
+	 * on NFS. If the config option
+	 * {@code core.supportsAtomicCreateNewFile = true} (which is the default)
+	 * then simply File#createNewFile() is called.
+	 *
+	 * But if {@code core.supportsAtomicCreateNewFile = false} then after
+	 * successful creation of the lock file a hard link to that lock file is
+	 * created and the attribute nlink of the lock file is checked to be 2. If
+	 * multiple clients manage to create the same lock file nlink would be
+	 * greater than 2 showing the error.
+	 *
+	 * @see https://www.time-travellers.org/shane/papers/NFS_considered_harmful.html
+	 * @since 4.5
+	 */
+	public boolean createNewFile(File lock) throws IOException {
+		if (!lock.createNewFile()) {
+			return false;
+		}
+		if (supportsAtomicCreateNewFile() || !supportsUnixNLink) {
+			return true;
+		}
+		Path lockPath = lock.toPath();
+		Path link = Files.createLink(Paths.get(lock.getAbsolutePath() + ".lnk"), //$NON-NLS-1$
+				lockPath);
+		try {
+			Integer nlink = (Integer) (Files.getAttribute(lockPath,
+					"unix:nlink")); //$NON-NLS-1$
+			if (nlink != 2) {
+				LOG.warn("nlink of link to lock file {0} was not 2 but {1}", //$NON-NLS-1$
+						lock.getPath(), nlink);
+				return false;
+			}
+			return true;
+		} catch (UnsupportedOperationException | IllegalArgumentException e) {
+			supportsUnixNLink = false;
+			return true;
+		} finally {
+			Files.delete(link);
+		}
 	}
 }

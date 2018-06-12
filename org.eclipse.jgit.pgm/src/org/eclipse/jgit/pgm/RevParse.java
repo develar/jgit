@@ -45,11 +45,8 @@
 
 package org.eclipse.jgit.pgm;
 
-import static org.eclipse.jgit.lib.RefDatabase.ALL;
-
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
@@ -68,13 +65,13 @@ class RevParse extends TextBuiltin {
 	boolean verify;
 
 	@Argument(index = 0, metaVar = "metaVar_commitish")
-	private final List<ObjectId> commits = new ArrayList<>();
+	private List<ObjectId> commits = new ArrayList<>();
 
+	/** {@inheritDoc} */
 	@Override
 	protected void run() throws Exception {
 		if (all) {
-			Map<String, Ref> allRefs = db.getRefDatabase().getRefs(ALL);
-			for (final Ref r : allRefs.values()) {
+			for (Ref r : db.getRefDatabase().getRefs()) {
 				ObjectId objectId = r.getObjectId();
 				// getRefs skips dangling symrefs, so objectId should never be
 				// null.
@@ -86,10 +83,11 @@ class RevParse extends TextBuiltin {
 		} else {
 			if (verify && commits.size() > 1) {
 				final CmdLineParser clp = new CmdLineParser(this);
-				throw new CmdLineException(clp, CLIText.get().needSingleRevision);
+				throw new CmdLineException(clp,
+						CLIText.format(CLIText.get().needSingleRevision));
 			}
 
-			for (final ObjectId o : commits) {
+			for (ObjectId o : commits) {
 				outw.println(o.name());
 			}
 		}

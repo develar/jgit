@@ -42,13 +42,14 @@
  */
 package org.eclipse.jgit.ignore;
 
+import static org.eclipse.jgit.lib.Constants.CHARSET;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
@@ -56,6 +57,7 @@ import java.util.List;
 import java.util.Random;
 
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.util.FileUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -152,13 +154,11 @@ public class CGitVsJGitRandomIgnorePatternTest {
 
 		private String pattern;
 
-		public CGitIgnoreRule(File gitDir, String pattern)
-				throws UnsupportedEncodingException, IOException {
+		public CGitIgnoreRule(File gitDir, String pattern) throws IOException {
 			this.gitDir = gitDir;
 			this.pattern = pattern;
-			Files.write(new File(gitDir, ".gitignore").toPath(),
-					(pattern + "\n").getBytes("UTF-8"),
-					StandardOpenOption.CREATE,
+			Files.write(FileUtils.toPath(new File(gitDir, ".gitignore")),
+					(pattern + "\n").getBytes(CHARSET), StandardOpenOption.CREATE,
 					StandardOpenOption.TRUNCATE_EXISTING,
 					StandardOpenOption.WRITE);
 		}
@@ -187,10 +187,10 @@ public class CGitVsJGitRandomIgnorePatternTest {
 					"--no-index", "-v", "-n", "--stdin" };
 			Process proc = Runtime.getRuntime().exec(command, new String[0],
 					gitDir);
-			OutputStream out = proc.getOutputStream();
-			out.write((path + "\n").getBytes("UTF-8"));
-			out.flush();
-			out.close();
+			try (OutputStream out = proc.getOutputStream()) {
+				out.write((path + "\n").getBytes(CHARSET));
+				out.flush();
+			}
 			return proc;
 		}
 

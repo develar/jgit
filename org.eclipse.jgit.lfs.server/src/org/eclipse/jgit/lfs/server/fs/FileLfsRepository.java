@@ -67,15 +67,17 @@ import org.eclipse.jgit.lfs.server.Response.Action;
  */
 public class FileLfsRepository implements LargeFileRepository {
 
-	private final String url;
+	private String url;
 	private final Path dir;
 
 	/**
+	 * <p>Constructor for FileLfsRepository.</p>
+	 *
 	 * @param url
 	 *            external URL of this repository
 	 * @param dir
 	 *            storage directory
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
 	public FileLfsRepository(String url, Path dir) throws IOException {
 		this.url = url;
@@ -83,21 +85,25 @@ public class FileLfsRepository implements LargeFileRepository {
 		Files.createDirectories(dir);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public Response.Action getDownloadAction(AnyLongObjectId id) {
 		return getAction(id);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public Action getUploadAction(AnyLongObjectId id, long size) {
 		return getAction(id);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public @Nullable Action getVerifyAction(AnyLongObjectId id) {
 		return null;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public long getSize(AnyLongObjectId id) throws IOException {
 		Path p = getPath(id);
@@ -164,7 +170,7 @@ public class FileLfsRepository implements LargeFileRepository {
 	private static final char[] hexchar = { '0', '1', '2', '3', '4', '5', '6',
 			'7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
 
-	private static void formatHexChar(final char[] dst, final int p, int b) {
+	private static void formatHexChar(char[] dst, int p, int b) {
 		int o = p + 1;
 		while (o >= p && b != 0) {
 			dst[o--] = hexchar[b & 0xf];
@@ -172,5 +178,22 @@ public class FileLfsRepository implements LargeFileRepository {
 		}
 		while (o >= p)
 			dst[o--] = '0';
+	}
+
+	/**
+	 * @return the url of the content server
+	 * @since 4.11
+	 */
+	public String getUrl() {
+		return url;
+	}
+
+	/**
+	 * @param url
+	 *            the url of the content server
+	 * @since 4.11
+	 */
+	public void setUrl(String url) {
+		this.url = url;
 	}
 }

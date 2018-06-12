@@ -54,9 +54,9 @@ import org.eclipse.jgit.util.FS;
  * communicating with the end-user as well as reading their personal SSH
  * configuration settings, such as known hosts and private keys.
  * <p>
- * A {@link RemoteSession} must be returned to the factory that created it.
- * Callers are encouraged to retain the SshSessionFactory for the duration of
- * the period they are using the Session.
+ * A {@link org.eclipse.jgit.transport.RemoteSession} must be returned to the
+ * factory that created it. Callers are encouraged to retain the
+ * SshSessionFactory for the duration of the period they are using the Session.
  */
 public abstract class SshSessionFactory {
 	private static SshSessionFactory INSTANCE = new DefaultSshSessionFactory();
@@ -66,7 +66,7 @@ public abstract class SshSessionFactory {
 	 * <p>
 	 * A factory is always available. By default the factory will read from the
 	 * user's <code>$HOME/.ssh</code> and assume OpenSSH compatibility.
-	 * 
+	 *
 	 * @return factory the current factory for this JVM.
 	 */
 	public static SshSessionFactory getInstance() {
@@ -80,7 +80,7 @@ public abstract class SshSessionFactory {
 	 *            factory for future sessions to be created through. If null the
 	 *            default factory will be restored.s
 	 */
-	public static void setInstance(final SshSessionFactory newFactory) {
+	public static void setInstance(SshSessionFactory newFactory) {
 		if (newFactory != null)
 			INSTANCE = newFactory;
 		else
@@ -106,7 +106,7 @@ public abstract class SshSessionFactory {
 	 * @param tms
 	 *            Timeout value, in milliseconds.
 	 * @return a session that can contact the remote host.
-	 * @throws TransportException
+	 * @throws org.eclipse.jgit.errors.TransportException
 	 *             the session could not be created.
 	 */
 	public abstract RemoteSession getSession(URIish uri,
@@ -121,7 +121,7 @@ public abstract class SshSessionFactory {
 	 *            {@link #getSession(URIish, CredentialsProvider, FS, int)}
 	 *            method.
 	 */
-	public void releaseSession(final RemoteSession session) {
+	public void releaseSession(RemoteSession session) {
 		session.disconnect();
 	}
 }

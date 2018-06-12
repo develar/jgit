@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010, Google Inc.
+ * Copyright (C) 2010, 2017 Google Inc.
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -43,6 +43,7 @@
 
 package org.eclipse.jgit.http.test;
 
+import static org.eclipse.jgit.lib.Constants.CHARSET;
 import static org.eclipse.jgit.util.HttpSupport.HDR_CONTENT_ENCODING;
 import static org.eclipse.jgit.util.HttpSupport.HDR_CONTENT_LENGTH;
 import static org.eclipse.jgit.util.HttpSupport.HDR_CONTENT_TYPE;
@@ -56,18 +57,21 @@ import static org.junit.Assert.fail;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
+import java.text.MessageFormat;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.servlet.DispatcherType;
 import javax.servlet.Filter;
 import javax.servlet.FilterChain;
 import javax.servlet.FilterConfig;
+import javax.servlet.RequestDispatcher;
 import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
@@ -78,8 +82,8 @@ import org.eclipse.jetty.servlet.FilterHolder;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jgit.errors.RemoteRepositoryException;
-import org.eclipse.jgit.errors.RepositoryNotFoundException;
 import org.eclipse.jgit.errors.TransportException;
+import org.eclipse.jgit.errors.UnsupportedCredentialItem;
 import org.eclipse.jgit.http.server.GitServlet;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.internal.storage.dfs.DfsRepositoryDescription;
@@ -101,18 +105,22 @@ import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.revwalk.RevBlob;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.storage.file.FileBasedConfig;
+import org.eclipse.jgit.transport.CredentialItem;
+import org.eclipse.jgit.transport.CredentialsProvider;
 import org.eclipse.jgit.transport.FetchConnection;
 import org.eclipse.jgit.transport.HttpTransport;
 import org.eclipse.jgit.transport.RemoteRefUpdate;
 import org.eclipse.jgit.transport.Transport;
 import org.eclipse.jgit.transport.TransportHttp;
 import org.eclipse.jgit.transport.URIish;
+import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.eclipse.jgit.transport.http.HttpConnectionFactory;
 import org.eclipse.jgit.transport.http.JDKHttpConnectionFactory;
 import org.eclipse.jgit.transport.http.apache.HttpClientConnectionFactory;
-import org.eclipse.jgit.transport.resolver.RepositoryResolver;
-import org.eclipse.jgit.transport.resolver.ServiceNotEnabledException;
+import org.eclipse.jgit.util.FS;
 import org.eclipse.jgit.util.HttpSupport;
+import org.eclipse.jgit.util.SystemReader;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -125,11 +133,18 @@ public class SmartClientSmartServerTest extends HttpTestCase {
 
 	private Repository remoteRepository;
 
+	private CredentialsProvider testCredentials = new UsernamePasswordCredentialsProvider(
+			AppServer.username, AppServer.password);
+
 	private URIish remoteURI;
 
 	private URIish brokenURI;
 
 	private URIish redirectURI;
+
+	private URIish authURI;
+
+	private URIish authOnPostURI;
 
 	private RevBlob A_txt;
 
@@ -165,7 +180,11 @@ public class SmartClientSmartServerTest extends HttpTestCase {
 
 		ServletContextHandler broken = addBrokenContext(gs, src, srcName);
 
-		ServletContextHandler redirect = addRedirectContext(gs, src, srcName);
+		ServletContextHandler redirect = addRedirectContext(gs);
+
+		ServletContextHandler auth = addAuthContext(gs, "auth");
+
+		ServletContextHandler authOnPost = addAuthContext(gs, "pauth", "POST");
 
 		server.setUp();
 
@@ -173,6 +192,8 @@ public class SmartClientSmartServerTest extends HttpTestCase {
 		remoteURI = toURIish(app, srcName);
 		brokenURI = toURIish(broken, srcName);
 		redirectURI = toURIish(redirect, srcName);
+		authURI = toURIish(auth, srcName);
+		authOnPostURI = toURIish(authOnPost, srcName);
 
 		A_txt = src.blob("A");
 		A = src.commit().add("A_txt", A_txt).create();
@@ -184,7 +205,52 @@ public class SmartClientSmartServerTest extends HttpTestCase {
 
 	private ServletContextHandler addNormalContext(GitServlet gs, TestRepository<Repository> src, String srcName) {
 		ServletContextHandler app = server.addContext("/git");
-		gs.setRepositoryResolver(new TestRepoResolver(src, srcName));
+		app.addFilter(new FilterHolder(new Filter() {
+
+			@Override
+			public void init(FilterConfig filterConfig)
+					throws ServletException {
+				// empty
+			}
+
+			// Does an internal forward for GET requests containing "/post/",
+			// and issues a 301 redirect on POST requests for such URLs. Used
+			// in the POST redirect tests.
+			@Override
+			public void doFilter(ServletRequest request,
+					ServletResponse response, FilterChain chain)
+					throws IOException, ServletException {
+				final HttpServletResponse httpServletResponse = (HttpServletResponse) response;
+				final HttpServletRequest httpServletRequest = (HttpServletRequest) request;
+				final StringBuffer fullUrl = httpServletRequest.getRequestURL();
+				if (httpServletRequest.getQueryString() != null) {
+					fullUrl.append("?")
+							.append(httpServletRequest.getQueryString());
+				}
+				String urlString = fullUrl.toString();
+				if ("POST".equalsIgnoreCase(httpServletRequest.getMethod())) {
+					httpServletResponse.setStatus(
+							HttpServletResponse.SC_MOVED_PERMANENTLY);
+					httpServletResponse.setHeader(HttpSupport.HDR_LOCATION,
+							urlString.replace("/post/", "/"));
+				} else {
+					String path = httpServletRequest.getPathInfo();
+					path = path.replace("/post/", "/");
+					if (httpServletRequest.getQueryString() != null) {
+						path += '?' + httpServletRequest.getQueryString();
+					}
+					RequestDispatcher dispatcher = httpServletRequest
+							.getRequestDispatcher(path);
+					dispatcher.forward(httpServletRequest, httpServletResponse);
+				}
+			}
+
+			@Override
+			public void destroy() {
+				// empty
+			}
+		}), "/post/*", EnumSet.of(DispatcherType.REQUEST));
+		gs.setRepositoryResolver(new TestRepositoryResolver(src, srcName));
 		app.addServlet(new ServletHolder(gs), "/*");
 		return app;
 	}
@@ -200,10 +266,10 @@ public class SmartClientSmartServerTest extends HttpTestCase {
 					throws IOException, ServletException {
 				final HttpServletResponse r = (HttpServletResponse) response;
 				r.setContentType("text/plain");
-				r.setCharacterEncoding("UTF-8");
-				PrintWriter w = r.getWriter();
-				w.print("OK");
-				w.close();
+				r.setCharacterEncoding(Constants.CHARACTER_ENCODING);
+				try (PrintWriter w = r.getWriter()) {
+					w.print("OK");
+				}
 			}
 
 			@Override
@@ -222,11 +288,27 @@ public class SmartClientSmartServerTest extends HttpTestCase {
 		return broken;
 	}
 
-	@SuppressWarnings("unused")
-	private ServletContextHandler addRedirectContext(GitServlet gs,
-			TestRepository<Repository> src, String srcName) {
+	private ServletContextHandler addAuthContext(GitServlet gs,
+			String contextPath, String... methods) {
+		ServletContextHandler auth = server.addContext('/' + contextPath);
+		auth.addServlet(new ServletHolder(gs), "/*");
+		return server.authBasic(auth, methods);
+	}
+
+	private ServletContextHandler addRedirectContext(GitServlet gs) {
 		ServletContextHandler redirect = server.addContext("/redirect");
 		redirect.addFilter(new FilterHolder(new Filter() {
+
+			// Enables tests for different codes, and for multiple redirects.
+			// First parameter is the number of redirects, second one is the
+			// redirect status code that should be used
+			private Pattern responsePattern = Pattern
+					.compile("/response/(\\d+)/(30[1237])/");
+
+			// Enables tests to specify the context that the request should be
+			// redirected to in the end. If not present, redirects got to the
+			// normal /git context.
+			private Pattern targetPattern = Pattern.compile("/target(/\\w+)/");
 
 			@Override
 			public void init(FilterConfig filterConfig)
@@ -245,10 +327,50 @@ public class SmartClientSmartServerTest extends HttpTestCase {
 					fullUrl.append("?")
 							.append(httpServletRequest.getQueryString());
 				}
-				httpServletResponse
-						.setStatus(HttpServletResponse.SC_MOVED_PERMANENTLY);
+				String urlString = fullUrl.toString();
+				if (urlString.contains("/loop/")) {
+					urlString = urlString.replace("/loop/", "/loop/x/");
+					if (urlString.contains("/loop/x/x/x/x/x/x/x/x/")) {
+						// Go back to initial.
+						urlString = urlString.replace("/loop/x/x/x/x/x/x/x/x/",
+								"/loop/");
+					}
+					httpServletResponse.setStatus(
+							HttpServletResponse.SC_MOVED_TEMPORARILY);
+					httpServletResponse.setHeader(HttpSupport.HDR_LOCATION,
+							urlString);
+					return;
+				}
+				int responseCode = HttpServletResponse.SC_MOVED_PERMANENTLY;
+				int nofRedirects = 0;
+				Matcher matcher = responsePattern.matcher(urlString);
+				if (matcher.find()) {
+					nofRedirects = Integer
+							.parseUnsignedInt(matcher.group(1));
+					responseCode = Integer.parseUnsignedInt(matcher.group(2));
+					if (--nofRedirects <= 0) {
+						urlString = urlString.substring(0, matcher.start())
+								+ '/' + urlString.substring(matcher.end());
+					} else {
+						urlString = urlString.substring(0, matcher.start())
+								+ "/response/" + nofRedirects + "/"
+								+ responseCode + '/'
+								+ urlString.substring(matcher.end());
+					}
+				}
+				httpServletResponse.setStatus(responseCode);
+				if (nofRedirects <= 0) {
+					String targetContext = "/git";
+					matcher = targetPattern.matcher(urlString);
+					if (matcher.find()) {
+						urlString = urlString.substring(0, matcher.start())
+								+ '/' + urlString.substring(matcher.end());
+						targetContext = matcher.group(1);
+					}
+					urlString = urlString.replace("/redirect", targetContext);
+				}
 				httpServletResponse.setHeader(HttpSupport.HDR_LOCATION,
-						fullUrl.toString().replace("/redirect", "/git"));
+						urlString);
 			}
 
 			@Override
@@ -275,11 +397,8 @@ public class SmartClientSmartServerTest extends HttpTestCase {
 			assertTrue("isa TransportHttp", t instanceof TransportHttp);
 			assertTrue("isa HttpTransport", t instanceof HttpTransport);
 
-			FetchConnection c = t.openFetch();
-			try {
+			try (FetchConnection c = t.openFetch()) {
 				map = c.getRefsMap();
-			} finally {
-				c.close();
 			}
 		}
 
@@ -373,12 +492,331 @@ public class SmartClientSmartServerTest extends HttpTestCase {
 				.getResponseHeader(HDR_CONTENT_TYPE));
 	}
 
+	private void initialClone_Redirect(int nofRedirects, int code)
+			throws Exception {
+		Repository dst = createBareRepository();
+		assertFalse(dst.hasObject(A_txt));
+
+		URIish cloneFrom = redirectURI;
+		if (code != 301 || nofRedirects > 1) {
+			cloneFrom = extendPath(cloneFrom,
+					"/response/" + nofRedirects + "/" + code);
+		}
+		try (Transport t = Transport.open(dst, cloneFrom)) {
+			t.fetch(NullProgressMonitor.INSTANCE, mirror(master));
+		}
+
+		assertTrue(dst.hasObject(A_txt));
+		assertEquals(B, dst.exactRef(master).getObjectId());
+		fsck(dst, B);
+
+		List<AccessEvent> requests = getRequests();
+		assertEquals(2 + nofRedirects, requests.size());
+
+		int n = 0;
+		while (n < nofRedirects) {
+			AccessEvent redirect = requests.get(n++);
+			assertEquals(code, redirect.getStatus());
+		}
+
+		AccessEvent info = requests.get(n++);
+		assertEquals("GET", info.getMethod());
+		assertEquals(join(remoteURI, "info/refs"), info.getPath());
+		assertEquals(1, info.getParameters().size());
+		assertEquals("git-upload-pack", info.getParameter("service"));
+		assertEquals(200, info.getStatus());
+		assertEquals("application/x-git-upload-pack-advertisement",
+				info.getResponseHeader(HDR_CONTENT_TYPE));
+		assertEquals("gzip", info.getResponseHeader(HDR_CONTENT_ENCODING));
+
+		AccessEvent service = requests.get(n++);
+		assertEquals("POST", service.getMethod());
+		assertEquals(join(remoteURI, "git-upload-pack"), service.getPath());
+		assertEquals(0, service.getParameters().size());
+		assertNotNull("has content-length",
+				service.getRequestHeader(HDR_CONTENT_LENGTH));
+		assertNull("not chunked",
+				service.getRequestHeader(HDR_TRANSFER_ENCODING));
+
+		assertEquals(200, service.getStatus());
+		assertEquals("application/x-git-upload-pack-result",
+				service.getResponseHeader(HDR_CONTENT_TYPE));
+	}
+
 	@Test
-	public void testInitialClone_RedirectSmall() throws Exception {
+	public void testInitialClone_Redirect301Small() throws Exception {
+		initialClone_Redirect(1, 301);
+	}
+
+	@Test
+	public void testInitialClone_Redirect302Small() throws Exception {
+		initialClone_Redirect(1, 302);
+	}
+
+	@Test
+	public void testInitialClone_Redirect303Small() throws Exception {
+		initialClone_Redirect(1, 303);
+	}
+
+	@Test
+	public void testInitialClone_Redirect307Small() throws Exception {
+		initialClone_Redirect(1, 307);
+	}
+
+	@Test
+	public void testInitialClone_RedirectMultiple() throws Exception {
+		initialClone_Redirect(4, 302);
+	}
+
+	@Test
+	public void testInitialClone_RedirectMax() throws Exception {
+		FileBasedConfig userConfig = SystemReader.getInstance()
+				.openUserConfig(null, FS.DETECTED);
+		userConfig.setInt("http", null, "maxRedirects", 4);
+		userConfig.save();
+		initialClone_Redirect(4, 302);
+	}
+
+	@Test
+	public void testInitialClone_RedirectTooOften() throws Exception {
+		FileBasedConfig userConfig = SystemReader.getInstance()
+				.openUserConfig(null, FS.DETECTED);
+		userConfig.setInt("http", null, "maxRedirects", 3);
+		userConfig.save();
+		Repository dst = createBareRepository();
+		assertFalse(dst.hasObject(A_txt));
+
+		URIish cloneFrom = extendPath(redirectURI, "/response/4/302");
+		String remoteUri = cloneFrom.toString();
+		try (Transport t = Transport.open(dst, cloneFrom)) {
+			t.fetch(NullProgressMonitor.INSTANCE, mirror(master));
+			fail("Should have failed (too many redirects)");
+		} catch (TransportException e) {
+			String expectedMessageBegin = remoteUri.toString() + ": "
+					+ MessageFormat.format(JGitText.get().redirectLimitExceeded,
+							"3", remoteUri.replace("/4/", "/1/") + '/', "");
+			String message = e.getMessage();
+			if (message.length() > expectedMessageBegin.length()) {
+				message = message.substring(0, expectedMessageBegin.length());
+			}
+			assertEquals(expectedMessageBegin, message);
+		}
+	}
+
+	@Test
+	public void testInitialClone_RedirectLoop() throws Exception {
+		Repository dst = createBareRepository();
+		assertFalse(dst.hasObject(A_txt));
+
+		URIish cloneFrom = extendPath(redirectURI, "/loop");
+		try (Transport t = Transport.open(dst, cloneFrom)) {
+			t.fetch(NullProgressMonitor.INSTANCE, mirror(master));
+			fail("Should have failed (redirect loop)");
+		} catch (TransportException e) {
+			assertTrue(e.getMessage().contains("Redirected more than"));
+		}
+	}
+
+	@Test
+	public void testInitialClone_RedirectOnPostAllowed() throws Exception {
+		FileBasedConfig userConfig = SystemReader.getInstance()
+				.openUserConfig(null, FS.DETECTED);
+		userConfig.setString("http", null, "followRedirects", "true");
+		userConfig.save();
+		Repository dst = createBareRepository();
+		assertFalse(dst.hasObject(A_txt));
+
+		URIish cloneFrom = extendPath(remoteURI, "/post");
+		try (Transport t = Transport.open(dst, cloneFrom)) {
+			t.fetch(NullProgressMonitor.INSTANCE, mirror(master));
+		}
+
+		assertTrue(dst.hasObject(A_txt));
+		assertEquals(B, dst.exactRef(master).getObjectId());
+		fsck(dst, B);
+
+		List<AccessEvent> requests = getRequests();
+		assertEquals(3, requests.size());
+
+		AccessEvent info = requests.get(0);
+		assertEquals("GET", info.getMethod());
+		assertEquals(join(cloneFrom, "info/refs"), info.getPath());
+		assertEquals(1, info.getParameters().size());
+		assertEquals("git-upload-pack", info.getParameter("service"));
+		assertEquals(200, info.getStatus());
+		assertEquals("application/x-git-upload-pack-advertisement",
+				info.getResponseHeader(HDR_CONTENT_TYPE));
+		assertEquals("gzip", info.getResponseHeader(HDR_CONTENT_ENCODING));
+
+		AccessEvent redirect = requests.get(1);
+		assertEquals("POST", redirect.getMethod());
+		assertEquals(301, redirect.getStatus());
+
+		AccessEvent service = requests.get(2);
+		assertEquals("POST", service.getMethod());
+		assertEquals(join(remoteURI, "git-upload-pack"), service.getPath());
+		assertEquals(0, service.getParameters().size());
+		assertNotNull("has content-length",
+				service.getRequestHeader(HDR_CONTENT_LENGTH));
+		assertNull("not chunked",
+				service.getRequestHeader(HDR_TRANSFER_ENCODING));
+
+		assertEquals(200, service.getStatus());
+		assertEquals("application/x-git-upload-pack-result",
+				service.getResponseHeader(HDR_CONTENT_TYPE));
+	}
+
+	@Test
+	public void testInitialClone_RedirectOnPostForbidden() throws Exception {
+		Repository dst = createBareRepository();
+		assertFalse(dst.hasObject(A_txt));
+
+		URIish cloneFrom = extendPath(remoteURI, "/post");
+		try (Transport t = Transport.open(dst, cloneFrom)) {
+			t.fetch(NullProgressMonitor.INSTANCE, mirror(master));
+			fail("Should have failed (redirect on POST)");
+		} catch (TransportException e) {
+			assertTrue(e.getMessage().contains("301"));
+		}
+	}
+
+	@Test
+	public void testInitialClone_RedirectForbidden() throws Exception {
+		FileBasedConfig userConfig = SystemReader.getInstance()
+				.openUserConfig(null, FS.DETECTED);
+		userConfig.setString("http", null, "followRedirects", "false");
+		userConfig.save();
+
 		Repository dst = createBareRepository();
 		assertFalse(dst.hasObject(A_txt));
 
 		try (Transport t = Transport.open(dst, redirectURI)) {
+			t.fetch(NullProgressMonitor.INSTANCE, mirror(master));
+			fail("Should have failed (redirects forbidden)");
+		} catch (TransportException e) {
+			assertTrue(
+					e.getMessage().contains("http.followRedirects is false"));
+		}
+	}
+
+	@Test
+	public void testInitialClone_WithAuthentication() throws Exception {
+		Repository dst = createBareRepository();
+		assertFalse(dst.hasObject(A_txt));
+
+		try (Transport t = Transport.open(dst, authURI)) {
+			t.setCredentialsProvider(testCredentials);
+			t.fetch(NullProgressMonitor.INSTANCE, mirror(master));
+		}
+
+		assertTrue(dst.hasObject(A_txt));
+		assertEquals(B, dst.exactRef(master).getObjectId());
+		fsck(dst, B);
+
+		List<AccessEvent> requests = getRequests();
+		assertEquals(3, requests.size());
+
+		AccessEvent info = requests.get(0);
+		assertEquals("GET", info.getMethod());
+		assertEquals(401, info.getStatus());
+
+		info = requests.get(1);
+		assertEquals("GET", info.getMethod());
+		assertEquals(join(authURI, "info/refs"), info.getPath());
+		assertEquals(1, info.getParameters().size());
+		assertEquals("git-upload-pack", info.getParameter("service"));
+		assertEquals(200, info.getStatus());
+		assertEquals("application/x-git-upload-pack-advertisement",
+				info.getResponseHeader(HDR_CONTENT_TYPE));
+		assertEquals("gzip", info.getResponseHeader(HDR_CONTENT_ENCODING));
+
+		AccessEvent service = requests.get(2);
+		assertEquals("POST", service.getMethod());
+		assertEquals(join(authURI, "git-upload-pack"), service.getPath());
+		assertEquals(0, service.getParameters().size());
+		assertNotNull("has content-length",
+				service.getRequestHeader(HDR_CONTENT_LENGTH));
+		assertNull("not chunked",
+				service.getRequestHeader(HDR_TRANSFER_ENCODING));
+
+		assertEquals(200, service.getStatus());
+		assertEquals("application/x-git-upload-pack-result",
+				service.getResponseHeader(HDR_CONTENT_TYPE));
+	}
+
+	@Test
+	public void testInitialClone_WithAuthenticationNoCredentials()
+			throws Exception {
+		Repository dst = createBareRepository();
+		assertFalse(dst.hasObject(A_txt));
+
+		try (Transport t = Transport.open(dst, authURI)) {
+			t.fetch(NullProgressMonitor.INSTANCE, mirror(master));
+			fail("Should not have succeeded -- no authentication");
+		} catch (TransportException e) {
+			String msg = e.getMessage();
+			assertTrue("Unexpected exception message: " + msg,
+					msg.contains("no CredentialsProvider"));
+		}
+		List<AccessEvent> requests = getRequests();
+		assertEquals(1, requests.size());
+
+		AccessEvent info = requests.get(0);
+		assertEquals("GET", info.getMethod());
+		assertEquals(401, info.getStatus());
+	}
+
+	@Test
+	public void testInitialClone_WithAuthenticationWrongCredentials()
+			throws Exception {
+		Repository dst = createBareRepository();
+		assertFalse(dst.hasObject(A_txt));
+
+		try (Transport t = Transport.open(dst, authURI)) {
+			t.setCredentialsProvider(new UsernamePasswordCredentialsProvider(
+					AppServer.username, "wrongpassword"));
+			t.fetch(NullProgressMonitor.INSTANCE, mirror(master));
+			fail("Should not have succeeded -- wrong password");
+		} catch (TransportException e) {
+			String msg = e.getMessage();
+			assertTrue("Unexpected exception message: " + msg,
+					msg.contains("auth"));
+		}
+		List<AccessEvent> requests = getRequests();
+		// Once without authentication plus three re-tries with authentication
+		assertEquals(4, requests.size());
+
+		for (AccessEvent event : requests) {
+			assertEquals("GET", event.getMethod());
+			assertEquals(401, event.getStatus());
+		}
+	}
+
+	@Test
+	public void testInitialClone_WithAuthenticationAfterRedirect()
+			throws Exception {
+		Repository dst = createBareRepository();
+		assertFalse(dst.hasObject(A_txt));
+
+		URIish cloneFrom = extendPath(redirectURI, "/target/auth");
+		CredentialsProvider uriSpecificCredentialsProvider = new UsernamePasswordCredentialsProvider(
+				"unknown", "none") {
+			@Override
+			public boolean get(URIish uri, CredentialItem... items)
+					throws UnsupportedCredentialItem {
+				// Only return the true credentials if the uri path starts with
+				// /auth. This ensures that we do provide the correct
+				// credentials only for the URi after the redirect, making the
+				// test fail if we should be asked for the credentials for the
+				// original URI.
+				if (uri.getPath().startsWith("/auth")) {
+					return testCredentials.get(uri, items);
+				}
+				return super.get(uri, items);
+			}
+		};
+		try (Transport t = Transport.open(dst, cloneFrom)) {
+			t.setCredentialsProvider(uriSpecificCredentialsProvider);
 			t.fetch(NullProgressMonitor.INSTANCE, mirror(master));
 		}
 
@@ -389,12 +827,19 @@ public class SmartClientSmartServerTest extends HttpTestCase {
 		List<AccessEvent> requests = getRequests();
 		assertEquals(4, requests.size());
 
-		AccessEvent firstRedirect = requests.get(0);
-		assertEquals(301, firstRedirect.getStatus());
+		AccessEvent redirect = requests.get(0);
+		assertEquals("GET", redirect.getMethod());
+		assertEquals(join(cloneFrom, "info/refs"), redirect.getPath());
+		assertEquals(301, redirect.getStatus());
 
 		AccessEvent info = requests.get(1);
 		assertEquals("GET", info.getMethod());
-		assertEquals(join(remoteURI, "info/refs"), info.getPath());
+		assertEquals(join(authURI, "info/refs"), info.getPath());
+		assertEquals(401, info.getStatus());
+
+		info = requests.get(2);
+		assertEquals("GET", info.getMethod());
+		assertEquals(join(authURI, "info/refs"), info.getPath());
 		assertEquals(1, info.getParameters().size());
 		assertEquals("git-upload-pack", info.getParameter("service"));
 		assertEquals(200, info.getStatus());
@@ -402,12 +847,56 @@ public class SmartClientSmartServerTest extends HttpTestCase {
 				info.getResponseHeader(HDR_CONTENT_TYPE));
 		assertEquals("gzip", info.getResponseHeader(HDR_CONTENT_ENCODING));
 
-		AccessEvent secondRedirect = requests.get(2);
-		assertEquals(301, secondRedirect.getStatus());
-
 		AccessEvent service = requests.get(3);
 		assertEquals("POST", service.getMethod());
-		assertEquals(join(remoteURI, "git-upload-pack"), service.getPath());
+		assertEquals(join(authURI, "git-upload-pack"), service.getPath());
+		assertEquals(0, service.getParameters().size());
+		assertNotNull("has content-length",
+				service.getRequestHeader(HDR_CONTENT_LENGTH));
+		assertNull("not chunked",
+				service.getRequestHeader(HDR_TRANSFER_ENCODING));
+
+		assertEquals(200, service.getStatus());
+		assertEquals("application/x-git-upload-pack-result",
+				service.getResponseHeader(HDR_CONTENT_TYPE));
+	}
+
+	@Test
+	public void testInitialClone_WithAuthenticationOnPostOnly()
+			throws Exception {
+		Repository dst = createBareRepository();
+		assertFalse(dst.hasObject(A_txt));
+
+		try (Transport t = Transport.open(dst, authOnPostURI)) {
+			t.setCredentialsProvider(testCredentials);
+			t.fetch(NullProgressMonitor.INSTANCE, mirror(master));
+		}
+
+		assertTrue(dst.hasObject(A_txt));
+		assertEquals(B, dst.exactRef(master).getObjectId());
+		fsck(dst, B);
+
+		List<AccessEvent> requests = getRequests();
+		assertEquals(3, requests.size());
+
+		AccessEvent info = requests.get(0);
+		assertEquals("GET", info.getMethod());
+		assertEquals(join(authOnPostURI, "info/refs"), info.getPath());
+		assertEquals(1, info.getParameters().size());
+		assertEquals("git-upload-pack", info.getParameter("service"));
+		assertEquals(200, info.getStatus());
+		assertEquals("application/x-git-upload-pack-advertisement",
+				info.getResponseHeader(HDR_CONTENT_TYPE));
+		assertEquals("gzip", info.getResponseHeader(HDR_CONTENT_ENCODING));
+
+		AccessEvent service = requests.get(1);
+		assertEquals("POST", service.getMethod());
+		assertEquals(join(authOnPostURI, "git-upload-pack"), service.getPath());
+		assertEquals(401, service.getStatus());
+
+		service = requests.get(2);
+		assertEquals("POST", service.getMethod());
+		assertEquals(join(authOnPostURI, "git-upload-pack"), service.getPath());
 		assertEquals(0, service.getParameters().size());
 		assertNotNull("has content-length",
 				service.getRequestHeader(HDR_CONTENT_LENGTH));
@@ -592,7 +1081,7 @@ public class SmartClientSmartServerTest extends HttpTestCase {
 	public void testInvalidWant() throws Exception {
 		@SuppressWarnings("resource")
 		ObjectId id = new ObjectInserter.Formatter().idFor(Constants.OBJ_BLOB,
-				"testInvalidWant".getBytes(StandardCharsets.UTF_8));
+				"testInvalidWant".getBytes(CHARSET));
 
 		Repository dst = createBareRepository();
 		try (Transport t = Transport.open(dst, remoteURI);
@@ -619,7 +1108,7 @@ public class SmartClientSmartServerTest extends HttpTestCase {
 
 			ServletContextHandler app = noRefServer.addContext("/git");
 			GitServlet gs = new GitServlet();
-			gs.setRepositoryResolver(new TestRepoResolver(repo, repoName));
+			gs.setRepositoryResolver(new TestRepositoryResolver(repo, repoName));
 			app.addServlet(new ServletHolder(gs), "/*");
 			noRefServer.setUp();
 
@@ -822,28 +1311,4 @@ public class SmartClientSmartServerTest extends HttpTestCase {
 		cfg.save();
 	}
 
-	private final class TestRepoResolver
-			implements RepositoryResolver<HttpServletRequest> {
-
-		private final TestRepository<Repository> repo;
-
-		private final String repoName;
-
-		private TestRepoResolver(TestRepository<Repository> repo,
-				String repoName) {
-			this.repo = repo;
-			this.repoName = repoName;
-		}
-
-		@Override
-		public Repository open(HttpServletRequest req, String name)
-				throws RepositoryNotFoundException, ServiceNotEnabledException {
-			if (!name.equals(repoName))
-				throw new RepositoryNotFoundException(name);
-
-			Repository db = repo.getRepository();
-			db.incrementOpen();
-			return db;
-		}
-	}
 }

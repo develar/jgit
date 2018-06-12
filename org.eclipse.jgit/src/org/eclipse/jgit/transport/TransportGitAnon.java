@@ -113,24 +113,27 @@ class TransportGitAnon extends TcpTransport implements PackTransport {
 		}
 	};
 
-	TransportGitAnon(final Repository local, final URIish uri) {
+	TransportGitAnon(Repository local, URIish uri) {
 		super(local, uri);
 	}
 
-	TransportGitAnon(final URIish uri) {
+	TransportGitAnon(URIish uri) {
 		super(uri);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public FetchConnection openFetch() throws TransportException {
 		return new TcpFetchConnection();
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public PushConnection openPush() throws TransportException {
 		return new TcpPushConnection();
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void close() {
 		// Resources must be established per-connection.
@@ -139,6 +142,7 @@ class TransportGitAnon extends TcpTransport implements PackTransport {
 	Socket openConnection() throws TransportException {
 		final int tms = getTimeout() > 0 ? getTimeout() * 1000 : 0;
 		final int port = uri.getPort() > 0 ? uri.getPort() : GIT_PORT;
+		@SuppressWarnings("resource") // Closed by the caller
 		final Socket s = new Socket();
 		try {
 			final InetAddress host = InetAddress.getByName(uri.getHost());
@@ -159,7 +163,7 @@ class TransportGitAnon extends TcpTransport implements PackTransport {
 		return s;
 	}
 
-	void service(final String name, final PacketLineOut pckOut)
+	void service(String name, PacketLineOut pckOut)
 			throws IOException {
 		final StringBuilder cmd = new StringBuilder();
 		cmd.append(name);

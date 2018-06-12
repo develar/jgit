@@ -43,7 +43,9 @@
 
 package org.eclipse.jgit.internal.storage.dfs;
 
-/** IO statistics for a {@link DfsReader}. */
+/**
+ * IO statistics for a {@link org.eclipse.jgit.internal.storage.dfs.DfsReader}.
+ */
 public class DfsReaderIoStats {
 	/** POJO to accumulate IO statistics. */
 	public static class Accumulator {
@@ -65,10 +67,16 @@ public class DfsReaderIoStats {
 		/** Total number of block cache hits. */
 		long blockCacheHit;
 
-		/** Total number of discrete blocks read from pack file(s). */
+		/**
+		 * Total number of discrete blocks actually read from pack file(s), that is,
+		 * block cache misses.
+		 */
 		long readBlock;
 
-		/** Total number of compressed bytes read as block sized units. */
+		/**
+		 * Total number of compressed bytes read during cache misses, as block sized
+		 * units.
+		 */
 		long readBlockBytes;
 
 		/** Total microseconds spent reading {@link #readBlock} blocks. */
@@ -87,52 +95,94 @@ public class DfsReaderIoStats {
 		this.stats = stats;
 	}
 
-	/** @return number of times the reader explicitly called scanPacks. */
+	/**
+	 * Get number of times the reader explicitly called scanPacks.
+	 *
+	 * @return number of times the reader explicitly called scanPacks.
+	 */
 	public long getScanPacks() {
 		return stats.scanPacks;
 	}
 
-	/** @return total number of complete pack indexes read into memory. */
+	/**
+	 * Get total number of complete pack indexes read into memory.
+	 *
+	 * @return total number of complete pack indexes read into memory.
+	 */
 	public long getReadPackIndexCount() {
 		return stats.readIdx;
 	}
 
-	/** @return total number of complete bitmap indexes read into memory. */
+	/**
+	 * Get total number of complete bitmap indexes read into memory.
+	 *
+	 * @return total number of complete bitmap indexes read into memory.
+	 */
 	public long getReadBitmapIndexCount() {
 		return stats.readBitmap;
 	}
 
-	/** @return total number of bytes read from indexes. */
+	/**
+	 * Get total number of bytes read from indexes.
+	 *
+	 * @return total number of bytes read from indexes.
+	 */
 	public long getReadIndexBytes() {
 		return stats.readIdxBytes;
 	}
 
-	/** @return total microseconds spent reading pack or bitmap indexes. */
+	/**
+	 * Get total microseconds spent reading pack or bitmap indexes.
+	 *
+	 * @return total microseconds spent reading pack or bitmap indexes.
+	 */
 	public long getReadIndexMicros() {
 		return stats.readIdxMicros;
 	}
 
-	/** @return total number of block cache hits. */
+	/**
+	 * Get total number of block cache hits.
+	 *
+	 * @return total number of block cache hits.
+	 */
 	public long getBlockCacheHits() {
 		return stats.blockCacheHit;
 	}
 
-	/** @return total number of discrete blocks read from pack file(s). */
+	/**
+	 * Get total number of discrete blocks actually read from pack file(s), that
+	 * is, block cache misses.
+	 *
+	 * @return total number of discrete blocks read from pack file(s).
+	 */
 	public long getReadBlocksCount() {
 		return stats.readBlock;
 	}
 
-	/** @return total number of compressed bytes read as block sized units. */
+	/**
+	 * Get total number of compressed bytes read during cache misses, as block
+	 * sized units.
+	 *
+	 * @return total number of compressed bytes read as block sized units.
+	 */
 	public long getReadBlocksBytes() {
 		return stats.readBlockBytes;
 	}
 
-	/** @return total microseconds spent reading blocks. */
+	/**
+	 * Get total microseconds spent reading blocks during cache misses.
+	 *
+	 * @return total microseconds spent reading blocks.
+	 */
 	public long getReadBlocksMicros() {
 		return stats.readBlockMicros;
 	}
 
-	/** @return total number of bytes decompressed. */
+	/**
+	 * Get total number of bytes decompressed.
+	 *
+	 * @return total number of bytes decompressed.
+	 */
 	public long getInflatedBytes() {
 		return stats.inflatedBytes;
 	}

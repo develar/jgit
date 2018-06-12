@@ -45,16 +45,16 @@
 package org.eclipse.jgit.errors;
 
 import org.eclipse.jgit.internal.JGitText;
-import org.eclipse.jgit.revwalk.RevWalk;
 
 /**
- * Indicates a checked exception was thrown inside of {@link RevWalk}.
+ * Indicates a checked exception was thrown inside of
+ * {@link org.eclipse.jgit.revwalk.RevWalk}.
  * <p>
  * Usually this exception is thrown from the Iterator created around a RevWalk
  * instance, as the Iterator API does not allow checked exceptions to be thrown
- * from hasNext() or next(). The {@link Exception#getCause()} of this exception
- * is the original checked exception that we really wanted to throw back to the
- * application for handling and recovery.
+ * from hasNext() or next(). The {@link java.lang.Exception#getCause()} of this
+ * exception is the original checked exception that we really wanted to throw
+ * back to the application for handling and recovery.
  */
 public class RevWalkException extends RuntimeException {
 	private static final long serialVersionUID = 1L;
@@ -65,7 +65,7 @@ public class RevWalkException extends RuntimeException {
 	 * @param cause
 	 *            the checked exception that describes why the walk failed.
 	 */
-	public RevWalkException(final Throwable cause) {
+	public RevWalkException(Throwable cause) {
 		super(JGitText.get().walkFailure, cause);
 	}
 }

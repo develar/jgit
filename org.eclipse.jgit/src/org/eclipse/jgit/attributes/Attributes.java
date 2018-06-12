@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2015, Ivan Motsch <ivan.motsch@bsiag.com>
+ * Copyright (C) 2015, Ivan Motsch <ivan.motsch@bsiag.com>,
+ * Copyright (C) 2017, Obeo (mathieu.cartaud@obeo.fr)
  *
  * This program and the accompanying materials are made available
  * under the terms of the Eclipse Distribution License v1.0 which
@@ -48,10 +49,10 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.eclipse.jgit.attributes.Attribute.State;
+import org.eclipse.jgit.lib.Constants;
 
 /**
  * Represents a set of attributes for a path
- * <p>
  *
  * @since 4.2
  */
@@ -62,6 +63,7 @@ public final class Attributes {
 	 * Creates a new instance
 	 *
 	 * @param attributes
+	 *            a {@link org.eclipse.jgit.attributes.Attribute}
 	 */
 	public Attributes(Attribute... attributes) {
 		if (attributes != null) {
@@ -72,6 +74,8 @@ public final class Attributes {
 	}
 
 	/**
+	 * Whether the set of attributes is empty
+	 *
 	 * @return true if the set does not contain any attributes
 	 */
 	public boolean isEmpty() {
@@ -79,7 +83,10 @@ public final class Attributes {
 	}
 
 	/**
+	 * Get the attribute with the given key
+	 *
 	 * @param key
+	 *            a {@link java.lang.String} object.
 	 * @return the attribute or null
 	 */
 	public Attribute get(String key) {
@@ -87,6 +94,8 @@ public final class Attributes {
 	}
 
 	/**
+	 * Get all attributes
+	 *
 	 * @return all attributes
 	 */
 	public Collection<Attribute> getAll() {
@@ -94,32 +103,42 @@ public final class Attributes {
 	}
 
 	/**
+	 * Put an attribute
+	 *
 	 * @param a
+	 *            an {@link org.eclipse.jgit.attributes.Attribute}
 	 */
 	public void put(Attribute a) {
 		map.put(a.getKey(), a);
 	}
 
 	/**
+	 * Remove attribute with given key
+	 *
 	 * @param key
+	 *            an attribute name
 	 */
 	public void remove(String key) {
 		map.remove(key);
 	}
 
 	/**
+	 * Whether there is an attribute with this key
+	 *
 	 * @param key
-	 * @return true if the {@link Attributes} contains this key
+	 *            key of an attribute
+	 * @return true if the {@link org.eclipse.jgit.attributes.Attributes}
+	 *         contains this key
 	 */
 	public boolean containsKey(String key) {
 		return map.containsKey(key);
 	}
 
 	/**
-	 * Returns the state.
+	 * Return the state.
 	 *
 	 * @param key
-	 *
+	 *            key of an attribute
 	 * @return the state (never returns <code>null</code>)
 	 */
 	public Attribute.State getState(String key) {
@@ -128,41 +147,63 @@ public final class Attributes {
 	}
 
 	/**
+	 * Whether the attribute is set
+	 *
 	 * @param key
-	 * @return true if the key is {@link State#SET}, false in all other cases
+	 *            a {@link java.lang.String} object.
+	 * @return true if the key is
+	 *         {@link org.eclipse.jgit.attributes.Attribute.State#SET}, false in
+	 *         all other cases
 	 */
 	public boolean isSet(String key) {
 		return (getState(key) == State.SET);
 	}
 
 	/**
+	 * Whether the attribute is unset
+	 *
 	 * @param key
-	 * @return true if the key is {@link State#UNSET}, false in all other cases
+	 *            a {@link java.lang.String} object.
+	 * @return true if the key is
+	 *         {@link org.eclipse.jgit.attributes.Attribute.State#UNSET}, false
+	 *         in all other cases
 	 */
 	public boolean isUnset(String key) {
 		return (getState(key) == State.UNSET);
 	}
 
 	/**
+	 * Whether the attribute with the given key is unspecified
+	 *
 	 * @param key
-	 * @return true if the key is {@link State#UNSPECIFIED}, false in all other
-	 *         cases
+	 *            a {@link java.lang.String} object.
+	 * @return true if the key is
+	 *         {@link org.eclipse.jgit.attributes.Attribute.State#UNSPECIFIED},
+	 *         false in all other cases
 	 */
 	public boolean isUnspecified(String key) {
 		return (getState(key) == State.UNSPECIFIED);
 	}
 
 	/**
+	 * Is this a custom attribute
+	 *
 	 * @param key
-	 * @return true if the key is {@link State#CUSTOM}, false in all other cases
-	 *         see {@link #getValue(String)} for the value of the key
+	 *            a {@link java.lang.String} object.
+	 * @return true if the key is
+	 *         {@link org.eclipse.jgit.attributes.Attribute.State#CUSTOM}, false
+	 *         in all other cases see {@link #getValue(String)} for the value of
+	 *         the key
 	 */
 	public boolean isCustom(String key) {
 		return (getState(key) == State.CUSTOM);
 	}
 
 	/**
+	 * Get attribute value
+	 *
 	 * @param key
+	 *            an attribute key
 	 * @return the attribute value (may be <code>null</code>)
 	 */
 	public String getValue(String key) {
@@ -170,6 +211,27 @@ public final class Attributes {
 		return a != null ? a.getValue() : null;
 	}
 
+	/**
+	 * Test if the given attributes implies to handle the related entry as a
+	 * binary file (i.e. if the entry has an -merge or a merge=binary attribute)
+	 * or if it can be content merged.
+	 *
+	 * @return <code>true</code> if the entry can be content merged,
+	 *         <code>false</code> otherwise
+	 * @since 4.9
+	 */
+	public boolean canBeContentMerged() {
+		if (isUnset(Constants.ATTR_MERGE)) {
+			return false;
+		} else if (isCustom(Constants.ATTR_MERGE)
+				&& getValue(Constants.ATTR_MERGE)
+						.equals(Constants.ATTR_BUILTIN_BINARY_MERGER)) {
+			return false;
+		}
+		return true;
+	}
+
+	/** {@inheritDoc} */
 	@Override
 	public String toString() {
 		StringBuilder buf = new StringBuilder();
@@ -184,11 +246,13 @@ public final class Attributes {
 		return buf.toString();
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public int hashCode() {
 		return map.hashCode();
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean equals(Object obj) {
 		if (this == obj)

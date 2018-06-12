@@ -41,6 +41,7 @@
  */
 package org.eclipse.jgit.indexdiff;
 
+import static org.eclipse.jgit.lib.Constants.CHARSET;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -60,7 +61,6 @@ import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -111,14 +111,12 @@ public class IndexDiffWithSymlinkTest extends LocalDiskRepositoryTestCase {
 				&& FS.DETECTED.supportsSymlinks());
 		super.setUp();
 		File testDir = createTempDirectory(this.getClass().getSimpleName());
-		InputStream in = this.getClass().getClassLoader().getResourceAsStream(
+		try (InputStream in = this.getClass().getClassLoader()
+				.getResourceAsStream(
 				this.getClass().getPackage().getName().replace('.', '/') + '/'
-						+ FILEREPO + ".txt");
-		assertNotNull("Test repo file not found", in);
-		try {
+								+ FILEREPO + ".txt")) {
+			assertNotNull("Test repo file not found", in);
 			testRepoDir = restoreGitRepo(in, testDir, FILEREPO);
-		} finally {
-			in.close();
 		}
 	}
 
@@ -130,8 +128,7 @@ public class IndexDiffWithSymlinkTest extends LocalDiskRepositoryTestCase {
 		File restoreScript = new File(testDir, name + ".sh");
 		try (OutputStream out = new BufferedOutputStream(
 				new FileOutputStream(restoreScript));
-				Writer writer = new OutputStreamWriter(out,
-						StandardCharsets.UTF_8)) {
+				Writer writer = new OutputStreamWriter(out, CHARSET)) {
 			writer.write("echo `which git` 1>&2\n");
 			writer.write("echo `git --version` 1>&2\n");
 			writer.write("git init " + name + " && \\\n");
@@ -142,7 +139,11 @@ public class IndexDiffWithSymlinkTest extends LocalDiskRepositoryTestCase {
 		String[] cmd = { "/bin/sh", "./" + name + ".sh" };
 		int exitCode;
 		String stdErr;
-		Process process = Runtime.getRuntime().exec(cmd, null, testDir);
+		ProcessBuilder builder = new ProcessBuilder(cmd);
+		builder.environment().put("HOME",
+				FS.DETECTED.userHome().getAbsolutePath());
+		builder.directory(testDir);
+		Process process = builder.start();
 		try (InputStream stdOutStream = process.getInputStream();
 				InputStream stdErrStream = process.getErrorStream();
 				OutputStream stdInStream = process.getOutputStream()) {

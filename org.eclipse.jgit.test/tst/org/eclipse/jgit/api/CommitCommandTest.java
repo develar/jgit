@@ -54,7 +54,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.TimeZone;
 
-import org.eclipse.jgit.api.errors.EmtpyCommitException;
+import org.eclipse.jgit.api.errors.EmptyCommitException;
 import org.eclipse.jgit.api.errors.WrongRepositoryStateException;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.dircache.DirCache;
@@ -76,6 +76,7 @@ import org.eclipse.jgit.submodule.SubmoduleWalk;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.TreeFilter;
 import org.eclipse.jgit.util.FS;
+import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -222,9 +223,9 @@ public class CommitCommandTest extends RepositoryTestCase {
 			assertEquals(uri, generator.getModulesUrl());
 			assertEquals(path, generator.getModulesPath());
 			assertEquals(uri, generator.getConfigUrl());
-			Repository subModRepo = generator.getRepository();
-			assertNotNull(subModRepo);
-			subModRepo.close();
+			try (Repository subModRepo = generator.getRepository()) {
+				assertNotNull(subModRepo);
+			}
 			assertEquals(commit, repo.resolve(Constants.HEAD));
 
 			RevCommit submoduleCommit = git.commit().setMessage("submodule add")
@@ -272,9 +273,9 @@ public class CommitCommandTest extends RepositoryTestCase {
 			assertEquals(uri, generator.getModulesUrl());
 			assertEquals(path, generator.getModulesPath());
 			assertEquals(uri, generator.getConfigUrl());
-			Repository subModRepo = generator.getRepository();
-			assertNotNull(subModRepo);
-			subModRepo.close();
+			try (Repository subModRepo = generator.getRepository()) {
+				assertNotNull(subModRepo);
+			}
 			assertEquals(commit2, repo.resolve(Constants.HEAD));
 
 			RevCommit submoduleAddCommit = git.commit().setMessage("submodule add")
@@ -305,6 +306,7 @@ public class CommitCommandTest extends RepositoryTestCase {
 		}
 	}
 
+	@Ignore("very flaky when run with Hudson")
 	@Test
 	public void commitUpdatesSmudgedEntries() throws Exception {
 		try (Git git = new Git(db)) {
@@ -361,6 +363,7 @@ public class CommitCommandTest extends RepositoryTestCase {
 		}
 	}
 
+	@Ignore("very flaky when run with Hudson")
 	@Test
 	public void commitIgnoresSmudgedEntryWithDifferentId() throws Exception {
 		try (Git git = new Git(db)) {
@@ -550,10 +553,15 @@ public class CommitCommandTest extends RepositoryTestCase {
 				git.commit().setAuthor("New Author", "newauthor@example.org")
 						.setMessage("again no change").setAllowEmpty(false)
 						.call();
-				fail("Didn't get the expected EmtpyCommitException");
-			} catch (EmtpyCommitException e) {
+				fail("Didn't get the expected EmptyCommitException");
+			} catch (EmptyCommitException e) {
 				// expect this exception
 			}
+
+			// Allow empty commits also when setOnly was set
+			git.commit().setAuthor("New Author", "newauthor@example.org")
+					.setMessage("again no change").setOnly("file1")
+					.setAllowEmpty(true).call();
 		}
 	}
 

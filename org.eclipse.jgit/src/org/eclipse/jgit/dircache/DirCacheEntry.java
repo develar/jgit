@@ -68,7 +68,8 @@ import org.eclipse.jgit.util.NB;
 import org.eclipse.jgit.util.SystemReader;
 
 /**
- * A single file (or stage of a file) in a {@link DirCache}.
+ * A single file (or stage of a file) in a
+ * {@link org.eclipse.jgit.dircache.DirCache}.
  * <p>
  * An entry represents exactly one stage of a file. If a file path is unmerged
  * then multiple DirCacheEntry instances may appear for the same path name.
@@ -221,12 +222,12 @@ public class DirCacheEntry {
 	 *
 	 * @param newPath
 	 *            name of the cache entry.
-	 * @throws IllegalArgumentException
+	 * @throws java.lang.IllegalArgumentException
 	 *             If the path starts or ends with "/", or contains "//" either
 	 *             "\0". These sequences are not permitted in a git tree object
 	 *             or DirCache file.
 	 */
-	public DirCacheEntry(final String newPath) {
+	public DirCacheEntry(String newPath) {
 		this(Constants.encode(newPath), STAGE_0);
 	}
 
@@ -237,13 +238,13 @@ public class DirCacheEntry {
 	 *            name of the cache entry.
 	 * @param stage
 	 *            the stage index of the new entry.
-	 * @throws IllegalArgumentException
+	 * @throws java.lang.IllegalArgumentException
 	 *             If the path starts or ends with "/", or contains "//" either
 	 *             "\0". These sequences are not permitted in a git tree object
 	 *             or DirCache file.  Or if {@code stage} is outside of the
 	 *             range 0..3, inclusive.
 	 */
-	public DirCacheEntry(final String newPath, final int stage) {
+	public DirCacheEntry(String newPath, int stage) {
 		this(Constants.encode(newPath), stage);
 	}
 
@@ -252,12 +253,12 @@ public class DirCacheEntry {
 	 *
 	 * @param newPath
 	 *            name of the cache entry, in the standard encoding.
-	 * @throws IllegalArgumentException
+	 * @throws java.lang.IllegalArgumentException
 	 *             If the path starts or ends with "/", or contains "//" either
 	 *             "\0". These sequences are not permitted in a git tree object
 	 *             or DirCache file.
 	 */
-	public DirCacheEntry(final byte[] newPath) {
+	public DirCacheEntry(byte[] newPath) {
 		this(newPath, STAGE_0);
 	}
 
@@ -268,14 +269,14 @@ public class DirCacheEntry {
 	 *            name of the cache entry, in the standard encoding.
 	 * @param stage
 	 *            the stage index of the new entry.
-	 * @throws IllegalArgumentException
+	 * @throws java.lang.IllegalArgumentException
 	 *             If the path starts or ends with "/", or contains "//" either
 	 *             "\0". These sequences are not permitted in a git tree object
 	 *             or DirCache file.  Or if {@code stage} is outside of the
 	 *             range 0..3, inclusive.
 	 */
 	@SuppressWarnings("boxing")
-	public DirCacheEntry(byte[] path, final int stage) {
+	public DirCacheEntry(byte[] path, int stage) {
 		checkPath(path);
 		if (stage < 0 || 3 < stage)
 			throw new IllegalArgumentException(MessageFormat.format(
@@ -311,7 +312,7 @@ public class DirCacheEntry {
 		System.arraycopy(src.info, src.infoOffset, info, 0, INFO_LEN);
 	}
 
-	void write(final OutputStream os) throws IOException {
+	void write(OutputStream os) throws IOException {
 		final int len = isExtended() ? INFO_LEN_EXTENDED : INFO_LEN;
 		final int pathLen = path.length;
 		os.write(info, infoOffset, len);
@@ -342,7 +343,7 @@ public class DirCacheEntry {
 	 *            nanoseconds component of the index's last modified time.
 	 * @return true if extra careful checks should be used.
 	 */
-	public final boolean mightBeRacilyClean(final int smudge_s, final int smudge_ns) {
+	public final boolean mightBeRacilyClean(int smudge_s, int smudge_ns) {
 		// If the index has a modification time then it came from disk
 		// and was not generated from scratch in memory. In such cases
 		// the entry is 'racily clean' if the entry's cached modification
@@ -378,8 +379,9 @@ public class DirCacheEntry {
 	/**
 	 * Check whether this entry has been smudged or not
 	 * <p>
-	 * If a blob has length 0 we know his id see {@link Constants#EMPTY_BLOB_ID}. If an entry
-	 * has length 0 and an ID different from the one for empty blob we know this
+	 * If a blob has length 0 we know its id, see
+	 * {@link org.eclipse.jgit.lib.Constants#EMPTY_BLOB_ID}. If an entry has
+	 * length 0 and an ID different from the one for empty blob we know this
 	 * entry was smudged.
 	 *
 	 * @return <code>true</code> if the entry is smudged, <code>false</code>
@@ -418,7 +420,7 @@ public class DirCacheEntry {
 	 *            true to ignore apparent modifications; false to look at last
 	 *            modified to detect file modifications.
 	 */
-	public void setAssumeValid(final boolean assume) {
+	public void setAssumeValid(boolean assume) {
 		if (assume)
 			info[infoOffset + P_FLAGS] |= ASSUME_VALID;
 		else
@@ -426,7 +428,9 @@ public class DirCacheEntry {
 	}
 
 	/**
-	 * @return true if this entry should be checked for changes
+	 * Whether this entry should be checked for changes
+	 *
+	 * @return {@code true} if this entry should be checked for changes
 	 */
 	public boolean isUpdateNeeded() {
 		return (inCoreFlags & UPDATE_NEEDED) != 0;
@@ -436,6 +440,7 @@ public class DirCacheEntry {
 	 * Set whether this entry must be checked for changes
 	 *
 	 * @param updateNeeded
+	 *            whether this entry must be checked for changes
 	 */
 	public void setUpdateNeeded(boolean updateNeeded) {
 		if (updateNeeded)
@@ -484,7 +489,7 @@ public class DirCacheEntry {
 	}
 
 	/**
-	 * Obtain the raw {@link FileMode} bits for this entry.
+	 * Obtain the raw {@link org.eclipse.jgit.lib.FileMode} bits for this entry.
 	 *
 	 * @return mode bits for the entry.
 	 * @see FileMode#fromBits(int)
@@ -494,7 +499,7 @@ public class DirCacheEntry {
 	}
 
 	/**
-	 * Obtain the {@link FileMode} for this entry.
+	 * Obtain the {@link org.eclipse.jgit.lib.FileMode} for this entry.
 	 *
 	 * @return the file mode singleton for this entry.
 	 */
@@ -507,12 +512,13 @@ public class DirCacheEntry {
 	 *
 	 * @param mode
 	 *            the new mode constant.
-	 * @throws IllegalArgumentException
-	 *             If {@code mode} is {@link FileMode#MISSING},
-	 *             {@link FileMode#TREE}, or any other type code not permitted
-	 *             in a tree object.
+	 * @throws java.lang.IllegalArgumentException
+	 *             If {@code mode} is
+	 *             {@link org.eclipse.jgit.lib.FileMode#MISSING},
+	 *             {@link org.eclipse.jgit.lib.FileMode#TREE}, or any other type
+	 *             code not permitted in a tree object.
 	 */
-	public void setFileMode(final FileMode mode) {
+	public void setFileMode(FileMode mode) {
 		switch (mode.getBits() & FileMode.TYPE_MASK) {
 		case FileMode.TYPE_MISSING:
 		case FileMode.TYPE_TREE:
@@ -542,7 +548,7 @@ public class DirCacheEntry {
 	 * @param when
 	 *            new cached creation time of the file, in milliseconds.
 	 */
-	public void setCreationTime(final long when) {
+	public void setCreationTime(long when) {
 		encodeTS(P_CTIME, when);
 	}
 
@@ -566,7 +572,7 @@ public class DirCacheEntry {
 	 * @param when
 	 *            new cached modification date of the file, in milliseconds.
 	 */
-	public void setLastModified(final long when) {
+	public void setLastModified(long when) {
 		encodeTS(P_MTIME, when);
 	}
 
@@ -598,7 +604,7 @@ public class DirCacheEntry {
 	 *            new cached size of the file, as bytes. If the file is larger
 	 *            than 2G, cast it to (int) before calling this method.
 	 */
-	public void setLength(final int sz) {
+	public void setLength(int sz) {
 		NB.encodeInt32(info, infoOffset + P_SIZE, sz);
 	}
 
@@ -608,7 +614,7 @@ public class DirCacheEntry {
 	 * @param sz
 	 *            new cached size of the file, as bytes.
 	 */
-	public void setLength(final long sz) {
+	public void setLength(long sz) {
 		setLength((int) sz);
 	}
 
@@ -629,9 +635,10 @@ public class DirCacheEntry {
 	 *
 	 * @param id
 	 *            new object identifier for the entry. May be
-	 *            {@link ObjectId#zeroId()} to remove the current identifier.
+	 *            {@link org.eclipse.jgit.lib.ObjectId#zeroId()} to remove the
+	 *            current identifier.
 	 */
-	public void setObjectId(final AnyObjectId id) {
+	public void setObjectId(AnyObjectId id) {
 		id.copyRawTo(idBuffer(), idOffset());
 	}
 
@@ -644,7 +651,7 @@ public class DirCacheEntry {
 	 * @param p
 	 *            position to read the first byte of data from.
 	 */
-	public void setObjectIdFromRaw(final byte[] bs, final int p) {
+	public void setObjectIdFromRaw(byte[] bs, int p) {
 		final int n = Constants.OBJECT_ID_LENGTH;
 		System.arraycopy(bs, p, idBuffer(), idOffset(), n);
 	}
@@ -676,6 +683,8 @@ public class DirCacheEntry {
 	}
 
 	/**
+	 * {@inheritDoc}
+	 * <p>
 	 * Use for debugging only !
 	 */
 	@SuppressWarnings("nls")
@@ -695,7 +704,7 @@ public class DirCacheEntry {
 	 * @param src
 	 *            the entry to copy ObjectId and meta fields from.
 	 */
-	public void copyMetaData(final DirCacheEntry src) {
+	public void copyMetaData(DirCacheEntry src) {
 		copyMetaData(src, false);
 	}
 
@@ -710,7 +719,7 @@ public class DirCacheEntry {
 	 * @param keepStage
 	 *            if true, the stage attribute will not be copied
 	 */
-	void copyMetaData(final DirCacheEntry src, boolean keepStage) {
+	void copyMetaData(DirCacheEntry src, boolean keepStage) {
 		int origflags = NB.decodeUInt16(info, infoOffset + P_FLAGS);
 		int newflags = NB.decodeUInt16(src.info, src.infoOffset + P_FLAGS);
 		System.arraycopy(src.info, src.infoOffset, info, infoOffset, INFO_LEN);
@@ -732,14 +741,14 @@ public class DirCacheEntry {
 		return (info[infoOffset + P_FLAGS] & EXTENDED) != 0;
 	}
 
-	private long decodeTS(final int pIdx) {
+	private long decodeTS(int pIdx) {
 		final int base = infoOffset + pIdx;
 		final int sec = NB.decodeInt32(info, base);
 		final int ms = NB.decodeInt32(info, base + 4) / 1000000;
 		return 1000L * sec + ms;
 	}
 
-	private void encodeTS(final int pIdx, final long when) {
+	private void encodeTS(int pIdx, long when) {
 		final int base = infoOffset + pIdx;
 		NB.encodeInt32(info, base, (int) (when / 1000));
 		NB.encodeInt32(info, base + 4, ((int) (when % 1000)) * 1000000);
@@ -762,7 +771,7 @@ public class DirCacheEntry {
 		}
 	}
 
-	static String toString(final byte[] path) {
+	static String toString(byte[] path) {
 		return Constants.CHARSET.decode(ByteBuffer.wrap(path)).toString();
 	}
 

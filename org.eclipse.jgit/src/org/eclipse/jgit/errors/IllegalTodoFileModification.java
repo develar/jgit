@@ -51,9 +51,12 @@ public class IllegalTodoFileModification extends Exception {
 	private static final long serialVersionUID = 1L;
 
 	/**
+	 * Constructor for IllegalTodoFileModification
+	 *
 	 * @param msg
+	 *            error message
 	 */
-	public IllegalTodoFileModification(final String msg) {
+	public IllegalTodoFileModification(String msg) {
 		super(msg);
 	}
 }

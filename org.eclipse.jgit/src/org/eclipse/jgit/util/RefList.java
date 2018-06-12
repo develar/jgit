@@ -71,9 +71,9 @@ public class RefList<T extends Ref> implements Iterable<Ref> {
 	private static final RefList<Ref> EMPTY = new RefList<>(new Ref[0], 0);
 
 	/**
+	 * Create an empty unmodifiable reference list.
+	 *
 	 * @return an empty unmodifiable reference list.
-	 * @param <T>
-	 *            the type of reference being stored in the collection.
 	 */
 	@SuppressWarnings("unchecked")
 	public static <T extends Ref> RefList<T> emptyList() {
@@ -100,6 +100,7 @@ public class RefList<T extends Ref> implements Iterable<Ref> {
 		this.cnt = src.cnt;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public Iterator<Ref> iterator() {
 		return new Iterator<Ref>() {
@@ -124,18 +125,30 @@ public class RefList<T extends Ref> implements Iterable<Ref> {
 		};
 	}
 
-	/** @return this cast as an immutable, standard {@link java.util.List}. */
+	/**
+	 * Cast {@code this} as an immutable, standard {@link java.util.List}.
+	 *
+	 * @return {@code this} as an immutable, standard {@link java.util.List}.
+	 */
 	public final List<Ref> asList() {
 		final List<Ref> r = Arrays.asList(list).subList(0, cnt);
 		return Collections.unmodifiableList(r);
 	}
 
-	/** @return number of items in this list. */
+	/**
+	 * Get number of items in this list.
+	 *
+	 * @return number of items in this list.
+	 */
 	public final int size() {
 		return cnt;
 	}
 
-	/** @return true if the size of this list is 0. */
+	/**
+	 * Get if this list is empty.
+	 *
+	 * @return true if the size of this list is 0.
+	 */
 	public final boolean isEmpty() {
 		return cnt == 0;
 	}
@@ -303,6 +316,7 @@ public class RefList<T extends Ref> implements Iterable<Ref> {
 		return add(idx, ref);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public String toString() {
 		StringBuilder r = new StringBuilder();
@@ -338,10 +352,11 @@ public class RefList<T extends Ref> implements Iterable<Ref> {
 		 * Create an empty list with at least the specified capacity.
 		 *
 		 * @param capacity
-		 *            the new capacity.
+		 *            the new capacity; if zero or negative, behavior is the same as
+		 *            {@link #Builder()}.
 		 */
 		public Builder(int capacity) {
-			list = new Ref[capacity];
+			list = new Ref[Math.max(capacity, 16)];
 		}
 
 		/** @return number of items in this builder's internal collection. */

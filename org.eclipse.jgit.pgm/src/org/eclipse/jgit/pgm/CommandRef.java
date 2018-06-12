@@ -50,7 +50,8 @@ import java.text.MessageFormat;
 import org.eclipse.jgit.pgm.internal.CLIText;
 
 /**
- * Description of a command (a {@link TextBuiltin} subclass.
+ * Description of a command (a {@link org.eclipse.jgit.pgm.TextBuiltin}
+ * subclass).
  * <p>
  * These descriptions are lightweight compared to creating a command instance
  * and are therefore suitable for catalogs of "known" commands without linking
@@ -65,29 +66,29 @@ public class CommandRef {
 
 	boolean common;
 
-	CommandRef(final Class<? extends TextBuiltin> clazz) {
+	CommandRef(Class<? extends TextBuiltin> clazz) {
 		this(clazz, guessName(clazz));
 	}
 
-	CommandRef(final Class<? extends TextBuiltin> clazz, final Command cmd) {
+	CommandRef(Class<? extends TextBuiltin> clazz, Command cmd) {
 		this(clazz, cmd.name().length() > 0 ? cmd.name() : guessName(clazz));
 		usage = cmd.usage();
 		common = cmd.common();
 	}
 
-	private CommandRef(final Class<? extends TextBuiltin> clazz, final String cn) {
+	private CommandRef(Class<? extends TextBuiltin> clazz, String cn) {
 		impl = clazz;
 		name = cn;
 		usage = ""; //$NON-NLS-1$
 	}
 
-	private static String guessName(final Class<? extends TextBuiltin> clazz) {
+	private static String guessName(Class<? extends TextBuiltin> clazz) {
 		final StringBuilder s = new StringBuilder();
 		if (clazz.getName().startsWith("org.eclipse.jgit.pgm.debug.")) //$NON-NLS-1$
 			s.append("debug-"); //$NON-NLS-1$
 
 		boolean lastWasDash = true;
-		for (final char c : clazz.getSimpleName().toCharArray()) {
+		for (char c : clazz.getSimpleName().toCharArray()) {
 			if (Character.isUpperCase(c)) {
 				if (!lastWasDash)
 					s.append('-');
@@ -102,6 +103,8 @@ public class CommandRef {
 	}
 
 	/**
+	 * Get the <code>name</code>.
+	 *
 	 * @return name the command is invoked as from the command line.
 	 */
 	public String getName() {
@@ -109,6 +112,8 @@ public class CommandRef {
 	}
 
 	/**
+	 * Get <code>usage</code>.
+	 *
 	 * @return one line description of the command's feature set.
 	 */
 	public String getUsage() {
@@ -116,6 +121,8 @@ public class CommandRef {
 	}
 
 	/**
+	 * Is this command commonly used
+	 *
 	 * @return true if this command is considered to be commonly used.
 	 */
 	public boolean isCommon() {
@@ -123,6 +130,8 @@ public class CommandRef {
 	}
 
 	/**
+	 * Get implementation class name
+	 *
 	 * @return name of the Java class which implements this command.
 	 */
 	public String getImplementationClassName() {
@@ -130,6 +139,8 @@ public class CommandRef {
 	}
 
 	/**
+	 * Get implementation class loader
+	 *
 	 * @return loader for {@link #getImplementationClassName()}.
 	 */
 	public ClassLoader getImplementationClassLoader() {
@@ -137,6 +148,8 @@ public class CommandRef {
 	}
 
 	/**
+	 * Create an instance of the command implementation
+	 *
 	 * @return a new instance of the command implementation.
 	 */
 	public TextBuiltin create() {
@@ -164,5 +177,14 @@ public class CommandRef {
 		}
 		r.setCommandName(getName());
 		return r;
+	}
+
+	/** {@inheritDoc} */
+	@SuppressWarnings("nls")
+	@Override
+	public String toString() {
+		return "CommandRef [impl=" + impl + ", name=" + name + ", usage="
+				+ CLIText.get().resourceBundle().getString(usage) + ", common="
+				+ common + "]";
 	}
 }

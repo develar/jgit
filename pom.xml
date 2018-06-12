@@ -51,7 +51,7 @@
   <groupId>org.eclipse.jgit</groupId>
   <artifactId>org.eclipse.jgit-parent</artifactId>
   <packaging>pom</packaging>
-  <version>4.8.1-SNAPSHOT</version>
+  <version>5.1.0-SNAPSHOT</version>
 
   <name>JGit - Parent</name>
   <url>${jgit-url}</url>
@@ -70,10 +70,6 @@
     <connection>scm:git:https://git.eclipse.org/r/jgit/jgit</connection>
   </scm>
 
-  <prerequisites>
-    <maven>3.3.1</maven>
-  </prerequisites>
-
   <ciManagement>
     <system>hudson</system>
     <url>https://hudson.eclipse.org/jgit/</url>
@@ -91,6 +87,9 @@
     </developer>
     <developer>
       <name>Dave Borowitz</name>
+    </developer>
+    <developer>
+      <name>David Pursehouse</name>
     </developer>
     <developer>
       <name>Gunnar Wagenknecht</name>
@@ -121,6 +120,9 @@
     </developer>
     <developer>
       <name>Stefan Lay</name>
+    </developer>
+    <developer>
+      <name>Thomas Wolf</name>
     </developer>
   </developers>
 
@@ -195,25 +197,27 @@
     <maven.build.timestamp.format>yyyyMMddHHmm</maven.build.timestamp.format>
     <bundle-manifest>${project.build.directory}/META-INF/MANIFEST.MF</bundle-manifest>
 
-    <jgit-last-release-version>4.7.0.201704051617-r</jgit-last-release-version>
+    <jgit-last-release-version>4.11.0.201803080745-r</jgit-last-release-version>
     <jsch-version>0.1.54</jsch-version>
+    <jzlib-version>1.1.1</jzlib-version>
     <javaewah-version>1.1.6</javaewah-version>
     <junit-version>4.12</junit-version>
     <test-fork-count>1C</test-fork-count>
-    <args4j-version>2.0.15</args4j-version>
-    <commons-compress-version>1.6</commons-compress-version>
+    <args4j-version>2.33</args4j-version>
+    <commons-compress-version>1.15</commons-compress-version>
     <osgi-core-version>4.3.1</osgi-core-version>
     <servlet-api-version>3.1.0</servlet-api-version>
-    <jetty-version>9.4.5.v20170502</jetty-version>
-    <japicmp-version>0.10.0</japicmp-version>
-    <httpclient-version>4.3.6</httpclient-version>
+    <jetty-version>9.4.8.v20171121</jetty-version>
+    <japicmp-version>0.11.0</japicmp-version>
+    <httpclient-version>4.5.2</httpclient-version>
+    <httpcore-version>4.4.6</httpcore-version>
     <slf4j-version>1.7.2</slf4j-version>
     <log4j-version>1.2.15</log4j-version>
-    <maven-javadoc-plugin-version>2.10.4</maven-javadoc-plugin-version>
-    <tycho-extras-version>1.0.0</tycho-extras-version>
-    <gson-version>2.2.4</gson-version>
-    <findbugs-maven-plugin-version>3.0.4</findbugs-maven-plugin-version>
-    <maven-surefire-report-plugin-version>2.20</maven-surefire-report-plugin-version>
+    <maven-javadoc-plugin-version>3.0.1</maven-javadoc-plugin-version>
+    <tycho-extras-version>1.1.0</tycho-extras-version>
+    <gson-version>2.8.2</gson-version>
+    <spotbugs-maven-plugin-version>3.1.2</spotbugs-maven-plugin-version>
+    <maven-surefire-report-plugin-version>2.20.1</maven-surefire-report-plugin-version>
 
     <!-- Properties to enable jacoco code coverage analysis -->
     <sonar.core.codeCoveragePlugin>jacoco</sonar.core.codeCoveragePlugin>
@@ -263,63 +267,6 @@
         </plugin>
 
         <plugin>
-          <artifactId>maven-compiler-plugin</artifactId>
-          <version>3.6.1</version>
-          <configuration>
-            <encoding>UTF-8</encoding>
-            <source>1.8</source>
-            <target>1.8</target>
-          </configuration>
-          <executions>
-            <execution>
-              <id>default-compile</id>
-              <phase>compile</phase>
-              <goals>
-                <goal>compile</goal>
-              </goals>
-              <configuration>
-                <includes>
-                  <include>org/eclipse/jgit/transport/InsecureCipherFactory.java</include>
-                </includes>
-              </configuration>
-            </execution>
-            <execution>
-              <id>compile-with-errorprone</id>
-              <phase>compile</phase>
-              <goals>
-                <goal>compile</goal>
-              </goals>
-              <configuration>
-                <compilerId>javac-with-errorprone</compilerId>
-                <forceJavacCompilerUse>true</forceJavacCompilerUse>
-                <excludes>
-                  <exclude>org/eclipse/jgit/transport/InsecureCipherFactory.java</exclude>
-                </excludes>
-              </configuration>
-            </execution>
-          </executions>
-          <dependencies>
-            <dependency>
-              <groupId>org.codehaus.plexus</groupId>
-              <artifactId>plexus-compiler-javac</artifactId>
-              <version>2.8.1</version>
-            </dependency>
-            <dependency>
-              <groupId>org.codehaus.plexus</groupId>
-              <artifactId>plexus-compiler-javac-errorprone</artifactId>
-              <version>2.8.1</version>
-            </dependency>
-            <!-- override plexus-compiler-javac-errorprone's dependency on
-                 Error Prone with the latest version -->
-            <dependency>
-              <groupId>com.google.errorprone</groupId>
-              <artifactId>error_prone_core</artifactId>
-              <version>2.0.19</version>
-            </dependency>
-          </dependencies>
-        </plugin>
-
-        <plugin>
           <artifactId>maven-clean-plugin</artifactId>
           <version>3.0.0</version>
         </plugin>
@@ -327,7 +274,7 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-shade-plugin</artifactId>
-          <version>3.0.0</version>
+          <version>3.1.0</version>
         </plugin>
 
         <plugin>
@@ -339,7 +286,7 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-dependency-plugin</artifactId>
-          <version>3.0.0</version>
+          <version>3.1.1</version>
         </plugin>
 
         <plugin>
@@ -357,7 +304,7 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-surefire-plugin</artifactId>
-          <version>2.20</version>
+          <version>2.20.1</version>
           <configuration>
             <forkCount>${test-fork-count}</forkCount>
             <reuseForks>true</reuseForks>
@@ -371,9 +318,9 @@
         </plugin>
 
         <plugin>
-          <groupId>org.codehaus.mojo</groupId>
-          <artifactId>findbugs-maven-plugin</artifactId>
-          <version>${findbugs-maven-plugin-version}</version>
+          <groupId>com.github.spotbugs</groupId>
+          <artifactId>spotbugs-maven-plugin</artifactId>
+          <version>${spotbugs-maven-plugin-version}</version>
           <configuration>
             <findbugsXmlOutput>true</findbugsXmlOutput>
             <failOnError>false</failOnError>
@@ -462,6 +409,27 @@
 
     <plugins>
       <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <version>3.0.0-M1</version>
+        <executions>
+          <execution>
+            <id>enforce-maven</id>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <requireMavenVersion>
+                  <version>3.5.2</version>
+                </requireMavenVersion>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
         <artifactId>maven-compiler-plugin</artifactId>
       </plugin>
 
@@ -506,6 +474,7 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-javadoc-plugin</artifactId>
         <configuration>
+          <additionalparam>-Xdoclint:-missing</additionalparam>
           <encoding>${project.build.sourceEncoding}</encoding>
           <quiet>true</quiet>
           <excludePackageNames>org.eclipse.jgit.http.test</excludePackageNames>
@@ -570,8 +539,6 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-javadoc-plugin</artifactId>
         <version>${maven-javadoc-plugin-version}</version>
-        <configuration>
-        </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -579,9 +546,9 @@
         <version>2.5</version>
       </plugin>
       <plugin>
-        <groupId>org.codehaus.mojo</groupId>
-        <artifactId>findbugs-maven-plugin</artifactId>
-        <version>${findbugs-maven-plugin-version}</version>
+        <groupId>com.github.spotbugs</groupId>
+        <artifactId>spotbugs-maven-plugin</artifactId>
+        <version>${spotbugs-maven-plugin-version}</version>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -604,6 +571,12 @@
         <groupId>com.jcraft</groupId>
         <artifactId>jsch</artifactId>
         <version>${jsch-version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.jcraft</groupId>
+        <artifactId>jzlib</artifactId>
+        <version>${jzlib-version}</version>
       </dependency>
 
       <dependency>
@@ -637,6 +610,13 @@
       </dependency>
 
       <dependency>
+        <groupId>org.tukaani</groupId>
+        <artifactId>xz</artifactId>
+        <version>1.6</version>
+        <optional>true</optional>
+      </dependency>
+
+      <dependency>
         <groupId>org.eclipse.jetty</groupId>
         <artifactId>jetty-servlet</artifactId>
         <version>${jetty-version}</version>
@@ -652,6 +632,12 @@
         <groupId>org.apache.httpcomponents</groupId>
         <artifactId>httpclient</artifactId>
         <version>${httpclient-version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.httpcomponents</groupId>
+        <artifactId>httpcore</artifactId>
+        <version>${httpcore-version}</version>
       </dependency>
 
       <dependency>
@@ -719,40 +705,113 @@
 
   <profiles>
     <profile>
-      <id>jgit.java8</id>
+      <id>javac</id>
+      <build>
+        <plugins>
+          <plugin>
+            <artifactId>maven-compiler-plugin</artifactId>
+            <version>3.7.0</version>
+            <configuration>
+              <encoding>UTF-8</encoding>
+              <source>1.8</source>
+              <target>1.8</target>
+            </configuration>
+            <executions>
+              <execution>
+                <id>default-compile</id>
+                <phase>compile</phase>
+                <goals>
+                  <goal>compile</goal>
+                </goals>
+                <configuration>
+                  <includes>
+                    <include>org/eclipse/jgit/transport/InsecureCipherFactory.java</include>
+                  </includes>
+                </configuration>
+              </execution>
+              <execution>
+                <id>compile-with-errorprone</id>
+                <phase>compile</phase>
+                <goals>
+                  <goal>compile</goal>
+                </goals>
+                <configuration>
+                  <compilerId>javac-with-errorprone</compilerId>
+                  <forceJavacCompilerUse>true</forceJavacCompilerUse>
+                  <excludes>
+                    <exclude>org/eclipse/jgit/transport/InsecureCipherFactory.java</exclude>
+                  </excludes>
+                </configuration>
+              </execution>
+            </executions>
+            <dependencies>
+              <dependency>
+                <groupId>org.codehaus.plexus</groupId>
+                <artifactId>plexus-compiler-javac</artifactId>
+                <version>2.8.2</version>
+              </dependency>
+              <dependency>
+                <groupId>org.codehaus.plexus</groupId>
+                <artifactId>plexus-compiler-javac-errorprone</artifactId>
+                <version>2.8.4</version>
+              </dependency>
+              <!-- override plexus-compiler-javac-errorprone's dependency on
+                  Error Prone with the latest version -->
+              <dependency>
+                <groupId>com.google.errorprone</groupId>
+                <artifactId>error_prone_core</artifactId>
+                <version>2.3.1</version>
+              </dependency>
+            </dependencies>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
+      <id>ecj</id>
       <activation>
-        <jdk>[1.8,)</jdk>
+        <activeByDefault>true</activeByDefault>
       </activation>
       <build>
         <plugins>
           <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-javadoc-plugin</artifactId>
+            <artifactId>maven-compiler-plugin</artifactId>
+            <version>3.7.0</version>
             <configuration>
-              <additionalparam>-Xdoclint:-missing</additionalparam>
+              <compilerId>eclipse</compilerId>
+              <encoding>UTF-8</encoding>
+              <source>1.8</source>
+              <target>1.8</target>
+              <!-- Passing arguments is a trainwreck, see https://issues.apache.org/jira/browse/MCOMPILER-123 -->
+              <compilerArguments>
+                <properties>${project.basedir}/.settings/org.eclipse.jdt.core.prefs</properties>
+              </compilerArguments>
+              <showWarnings>true</showWarnings>
+              <showDeprecation>true</showDeprecation>
             </configuration>
+            <dependencies>
+              <dependency>
+                <groupId>org.codehaus.plexus</groupId>
+                <artifactId>plexus-compiler-eclipse</artifactId>
+                <version>2.8.4</version>
+              </dependency>
+              <dependency>
+                <groupId>org.eclipse.jdt</groupId>
+                <artifactId>ecj</artifactId>
+                <version>3.13.102</version>
+              </dependency>
+            </dependencies>
           </plugin>
         </plugins>
       </build>
-      <reporting>
-        <plugins>
-          <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-javadoc-plugin</artifactId>
-            <configuration>
-              <additionalparam>-Xdoclint:-missing</additionalparam>
-            </configuration>
-          </plugin>
-        </plugins>
-      </reporting>
     </profile>
     <profile>
       <id>static-checks</id>
       <build>
         <plugins>
           <plugin>
-            <groupId>org.codehaus.mojo</groupId>
-            <artifactId>findbugs-maven-plugin</artifactId>
+            <groupId>com.github.spotbugs</groupId>
+            <artifactId>spotbugs-maven-plugin</artifactId>
           </plugin>
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>

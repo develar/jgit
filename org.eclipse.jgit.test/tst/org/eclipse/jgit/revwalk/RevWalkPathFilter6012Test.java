@@ -102,17 +102,17 @@ public class RevWalkPathFilter6012Test extends RevWalkTestCase {
 		}
 	}
 
-	protected void check(final RevCommit... order) throws Exception {
+	protected void check(RevCommit... order) throws Exception {
 		markStart(i);
 		final StringBuilder act = new StringBuilder();
-		for (final RevCommit z : rw) {
+		for (RevCommit z : rw) {
 			final String name = byName.get(z);
 			assertNotNull(name);
 			act.append(name);
 			act.append(' ');
 		}
 		final StringBuilder exp = new StringBuilder();
-		for (final RevCommit z : order) {
+		for (RevCommit z : order) {
 			final String name = byName.get(z);
 			assertNotNull(name);
 			exp.append(name);
@@ -121,7 +121,7 @@ public class RevWalkPathFilter6012Test extends RevWalkTestCase {
 		assertEquals(exp.toString(), act.toString());
 	}
 
-	protected void filter(final String path) {
+	protected void filter(String path) {
 		rw.setTreeFilter(AndTreeFilter.create(PathFilterGroup
 				.createFromStrings(Collections.singleton(path)),
 				TreeFilter.ANY_DIFF));

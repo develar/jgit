@@ -79,7 +79,7 @@ public class PlotCommit<L extends PlotLane> extends RevCommit {
 	 * @param id
 	 *            the identity of this commit.
 	 */
-	protected PlotCommit(final AnyObjectId id) {
+	protected PlotCommit(AnyObjectId id) {
 		super(id);
 		forkingOffLanes = NO_LANES;
 		passingLanes = NO_LANES;
@@ -88,19 +88,19 @@ public class PlotCommit<L extends PlotLane> extends RevCommit {
 		refs = NO_REFS;
 	}
 
-	void addForkingOffLane(final PlotLane f) {
+	void addForkingOffLane(PlotLane f) {
 		forkingOffLanes = addLane(f, forkingOffLanes);
 	}
 
-	void addPassingLane(final PlotLane c) {
+	void addPassingLane(PlotLane c) {
 		passingLanes = addLane(c, passingLanes);
 	}
 
-	void addMergingLane(final PlotLane m) {
+	void addMergingLane(PlotLane m) {
 		mergingLanes = addLane(m, mergingLanes);
 	}
 
-	private static PlotLane[] addLane(final PlotLane l, PlotLane[] lanes) {
+	private static PlotLane[] addLane(PlotLane l, PlotLane[] lanes) {
 		final int cnt = lanes.length;
 		if (cnt == 0)
 			lanes = new PlotLane[] { l };
@@ -115,7 +115,7 @@ public class PlotCommit<L extends PlotLane> extends RevCommit {
 		return lanes;
 	}
 
-	void addChild(final PlotCommit c) {
+	void addChild(PlotCommit c) {
 		final int cnt = children.length;
 		if (cnt == 0)
 			children = new PlotCommit[] { c };
@@ -149,10 +149,10 @@ public class PlotCommit<L extends PlotLane> extends RevCommit {
 	 *            child index to obtain. Must be in the range 0 through
 	 *            {@link #getChildCount()}-1.
 	 * @return the specified child.
-	 * @throws ArrayIndexOutOfBoundsException
+	 * @throws java.lang.ArrayIndexOutOfBoundsException
 	 *             an invalid child index was specified.
 	 */
-	public final PlotCommit getChild(final int nth) {
+	public final PlotCommit getChild(int nth) {
 		return children[nth];
 	}
 
@@ -163,8 +163,8 @@ public class PlotCommit<L extends PlotLane> extends RevCommit {
 	 *            the commit to test.
 	 * @return true if the given commit built on top of this commit.
 	 */
-	public final boolean isChild(final PlotCommit c) {
-		for (final PlotCommit a : children)
+	public final boolean isChild(PlotCommit c) {
+		for (PlotCommit a : children)
 			if (a == c)
 				return true;
 		return false;
@@ -186,10 +186,10 @@ public class PlotCommit<L extends PlotLane> extends RevCommit {
 	 *            ref index to obtain. Must be in the range 0 through
 	 *            {@link #getRefCount()}-1.
 	 * @return the specified ref.
-	 * @throws ArrayIndexOutOfBoundsException
+	 * @throws java.lang.ArrayIndexOutOfBoundsException
 	 *             an invalid ref index was specified.
 	 */
-	public final Ref getRef(final int nth) {
+	public final Ref getRef(int nth) {
 		return refs[nth];
 	}
 
@@ -203,6 +203,7 @@ public class PlotCommit<L extends PlotLane> extends RevCommit {
 		return (L) lane;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void reset() {
 		forkingOffLanes = NO_LANES;

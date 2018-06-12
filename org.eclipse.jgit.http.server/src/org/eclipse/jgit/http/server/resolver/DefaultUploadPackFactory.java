@@ -43,10 +43,11 @@
 
 package org.eclipse.jgit.http.server.resolver;
 
+import java.util.Arrays;
+
 import javax.servlet.http.HttpServletRequest;
 
 import org.eclipse.jgit.lib.Config;
-import org.eclipse.jgit.lib.Config.SectionParser;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.transport.UploadPack;
 import org.eclipse.jgit.transport.resolver.ServiceNotAuthorizedException;
@@ -54,34 +55,36 @@ import org.eclipse.jgit.transport.resolver.ServiceNotEnabledException;
 import org.eclipse.jgit.transport.resolver.UploadPackFactory;
 
 /**
- * Create and configure {@link UploadPack} service instance.
+ * Create and configure {@link org.eclipse.jgit.transport.UploadPack} service
+ * instance.
  * <p>
  * Reading by upload-pack is permitted unless {@code http.uploadpack} is
  * explicitly set to false.
  */
 public class DefaultUploadPackFactory implements
 		UploadPackFactory<HttpServletRequest> {
-	private static final SectionParser<ServiceConfig> CONFIG = new SectionParser<ServiceConfig>() {
-		@Override
-		public ServiceConfig parse(final Config cfg) {
-			return new ServiceConfig(cfg);
-		}
-	};
-
 	private static class ServiceConfig {
 		final boolean enabled;
 
-		ServiceConfig(final Config cfg) {
+		ServiceConfig(Config cfg) {
 			enabled = cfg.getBoolean("http", "uploadpack", true);
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public UploadPack create(final HttpServletRequest req, final Repository db)
+	public UploadPack create(HttpServletRequest req, Repository db)
 			throws ServiceNotEnabledException, ServiceNotAuthorizedException {
-		if (db.getConfig().get(CONFIG).enabled)
-			return new UploadPack(db);
-		else
+		if (db.getConfig().get(ServiceConfig::new).enabled) {
+			UploadPack up = new UploadPack(db);
+			String header = req.getHeader("Git-Protocol"); //$NON-NLS-1$
+			if (header != null) {
+				String[] params = header.split(":"); //$NON-NLS-1$
+				up.setExtraParameters(Arrays.asList(params));
+			}
+			return up;
+		} else {
 			throw new ServiceNotEnabledException();
+		}
 	}
 }

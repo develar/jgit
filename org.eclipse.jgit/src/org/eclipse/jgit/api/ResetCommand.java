@@ -58,7 +58,9 @@ import org.eclipse.jgit.dircache.DirCacheEntry;
 import org.eclipse.jgit.dircache.DirCacheIterator;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.NullProgressMonitor;
 import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.ProgressMonitor;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.lib.Repository;
@@ -125,23 +127,26 @@ public class ResetCommand extends GitCommand<Ref> {
 
         private boolean isReflogDisabled;
 
-        private DirCacheCheckout dirCacheCheckout;
+	private ProgressMonitor monitor = NullProgressMonitor.INSTANCE;
 
-        /**
+	/**
+	 * <p>
+	 * Constructor for ResetCommand.
+	 * </p>
 	 *
 	 * @param repo
+	 *            the {@link org.eclipse.jgit.lib.Repository}
 	 */
 	public ResetCommand(Repository repo) {
 		super(repo);
 	}
 
 	/**
+	 * {@inheritDoc}
+	 * <p>
 	 * Executes the {@code Reset} command. Each instance of this class should
 	 * only be used for one invocation of the command. Don't call this method
 	 * twice on an instance.
-	 *
-	 * @return the Ref after reset
-	 * @throws GitAPIException
 	 */
 	@Override
 	public Ref call() throws GitAPIException, CheckoutConflictException {
@@ -240,7 +245,7 @@ public class ResetCommand extends GitCommand<Ref> {
 		}
 	}
 
-	private RevCommit parseCommit(final ObjectId commitId) {
+	private RevCommit parseCommit(ObjectId commitId) {
 		try (RevWalk rw = new RevWalk(repo)) {
 			return rw.parseCommit(commitId);
 		} catch (IOException e) {
@@ -260,6 +265,8 @@ public class ResetCommand extends GitCommand<Ref> {
 	}
 
 	/**
+	 * Set the name of the <code>Ref</code> to reset to
+	 *
 	 * @param ref
 	 *            the ref to reset to, defaults to HEAD if not specified
 	 * @return this instance
@@ -270,6 +277,8 @@ public class ResetCommand extends GitCommand<Ref> {
 	}
 
 	/**
+	 * Set the reset mode
+	 *
 	 * @param mode
 	 *            the mode of the reset command
 	 * @return this instance
@@ -284,6 +293,8 @@ public class ResetCommand extends GitCommand<Ref> {
 	}
 
 	/**
+	 * Repository relative path of file or directory to reset
+	 *
 	 * @param path
 	 *            repository-relative path of file/directory to reset (with
 	 *            <code>/</code> as separator)
@@ -306,6 +317,8 @@ public class ResetCommand extends GitCommand<Ref> {
           }
 
 	/**
+	 * Whether to disable reflog
+	 *
 	 * @param disable
 	 *            if {@code true} disables writing a reflog entry for this reset
 	 *            command
@@ -318,6 +331,8 @@ public class ResetCommand extends GitCommand<Ref> {
 	}
 
 	/**
+	 * Whether reflog is disabled
+	 *
 	 * @return {@code true} if writing reflog is disabled for this reset command
 	 * @since 4.5
 	 */
@@ -332,9 +347,27 @@ public class ResetCommand extends GitCommand<Ref> {
 			return Constants.HEAD;
 	}
 
+	/**
+	 * The progress monitor associated with the reset operation. By default,
+	 * this is set to <code>NullProgressMonitor</code>
+	 *
+	 * @see NullProgressMonitor
+	 * @param monitor
+	 *            a {@link org.eclipse.jgit.lib.ProgressMonitor}
+	 * @return {@code this}
+	 * @since 4.11
+	 */
+	public ResetCommand setProgressMonitor(ProgressMonitor monitor) {
+		if (monitor == null) {
+			monitor = NullProgressMonitor.INSTANCE;
+		}
+		this.monitor = monitor;
+		return this;
+	}
+
 	private void resetIndexForPaths(ObjectId commitTree) {
 		DirCache dc = null;
-		try (final TreeWalk tw = new TreeWalk(repo)) {
+		try (TreeWalk tw = new TreeWalk(repo)) {
 			dc = repo.lockDirCache();
 			DirCacheBuilder builder = dc.builder();
 
@@ -416,6 +449,7 @@ public class ResetCommand extends GitCommand<Ref> {
             dirCacheCheckout = new DirCacheCheckout(repo, dc,
                     commitTree);
 			dirCacheCheckout.setFailOnConflict(false);
+			checkout.setProgressMonitor(monitor);
 			try {
 				dirCacheCheckout.checkout();
 			} catch (org.eclipse.jgit.errors.CheckoutConflictException cce) {
@@ -442,6 +476,7 @@ public class ResetCommand extends GitCommand<Ref> {
 		repo.writeMergeCommitMsg(null);
 	}
 
+	/** {@inheritDoc} */
 	@SuppressWarnings("nls")
 	@Override
 	public String toString() {

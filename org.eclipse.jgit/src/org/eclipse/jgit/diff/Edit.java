@@ -94,7 +94,7 @@ public class Edit {
 	 * @param bs
 	 *            beginB: start and end of region in sequence B; 0 based.
 	 */
-	public Edit(final int as, final int bs) {
+	public Edit(int as, int bs) {
 		this(as, as, bs, bs);
 	}
 
@@ -110,7 +110,7 @@ public class Edit {
 	 * @param be
 	 *            endB: end of region in sequence B; must be &gt; = bs.
 	 */
-	public Edit(final int as, final int ae, final int bs, final int be) {
+	public Edit(int as, int ae, int bs, int be) {
 		beginA = as;
 		endA = ae;
 
@@ -118,7 +118,11 @@ public class Edit {
 		endB = be;
 	}
 
-	/** @return the type of this region */
+	/**
+	 * Get type
+	 *
+	 * @return the type of this region
+	 */
 	public final Type getType() {
 		if (beginA < endA) {
 			if (beginB < endB)
@@ -134,37 +138,66 @@ public class Edit {
 		}
 	}
 
-	/** @return true if the edit is empty (lengths of both a and b is zero). */
+	/**
+	 * Whether edit is empty
+	 *
+	 * @return {@code true} if the edit is empty (lengths of both a and b is
+	 *         zero)
+	 */
 	public final boolean isEmpty() {
 		return beginA == endA && beginB == endB;
 	}
 
-	/** @return start point in sequence A. */
+	/**
+	 * Get start point in sequence A
+	 *
+	 * @return start point in sequence A
+	 */
 	public final int getBeginA() {
 		return beginA;
 	}
 
-	/** @return end point in sequence A. */
+	/**
+	 * Get end point in sequence A
+	 *
+	 * @return end point in sequence A
+	 */
 	public final int getEndA() {
 		return endA;
 	}
 
-	/** @return start point in sequence B. */
+	/**
+	 * Get start point in sequence B
+	 *
+	 * @return start point in sequence B
+	 */
 	public final int getBeginB() {
 		return beginB;
 	}
 
-	/** @return end point in sequence B. */
+	/**
+	 * Get end point in sequence B
+	 *
+	 * @return end point in sequence B
+	 */
 	public final int getEndB() {
 		return endB;
 	}
 
-	/** @return length of the region in A. */
+	/**
+	 * Get length of the region in A
+	 *
+	 * @return length of the region in A
+	 */
 	public final int getLengthA() {
 		return endA - beginA;
 	}
 
-	/** @return length of the region in B. */
+	/**
+	 * Get length of the region in B
+	 *
+	 * @return return length of the region in B
+	 */
 	public final int getLengthB() {
 		return endB - beginB;
 	}
@@ -210,17 +243,23 @@ public class Edit {
 		return new Edit(cut.endA, endA, cut.endB, endB);
 	}
 
-	/** Increase {@link #getEndA()} by 1. */
+	/**
+	 * Increase {@link #getEndA()} by 1.
+	 */
 	public void extendA() {
 		endA++;
 	}
 
-	/** Increase {@link #getEndB()} by 1. */
+	/**
+	 * Increase {@link #getEndB()} by 1.
+	 */
 	public void extendB() {
 		endB++;
 	}
 
-	/** Swap A and B, so the edit goes the other direction. */
+	/**
+	 * Swap A and B, so the edit goes the other direction.
+	 */
 	public void swap() {
 		final int sBegin = beginA;
 		final int sEnd = endA;
@@ -232,13 +271,15 @@ public class Edit {
 		endB = sEnd;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public int hashCode() {
 		return beginA ^ endA;
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public boolean equals(final Object o) {
+	public boolean equals(Object o) {
 		if (o instanceof Edit) {
 			final Edit e = (Edit) o;
 			return this.beginA == e.beginA && this.endA == e.endA
@@ -247,6 +288,7 @@ public class Edit {
 		return false;
 	}
 
+	/** {@inheritDoc} */
 	@SuppressWarnings("nls")
 	@Override
 	public String toString() {

@@ -72,12 +72,20 @@ public class TagBuilder {
 
 	private String message;
 
-	/** @return the type of object this tag refers to. */
+	/**
+	 * Get the type of object this tag refers to.
+	 *
+	 * @return the type of object this tag refers to.
+	 */
 	public int getObjectType() {
 		return type;
 	}
 
-	/** @return the object this tag refers to. */
+	/**
+	 * Get the object this tag refers to.
+	 *
+	 * @return the object this tag refers to.
+	 */
 	public ObjectId getObjectId() {
 		return object;
 	}
@@ -105,7 +113,11 @@ public class TagBuilder {
 		setObjectId(obj, obj.getType());
 	}
 
-	/** @return short name of the tag (no {@code refs/tags/} prefix). */
+	/**
+	 * Get short name of the tag (no {@code refs/tags/} prefix).
+	 *
+	 * @return short name of the tag (no {@code refs/tags/} prefix).
+	 */
 	public String getTag() {
 		return tag;
 	}
@@ -122,7 +134,11 @@ public class TagBuilder {
 		this.tag = shortName;
 	}
 
-	/** @return creator of this tag. May be null. */
+	/**
+	 * Get creator of this tag.
+	 *
+	 * @return creator of this tag. May be null.
+	 */
 	public PersonIdent getTagger() {
 		return tagger;
 	}
@@ -137,7 +153,11 @@ public class TagBuilder {
 		tagger = taggerIdent;
 	}
 
-	/** @return the complete commit message. */
+	/**
+	 * Get the complete commit message.
+	 *
+	 * @return the complete commit message.
+	 */
 	public String getMessage() {
 		return message;
 	}
@@ -148,7 +168,7 @@ public class TagBuilder {
 	 * @param newMessage
 	 *            the tag's message.
 	 */
-	public void setMessage(final String newMessage) {
+	public void setMessage(String newMessage) {
 		message = newMessage;
 	}
 
@@ -160,8 +180,8 @@ public class TagBuilder {
 	 */
 	public byte[] build() {
 		ByteArrayOutputStream os = new ByteArrayOutputStream();
-		OutputStreamWriter w = new OutputStreamWriter(os, Constants.CHARSET);
-		try {
+		try (OutputStreamWriter w = new OutputStreamWriter(os,
+				Constants.CHARSET)) {
 			w.write("object "); //$NON-NLS-1$
 			getObjectId().copyTo(w);
 			w.write('\n');
@@ -183,7 +203,6 @@ public class TagBuilder {
 			w.write('\n');
 			if (getMessage() != null)
 				w.write(getMessage());
-			w.close();
 		} catch (IOException err) {
 			// This should never occur, the only way to get it above is
 			// for the ByteArrayOutputStream to throw, but it doesn't.
@@ -203,6 +222,7 @@ public class TagBuilder {
 		return build();
 	}
 
+	/** {@inheritDoc} */
 	@SuppressWarnings("nls")
 	@Override
 	public String toString() {

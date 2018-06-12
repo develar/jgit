@@ -62,6 +62,7 @@ import org.eclipse.jgit.dircache.DirCacheEditor.PathEdit;
 import org.eclipse.jgit.dircache.DirCacheEntry;
 import org.eclipse.jgit.dircache.DirCacheIterator;
 import org.eclipse.jgit.errors.UnmergedPathException;
+import org.eclipse.jgit.events.WorkingTreeModifiedEvent;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.CommitBuilder;
 import org.eclipse.jgit.lib.Constants;
@@ -114,6 +115,7 @@ public class StashCreateCommand extends GitCommand<RevCommit> {
 	 * Create a command to stash changes in the working directory and index
 	 *
 	 * @param repo
+	 *            a {@link org.eclipse.jgit.lib.Repository} object.
 	 */
 	public StashCreateCommand(Repository repo) {
 		super(repo);
@@ -127,6 +129,7 @@ public class StashCreateCommand extends GitCommand<RevCommit> {
 	 * id, and short commit message when used.
 	 *
 	 * @param message
+	 *            the stash message
 	 * @return {@code this}
 	 */
 	public StashCreateCommand setIndexMessage(String message) {
@@ -141,6 +144,7 @@ public class StashCreateCommand extends GitCommand<RevCommit> {
 	 * id, and short commit message when used.
 	 *
 	 * @param message
+	 *            the working directory message
 	 * @return {@code this}
 	 */
 	public StashCreateCommand setWorkingDirectoryMessage(String message) {
@@ -152,6 +156,8 @@ public class StashCreateCommand extends GitCommand<RevCommit> {
 	 * Set the person to use as the author and committer in the commits made
 	 *
 	 * @param person
+	 *            the {@link org.eclipse.jgit.lib.PersonIdent} of the person who
+	 *            creates the stash.
 	 * @return {@code this}
 	 */
 	public StashCreateCommand setPerson(PersonIdent person) {
@@ -160,12 +166,13 @@ public class StashCreateCommand extends GitCommand<RevCommit> {
 	}
 
 	/**
-	 * Set the reference to update with the stashed commit id
-	 * If null, no reference is updated
+	 * Set the reference to update with the stashed commit id If null, no
+	 * reference is updated
 	 * <p>
-	 * This value defaults to {@link Constants#R_STASH}
+	 * This value defaults to {@link org.eclipse.jgit.lib.Constants#R_STASH}
 	 *
 	 * @param ref
+	 *            the name of the {@code Ref} to update
 	 * @return {@code this}
 	 */
 	public StashCreateCommand setRef(String ref) {
@@ -177,6 +184,7 @@ public class StashCreateCommand extends GitCommand<RevCommit> {
 	 * Whether to include untracked files in the stash.
 	 *
 	 * @param includeUntracked
+	 *            whether to include untracked files in the stash
 	 * @return {@code this}
 	 * @since 3.4
 	 */
@@ -187,7 +195,7 @@ public class StashCreateCommand extends GitCommand<RevCommit> {
 
 	private RevCommit parseCommit(final ObjectReader reader,
 			final ObjectId headId) throws IOException {
-		try (final RevWalk walk = new RevWalk(reader)) {
+		try (RevWalk walk = new RevWalk(reader)) {
 			return walk.parseCommit(headId);
 		}
 	}
@@ -211,6 +219,7 @@ public class StashCreateCommand extends GitCommand<RevCommit> {
 		refUpdate.setNewObjectId(commitId);
 		refUpdate.setRefLogIdent(refLogIdent);
 		refUpdate.setRefLogMessage(refLogMessage, false);
+		refUpdate.setForceRefLog(true);
 		if (currentRef != null)
 			refUpdate.setExpectedOldObjectId(currentRef.getObjectId());
 		else
@@ -230,16 +239,16 @@ public class StashCreateCommand extends GitCommand<RevCommit> {
 	}
 
 	/**
+	 * {@inheritDoc}
+	 * <p>
 	 * Stash the contents on the working directory and index in separate commits
 	 * and reset to the current HEAD commit.
-	 *
-	 * @return stashed commit or null if no changes to stash
-	 * @throws GitAPIException
 	 */
 	@Override
 	public RevCommit call() throws GitAPIException {
 		checkCallable();
 
+		List<String> deletedFiles = new ArrayList<>();
 		Ref head = getHead();
 		try (ObjectReader reader = repo.newObjectReader()) {
 			RevCommit headCommit = parseCommit(reader, head.getObjectId());
@@ -294,12 +303,9 @@ public class StashCreateCommand extends GitCommand<RevCommit> {
 						entry.setLastModified(wtIter.getEntryLastModified());
 						entry.setFileMode(wtIter.getEntryFileMode());
 						long contentLength = wtIter.getEntryContentLength();
-						InputStream in = wtIter.openEntryStream();
-						try {
+						try (InputStream in = wtIter.openEntryStream()) {
 							entry.setObjectId(inserter.insert(
 									Constants.OBJ_BLOB, contentLength, in));
-						} finally {
-							in.close();
 						}
 
 						if (indexIter == null && headIter == null)
@@ -377,9 +383,11 @@ public class StashCreateCommand extends GitCommand<RevCommit> {
 				// Remove untracked files
 				if (includeUntracked) {
 					for (DirCacheEntry entry : untracked) {
+						String repoRelativePath = entry.getPathString();
 						File file = new File(repo.getWorkTree(),
-								entry.getPathString());
+								repoRelativePath);
 						FileUtils.delete(file);
+						deletedFiles.add(repoRelativePath);
 					}
 				}
 
@@ -394,6 +402,11 @@ public class StashCreateCommand extends GitCommand<RevCommit> {
 			return parseCommit(reader, commitId);
 		} catch (IOException e) {
 			throw new JGitInternalException(JGitText.get().stashFailed, e);
+		} finally {
+			if (!deletedFiles.isEmpty()) {
+				repo.fireEvent(
+						new WorkingTreeModifiedEvent(null, deletedFiles));
+			}
 		}
 	}
 }

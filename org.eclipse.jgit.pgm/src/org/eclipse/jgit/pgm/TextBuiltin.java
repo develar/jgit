@@ -129,13 +129,42 @@ public abstract class TextBuiltin {
 	/** RevWalk used during command line parsing, if it was required. */
 	protected RevWalk argWalk;
 
-	final void setCommandName(final String name) {
+	final void setCommandName(String name) {
 		commandName = name;
 	}
 
-	/** @return true if {@link #db}/{@link #getRepository()} is required. */
+	/**
+	 * If this command requires a repository.
+	 *
+	 * @return true if {@link #db}/{@link #getRepository()} is required
+	 */
 	protected boolean requiresRepository() {
 		return true;
+	}
+
+	/**
+	 * Initializes the command to work with a repository, including setting the
+	 * output and error streams.
+	 *
+	 * @param repository
+	 *            the opened repository that the command should work on.
+	 * @param gitDir
+	 *            value of the {@code --git-dir} command line option, if
+	 *            {@code repository} is null.
+	 * @param input
+	 *            input stream from which input will be read
+	 * @param output
+	 *            output stream to which output will be written
+	 * @param error
+	 *            error stream to which errors will be written
+	 * @since 4.9
+	 */
+	public void initRaw(final Repository repository, final String gitDir,
+			InputStream input, OutputStream output, OutputStream error) {
+		this.ins = input;
+		this.outs = output;
+		this.errs = error;
+		init(repository, gitDir);
 	}
 
 	/**
@@ -147,7 +176,7 @@ public abstract class TextBuiltin {
 	 *            value of the {@code --git-dir} command line option, if
 	 *            {@code repository} is null.
 	 */
-	protected void init(final Repository repository, final String gitDir) {
+	protected void init(Repository repository, String gitDir) {
 		try {
 			final String outputEncoding = repository != null ? repository
 					.getConfig().getString("i18n", null, "logOutputEncoding") : null; //$NON-NLS-1$ //$NON-NLS-2$
@@ -189,7 +218,7 @@ public abstract class TextBuiltin {
 	 *
 	 * @param args
 	 *            command line arguments passed after the command name.
-	 * @throws Exception
+	 * @throws java.lang.Exception
 	 *             an error occurred while processing the command. The main
 	 *             framework will catch the exception and print a message on
 	 *             standard error.
@@ -208,9 +237,9 @@ public abstract class TextBuiltin {
 	 *
 	 * @param args
 	 *            the arguments supplied on the command line, if any.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
-	protected void parseArguments(final String[] args) throws IOException {
+	protected void parseArguments(String[] args) throws IOException {
 		final CmdLineParser clp = new CmdLineParser(this);
 		help = containsHelp(args);
 		try {
@@ -235,9 +264,10 @@ public abstract class TextBuiltin {
 	 * Print the usage line
 	 *
 	 * @param clp
-	 * @throws IOException
+	 *            a {@link org.eclipse.jgit.pgm.opt.CmdLineParser} object.
+	 * @throws java.io.IOException
 	 */
-	public void printUsageAndExit(final CmdLineParser clp) throws IOException {
+	public void printUsageAndExit(CmdLineParser clp) throws IOException {
 		printUsageAndExit("", clp); //$NON-NLS-1$
 	}
 
@@ -245,23 +275,27 @@ public abstract class TextBuiltin {
 	 * Print an error message and the usage line
 	 *
 	 * @param message
+	 *            a {@link java.lang.String} object.
 	 * @param clp
-	 * @throws IOException
+	 *            a {@link org.eclipse.jgit.pgm.opt.CmdLineParser} object.
+	 * @throws java.io.IOException
 	 */
-	public void printUsageAndExit(final String message, final CmdLineParser clp) throws IOException {
+	public void printUsageAndExit(String message, CmdLineParser clp) throws IOException {
 		printUsage(message, clp);
 		throw die(true);
 	}
 
 	/**
+	 * Print usage help text.
+	 *
 	 * @param message
 	 *            non null
 	 * @param clp
 	 *            parser used to print options
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 * @since 4.2
 	 */
-	protected void printUsage(final String message, final CmdLineParser clp)
+	protected void printUsage(String message, CmdLineParser clp)
 			throws IOException {
 		errw.println(message);
 		errw.print("jgit "); //$NON-NLS-1$
@@ -277,6 +311,8 @@ public abstract class TextBuiltin {
 	}
 
 	/**
+	 * Get error writer
+	 *
 	 * @return error writer, typically this is standard error.
 	 * @since 4.2
 	 */
@@ -285,6 +321,18 @@ public abstract class TextBuiltin {
 	}
 
 	/**
+	 * Get output writer
+	 *
+	 * @return output writer, typically this is standard output.
+	 * @since 4.9
+	 */
+	public ThrowingPrintWriter getOutputWriter() {
+		return outw;
+	}
+
+	/**
+	 * Get resource bundle with localized texts
+	 *
 	 * @return the resource bundle that will be passed to args4j for purpose of
 	 *         string localization
 	 */
@@ -297,7 +345,7 @@ public abstract class TextBuiltin {
 	 * <p>
 	 * This method should only be invoked by {@link #execute(String[])}.
 	 *
-	 * @throws Exception
+	 * @throws java.lang.Exception
 	 *             an error occurred while processing the command. The main
 	 *             framework will catch the exception and print a message on
 	 *             standard error.
@@ -305,13 +353,15 @@ public abstract class TextBuiltin {
 	protected abstract void run() throws Exception;
 
 	/**
+	 * Get the repository
+	 *
 	 * @return the repository this command accesses.
 	 */
 	public Repository getRepository() {
 		return db;
 	}
 
-	ObjectId resolve(final String s) throws IOException {
+	ObjectId resolve(String s) throws IOException {
 		final ObjectId r = db.resolve(s);
 		if (r == null)
 			throw die(MessageFormat.format(CLIText.get().notARevision, s));
@@ -319,28 +369,35 @@ public abstract class TextBuiltin {
 	}
 
 	/**
+	 * Exit the command with an error message
+	 *
 	 * @param why
 	 *            textual explanation
 	 * @return a runtime exception the caller is expected to throw
 	 */
-	protected static Die die(final String why) {
+	protected static Die die(String why) {
 		return new Die(why);
 	}
 
 	/**
+	 * Exit the command with an error message and an exception
+	 *
 	 * @param why
 	 *            textual explanation
 	 * @param cause
 	 *            why the command has failed.
 	 * @return a runtime exception the caller is expected to throw
 	 */
-	protected static Die die(final String why, final Throwable cause) {
+	protected static Die die(String why, Throwable cause) {
 		return new Die(why, cause);
 	}
 
 	/**
+	 * Exit the command
+	 *
 	 * @param aborted
-	 *            boolean indicating that the execution has been aborted before running
+	 *            boolean indicating that the execution has been aborted before
+	 *            running
 	 * @return a runtime exception the caller is expected to throw
 	 * @since 3.4
 	 */
@@ -349,6 +406,8 @@ public abstract class TextBuiltin {
 	}
 
 	/**
+	 * Exit the command
+	 *
 	 * @param aborted
 	 *            boolean indicating that the execution has been aborted before
 	 *            running
@@ -357,7 +416,7 @@ public abstract class TextBuiltin {
 	 * @return a runtime exception the caller is expected to throw
 	 * @since 4.2
 	 */
-	protected static Die die(boolean aborted, final Throwable cause) {
+	protected static Die die(boolean aborted, Throwable cause) {
 		return new Die(aborted, cause);
 	}
 
@@ -372,6 +431,8 @@ public abstract class TextBuiltin {
 	}
 
 	/**
+	 * Check if the arguments contain a help option
+	 *
 	 * @param args
 	 *            non null
 	 * @return true if the given array contains help option

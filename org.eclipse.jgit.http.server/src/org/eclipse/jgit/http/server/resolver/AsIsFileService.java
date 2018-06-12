@@ -45,9 +45,7 @@ package org.eclipse.jgit.http.server.resolver;
 
 import javax.servlet.http.HttpServletRequest;
 
-import org.eclipse.jgit.http.server.GitServlet;
 import org.eclipse.jgit.lib.Config;
-import org.eclipse.jgit.lib.Config.SectionParser;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.transport.resolver.ServiceNotAuthorizedException;
 import org.eclipse.jgit.transport.resolver.ServiceNotEnabledException;
@@ -58,8 +56,9 @@ import org.eclipse.jgit.transport.resolver.ServiceNotEnabledException;
  * Older HTTP clients which do not speak the smart HTTP variant of the Git
  * protocol fetch from a repository by directly getting its objects and pack
  * files. This class, along with the {@code http.getanyfile} per-repository
- * configuration setting, can be used by {@link GitServlet} to control whether
- * or not these older clients are permitted to read these direct files.
+ * configuration setting, can be used by
+ * {@link org.eclipse.jgit.http.server.GitServlet} to control whether or not
+ * these older clients are permitted to read these direct files.
  */
 public class AsIsFileService {
 	/** Always throws {@link ServiceNotEnabledException}. */
@@ -71,17 +70,10 @@ public class AsIsFileService {
 		}
 	};
 
-	private static final SectionParser<ServiceConfig> CONFIG = new SectionParser<ServiceConfig>() {
-		@Override
-		public ServiceConfig parse(final Config cfg) {
-			return new ServiceConfig(cfg);
-		}
-	};
-
 	private static class ServiceConfig {
 		final boolean enabled;
 
-		ServiceConfig(final Config cfg) {
+		ServiceConfig(Config cfg) {
 			enabled = cfg.getBoolean("http", "getanyfile", true);
 		}
 	}
@@ -96,7 +88,7 @@ public class AsIsFileService {
 	 *         {@code true}.
 	 */
 	protected static boolean isEnabled(Repository db) {
-		return db.getConfig().get(CONFIG).enabled;
+		return db.getConfig().get(ServiceConfig::new).enabled;
 	}
 
 	/**
@@ -106,8 +98,10 @@ public class AsIsFileService {
 	 * throwing a checked exception if access should be denied.
 	 * <p>
 	 * The default implementation of this method checks {@code http.getanyfile},
-	 * throwing {@link ServiceNotEnabledException} if it was explicitly set to
-	 * {@code false}, and otherwise succeeding silently.
+	 * throwing
+	 * {@link org.eclipse.jgit.transport.resolver.ServiceNotEnabledException} if
+	 * it was explicitly set to {@code false}, and otherwise succeeding
+	 * silently.
 	 *
 	 * @param req
 	 *            current HTTP request, in case information from the request may

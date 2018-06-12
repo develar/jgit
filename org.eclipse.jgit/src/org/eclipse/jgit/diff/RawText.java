@@ -44,11 +44,15 @@
 
 package org.eclipse.jgit.diff;
 
+import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
+import org.eclipse.jgit.errors.BinaryBlobException;
+import org.eclipse.jgit.errors.LargeObjectException;
+import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.util.IO;
 import org.eclipse.jgit.util.IntList;
 import org.eclipse.jgit.util.RawParseUtils;
@@ -66,11 +70,11 @@ import org.eclipse.jgit.util.RawParseUtils;
  * they are converting from "line number" to "element index".
  */
 public class RawText extends Sequence {
-	/** A Rawtext of length 0 */
+	/** A RawText of length 0 */
 	public static final RawText EMPTY_TEXT = new RawText(new byte[0]);
 
 	/** Number of bytes to check for heuristics in {@link #isBinary(byte[])} */
-	private static final int FIRST_FEW_BYTES = 8000;
+	static final int FIRST_FEW_BYTES = 8000;
 
 	/** The file content for this sequence. */
 	protected final byte[] content;
@@ -84,12 +88,29 @@ public class RawText extends Sequence {
 	 * The entire array (indexes 0 through length-1) is used as the content.
 	 *
 	 * @param input
-	 *            the content array. The array is never modified, so passing
-	 *            through cached arrays is safe.
+	 *            the content array. The object retains a reference to this
+	 *            array, so it should be immutable.
 	 */
-	public RawText(final byte[] input) {
+	public RawText(byte[] input) {
+		this(input, RawParseUtils.lineMap(input, 0, input.length));
+	}
+
+	/**
+	 * Create a new sequence from the existing content byte array and the line
+	 * map indicating line boundaries.
+	 *
+	 * @param input
+	 *            the content array. The object retains a reference to this
+	 *            array, so it should be immutable.
+	 * @param lineMap
+	 *            an array with 1-based offsets for the start of each line.
+	 *            The first and last entries should be {@link Integer#MIN_VALUE}
+	 *            and an offset one past the end of the last line, respectively.
+	 * @since 5.0
+	 */
+	public RawText(byte[] input, IntList lineMap) {
 		content = input;
-		lines = RawParseUtils.lineMap(content, 0, content.length);
+		lines = lineMap;
 	}
 
 	/**
@@ -99,14 +120,23 @@ public class RawText extends Sequence {
 	 *
 	 * @param file
 	 *            the text file.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             if Exceptions occur while reading the file
 	 */
 	public RawText(File file) throws IOException {
 		this(IO.readFully(file));
 	}
 
+	/**
+	 * @return the raw, unprocessed content read.
+	 * @since 4.11
+	 */
+	public byte[] getRawContent() {
+		return content;
+	}
+
 	/** @return total number of items in the sequence. */
+	/** {@inheritDoc} */
 	@Override
 	public int size() {
 		// The line map is always 2 entries larger than the number of lines in
@@ -135,10 +165,10 @@ public class RawText extends Sequence {
 	 * @param i
 	 *            index of the line to extract. Note this is 0-based, so line
 	 *            number 1 is actually index 0.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the stream write operation failed.
 	 */
-	public void writeLine(final OutputStream out, final int i)
+	public void writeLine(OutputStream out, int i)
 			throws IOException {
 		int start = getStart(i);
 		int end = getEnd(i);
@@ -212,11 +242,11 @@ public class RawText extends Sequence {
 		return RawParseUtils.decode(content, start, end);
 	}
 
-	private int getStart(final int i) {
+	private int getStart(int i) {
 		return lines.get(i + 1);
 	}
 
-	private int getEnd(final int i) {
+	private int getEnd(int i) {
 		return lines.get(i + 2);
 	}
 
@@ -244,7 +274,7 @@ public class RawText extends Sequence {
 	 * @param raw
 	 *            input stream containing the raw file content.
 	 * @return true if raw is likely to be a binary file, false otherwise
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             if input stream could not be read
 	 */
 	public static boolean isBinary(InputStream raw) throws IOException {
@@ -298,5 +328,70 @@ public class RawText extends Sequence {
 			return "\r\n"; //$NON-NLS-1$
 		else
 			return "\n"; //$NON-NLS-1$
+	}
+
+	/**
+	 * Read a blob object into RawText, or throw BinaryBlobException if the blob
+	 * is binary.
+	 *
+	 * @param ldr
+	 *            the ObjectLoader for the blob
+	 * @param threshold
+	 *            if the blob is larger than this size, it is always assumed to
+	 *            be binary.
+	 * @since 4.10
+	 * @return the RawText representing the blob.
+	 * @throws org.eclipse.jgit.errors.BinaryBlobException
+	 *             if the blob contains binary data.
+	 * @throws java.io.IOException
+	 *             if the input could not be read.
+	 */
+	public static RawText load(ObjectLoader ldr, int threshold)
+			throws IOException, BinaryBlobException {
+		long sz = ldr.getSize();
+
+		if (sz > threshold) {
+			throw new BinaryBlobException();
+		}
+
+		if (sz <= FIRST_FEW_BYTES) {
+			byte[] data = ldr.getCachedBytes(FIRST_FEW_BYTES);
+			if (isBinary(data)) {
+				throw new BinaryBlobException();
+			}
+			return new RawText(data);
+		}
+
+		byte[] head = new byte[FIRST_FEW_BYTES];
+		try (InputStream stream = ldr.openStream()) {
+			int off = 0;
+			int left = head.length;
+			while (left > 0) {
+				int n = stream.read(head, off, left);
+				if (n < 0) {
+					throw new EOFException();
+				}
+				left -= n;
+
+				while (n > 0) {
+					if (head[off] == '\0') {
+						throw new BinaryBlobException();
+					}
+					off++;
+					n--;
+				}
+			}
+
+			byte data[];
+			try {
+				data = new byte[(int)sz];
+			} catch (OutOfMemoryError e) {
+				throw new LargeObjectException.OutOfMemory(e);
+			}
+
+			System.arraycopy(head, 0, data, 0, head.length);
+			IO.readFully(stream, data, off, (int) (sz-off));
+			return new RawText(data, RawParseUtils.lineMapOrBinary(data, 0, (int) sz));
+		}
 	}
 }

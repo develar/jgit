@@ -72,7 +72,7 @@ public class RefSpec implements Serializable {
 	 *            ref spec component - string to test. Can be null.
 	 * @return true if provided string is a wildcard ref spec component.
 	 */
-	public static boolean isWildcard(final String s) {
+	public static boolean isWildcard(String s) {
 		return s != null && s.contains("*"); //$NON-NLS-1$
 	}
 
@@ -153,7 +153,7 @@ public class RefSpec implements Serializable {
 	 * @param mode
 	 *            whether to allow a wildcard on one side without a wildcard on
 	 *            the other.
-	 * @throws IllegalArgumentException
+	 * @throws java.lang.IllegalArgumentException
 	 *             the specification is invalid.
 	 * @since 4.5
 	 */
@@ -219,14 +219,14 @@ public class RefSpec implements Serializable {
 	 *
 	 * @param spec
 	 *            string describing the specification.
-	 * @throws IllegalArgumentException
+	 * @throws java.lang.IllegalArgumentException
 	 *             the specification is invalid.
 	 */
-	public RefSpec(final String spec) {
+	public RefSpec(String spec) {
 		this(spec, WildcardMode.REQUIRE_MATCH);
 	}
 
-	private RefSpec(final RefSpec p) {
+	private RefSpec(RefSpec p) {
 		force = p.isForceUpdate();
 		wildcard = p.isWildcard();
 		srcName = p.getSource();
@@ -250,7 +250,7 @@ public class RefSpec implements Serializable {
 	 *            new value for force update in the returned instance.
 	 * @return a new RefSpec with force update as specified.
 	 */
-	public RefSpec setForceUpdate(final boolean forceUpdate) {
+	public RefSpec setForceUpdate(boolean forceUpdate) {
 		final RefSpec r = new RefSpec(this);
 		r.force = forceUpdate;
 		return r;
@@ -288,12 +288,12 @@ public class RefSpec implements Serializable {
 	 * @param source
 	 *            new value for source in the returned instance.
 	 * @return a new RefSpec with source as specified.
-	 * @throws IllegalStateException
+	 * @throws java.lang.IllegalStateException
 	 *             There is already a destination configured, and the wildcard
 	 *             status of the existing destination disagrees with the
 	 *             wildcard status of the new source.
 	 */
-	public RefSpec setSource(final String source) {
+	public RefSpec setSource(String source) {
 		final RefSpec r = new RefSpec(this);
 		r.srcName = checkValid(source);
 		if (isWildcard(r.srcName) && r.dstName == null)
@@ -327,12 +327,12 @@ public class RefSpec implements Serializable {
 	 * @param destination
 	 *            new value for destination in the returned instance.
 	 * @return a new RefSpec with destination as specified.
-	 * @throws IllegalStateException
+	 * @throws java.lang.IllegalStateException
 	 *             There is already a source configured, and the wildcard status
 	 *             of the existing source disagrees with the wildcard status of
 	 *             the new destination.
 	 */
-	public RefSpec setDestination(final String destination) {
+	public RefSpec setDestination(String destination) {
 		final RefSpec r = new RefSpec(this);
 		r.dstName = checkValid(destination);
 		if (isWildcard(r.dstName) && r.srcName == null)
@@ -350,7 +350,7 @@ public class RefSpec implements Serializable {
 	 * @param destination
 	 *            new value for destination in the returned instance.
 	 * @return a new RefSpec with destination as specified.
-	 * @throws IllegalArgumentException
+	 * @throws java.lang.IllegalArgumentException
 	 *             The wildcard status of the new source disagrees with the
 	 *             wildcard status of the new destination.
 	 */
@@ -372,7 +372,7 @@ public class RefSpec implements Serializable {
 	 *            ref name that should be tested.
 	 * @return true if the names match; false otherwise.
 	 */
-	public boolean matchSource(final String r) {
+	public boolean matchSource(String r) {
 		return match(r, getSource());
 	}
 
@@ -383,7 +383,7 @@ public class RefSpec implements Serializable {
 	 *            ref whose name should be tested.
 	 * @return true if the names match; false otherwise.
 	 */
-	public boolean matchSource(final Ref r) {
+	public boolean matchSource(Ref r) {
 		return match(r.getName(), getSource());
 	}
 
@@ -394,7 +394,7 @@ public class RefSpec implements Serializable {
 	 *            ref name that should be tested.
 	 * @return true if the names match; false otherwise.
 	 */
-	public boolean matchDestination(final String r) {
+	public boolean matchDestination(String r) {
 		return match(r, getDestination());
 	}
 
@@ -405,7 +405,7 @@ public class RefSpec implements Serializable {
 	 *            ref whose name should be tested.
 	 * @return true if the names match; false otherwise.
 	 */
-	public boolean matchDestination(final Ref r) {
+	public boolean matchDestination(Ref r) {
 		return match(r.getName(), getDestination());
 	}
 
@@ -421,11 +421,11 @@ public class RefSpec implements Serializable {
 	 * @return a new specification expanded from provided ref name. Result
 	 *         specification is wildcard if and only if provided ref name is
 	 *         wildcard.
-	 * @throws IllegalStateException
+	 * @throws java.lang.IllegalStateException
 	 *             when the RefSpec was constructed with wildcard mode that
 	 *             doesn't require matching wildcards.
 	 */
-	public RefSpec expandFromSource(final String r) {
+	public RefSpec expandFromSource(String r) {
 		if (allowMismatchedWildcards != WildcardMode.REQUIRE_MATCH) {
 			throw new IllegalStateException(
 					JGitText.get().invalidExpandWildcard);
@@ -433,7 +433,7 @@ public class RefSpec implements Serializable {
 		return isWildcard() ? new RefSpec(this).expandFromSourceImp(r) : this;
 	}
 
-	private RefSpec expandFromSourceImp(final String name) {
+	private RefSpec expandFromSourceImp(String name) {
 		final String psrc = srcName, pdst = dstName;
 		wildcard = false;
 		srcName = name;
@@ -453,11 +453,11 @@ public class RefSpec implements Serializable {
 	 * @return a new specification expanded from provided ref name. Result
 	 *         specification is wildcard if and only if provided ref name is
 	 *         wildcard.
-	 * @throws IllegalStateException
+	 * @throws java.lang.IllegalStateException
 	 *             when the RefSpec was constructed with wildcard mode that
 	 *             doesn't require matching wildcards.
 	 */
-	public RefSpec expandFromSource(final Ref r) {
+	public RefSpec expandFromSource(Ref r) {
 		return expandFromSource(r.getName());
 	}
 
@@ -473,11 +473,11 @@ public class RefSpec implements Serializable {
 	 * @return a new specification expanded from provided ref name. Result
 	 *         specification is wildcard if and only if provided ref name is
 	 *         wildcard.
-	 * @throws IllegalStateException
+	 * @throws java.lang.IllegalStateException
 	 *             when the RefSpec was constructed with wildcard mode that
 	 *             doesn't require matching wildcards.
 	 */
-	public RefSpec expandFromDestination(final String r) {
+	public RefSpec expandFromDestination(String r) {
 		if (allowMismatchedWildcards != WildcardMode.REQUIRE_MATCH) {
 			throw new IllegalStateException(
 					JGitText.get().invalidExpandWildcard);
@@ -485,7 +485,7 @@ public class RefSpec implements Serializable {
 		return isWildcard() ? new RefSpec(this).expandFromDstImp(r) : this;
 	}
 
-	private RefSpec expandFromDstImp(final String name) {
+	private RefSpec expandFromDstImp(String name) {
 		final String psrc = srcName, pdst = dstName;
 		wildcard = false;
 		srcName = expandWildcard(name, pdst, psrc);
@@ -504,15 +504,15 @@ public class RefSpec implements Serializable {
 	 * @return a new specification expanded from provided ref name. Result
 	 *         specification is wildcard if and only if provided ref name is
 	 *         wildcard.
-	 * @throws IllegalStateException
+	 * @throws java.lang.IllegalStateException
 	 *             when the RefSpec was constructed with wildcard mode that
 	 *             doesn't require matching wildcards.
 	 */
-	public RefSpec expandFromDestination(final Ref r) {
+	public RefSpec expandFromDestination(Ref r) {
 		return expandFromDestination(r.getName());
 	}
 
-	private boolean match(final String name, final String s) {
+	private boolean match(String name, String s) {
 		if (s == null)
 			return false;
 		if (isWildcard(s)) {
@@ -541,7 +541,7 @@ public class RefSpec implements Serializable {
 		return spec;
 	}
 
-	private static boolean isValid(final String s) {
+	private static boolean isValid(String s) {
 		if (s.startsWith("/")) //$NON-NLS-1$
 			return false;
 		if (s.contains("//")) //$NON-NLS-1$
@@ -556,6 +556,7 @@ public class RefSpec implements Serializable {
 		return true;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public int hashCode() {
 		int hc = 0;
@@ -566,8 +567,9 @@ public class RefSpec implements Serializable {
 		return hc;
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public boolean equals(final Object obj) {
+	public boolean equals(Object obj) {
 		if (!(obj instanceof RefSpec))
 			return false;
 		final RefSpec b = (RefSpec) obj;
@@ -582,7 +584,7 @@ public class RefSpec implements Serializable {
 		return true;
 	}
 
-	private static boolean eq(final String a, final String b) {
+	private static boolean eq(String a, String b) {
 		if (a == b)
 			return true;
 		if (a == null || b == null)
@@ -590,6 +592,7 @@ public class RefSpec implements Serializable {
 		return a.equals(b);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public String toString() {
 		final StringBuilder r = new StringBuilder();

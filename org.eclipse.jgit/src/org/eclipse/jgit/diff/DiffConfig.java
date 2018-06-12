@@ -51,15 +51,12 @@ import org.eclipse.jgit.lib.Config.SectionParser;
 import org.eclipse.jgit.lib.ConfigConstants;
 import org.eclipse.jgit.util.StringUtils;
 
-/** Keeps track of diff related configuration options. */
+/**
+ * Keeps track of diff related configuration options.
+ */
 public class DiffConfig {
 	/** Key for {@link Config#get(SectionParser)}. */
-	public static final Config.SectionParser<DiffConfig> KEY = new SectionParser<DiffConfig>() {
-		@Override
-		public DiffConfig parse(final Config cfg) {
-			return new DiffConfig(cfg);
-		}
-	};
+	public static final Config.SectionParser<DiffConfig> KEY = DiffConfig::new;
 
 	/** Permissible values for {@code diff.renames}. */
 	public static enum RenameDetectionType {
@@ -79,7 +76,7 @@ public class DiffConfig {
 
 	private final int renameLimit;
 
-	private DiffConfig(final Config rc) {
+	private DiffConfig(Config rc) {
 		noPrefix = rc.getBoolean(ConfigConstants.CONFIG_DIFF_SECTION,
 				ConfigConstants.CONFIG_KEY_NOPREFIX, false);
 		renameDetectionType = parseRenameDetectionType(rc.getString(
@@ -88,22 +85,38 @@ public class DiffConfig {
 				ConfigConstants.CONFIG_KEY_RENAMELIMIT, 200);
 	}
 
-	/** @return true if the prefix "a/" and "b/" should be suppressed. */
+	/**
+	 * If prefix should be suppressed
+	 *
+	 * @return true if the prefix "a/" and "b/" should be suppressed
+	 */
 	public boolean isNoPrefix() {
 		return noPrefix;
 	}
 
-	/** @return true if rename detection is enabled by default. */
+	/**
+	 * If rename detection is enabled
+	 *
+	 * @return true if rename detection is enabled by default
+	 */
 	public boolean isRenameDetectionEnabled() {
 		return renameDetectionType != RenameDetectionType.FALSE;
 	}
 
-	/** @return type of rename detection to perform. */
+	/**
+	 * Get the rename detection type
+	 *
+	 * @return type of rename detection to perform
+	 */
 	public RenameDetectionType getRenameDetectionType() {
 		return renameDetectionType;
 	}
 
-	/** @return limit on number of paths to perform inexact rename detection. */
+	/**
+	 * Get the rename limit
+	 *
+	 * @return limit on number of paths to perform inexact rename detection
+	 */
 	public int getRenameLimit() {
 		return renameLimit;
 	}

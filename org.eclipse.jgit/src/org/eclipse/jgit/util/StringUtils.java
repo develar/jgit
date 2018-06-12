@@ -48,7 +48,9 @@ import java.util.Collection;
 
 import org.eclipse.jgit.internal.JGitText;
 
-/** Miscellaneous string comparison utility methods. */
+/**
+ * Miscellaneous string comparison utility methods.
+ */
 public final class StringUtils {
 	private static final char[] LC;
 
@@ -72,7 +74,7 @@ public final class StringUtils {
 	 *            the input character.
 	 * @return lowercase version of the input.
 	 */
-	public static char toLowerCase(final char c) {
+	public static char toLowerCase(char c) {
 		return c <= 'Z' ? LC[c] : c;
 	}
 
@@ -89,7 +91,7 @@ public final class StringUtils {
 	 * @return a copy of the input string, after converting characters in the
 	 *         range 'A'..'Z' to 'a'..'z'.
 	 */
-	public static String toLowerCase(final String in) {
+	public static String toLowerCase(String in) {
 		final StringBuilder r = new StringBuilder(in.length());
 		for (int i = 0; i < in.length(); i++)
 			r.append(toLowerCase(in.charAt(i)));
@@ -102,10 +104,12 @@ public final class StringUtils {
 	 *
 	 * <p>
 	 * Capitalizes a String changing the first letter to title case as per
-	 * {@link Character#toTitleCase(char)}. No other letters are changed.
+	 * {@link java.lang.Character#toTitleCase(char)}. No other letters are
+	 * changed.
 	 * </p>
-	 *
-	 * A <code>null</code> input String returns <code>null</code>.</p>
+	 * <p>
+	 * A <code>null</code> input String returns <code>null</code>.
+	 * </p>
 	 *
 	 * @param str
 	 *            the String to capitalize, may be null
@@ -134,7 +138,7 @@ public final class StringUtils {
 	 *            second string to compare.
 	 * @return true if a equals b
 	 */
-	public static boolean equalsIgnoreCase(final String a, final String b) {
+	public static boolean equalsIgnoreCase(String a, String b) {
 		if (a == b)
 			return true;
 		if (a.length() != b.length())
@@ -156,9 +160,8 @@ public final class StringUtils {
 	 *            first string to compare.
 	 * @param b
 	 *            second string to compare.
-	 * @return negative, zero or positive if a sorts before, is equal to, or
-	 *         sorts after b.
 	 * @since 2.0
+	 * @return an int.
 	 */
 	public static int compareIgnoreCase(String a, String b) {
 		for (int i = 0; i < a.length() && i < b.length(); i++) {
@@ -179,9 +182,8 @@ public final class StringUtils {
 	 *            first string to compare.
 	 * @param b
 	 *            second string to compare.
-	 * @return negative, zero or positive if a sorts before, is equal to, or
-	 *         sorts after b.
 	 * @since 2.0
+	 * @return an int.
 	 */
 	public static int compareWithCase(String a, String b) {
 		for (int i = 0; i < a.length() && i < b.length(); i++) {
@@ -199,11 +201,11 @@ public final class StringUtils {
 	 * @param stringValue
 	 *            the string to parse.
 	 * @return the boolean interpretation of {@code value}.
-	 * @throws IllegalArgumentException
+	 * @throws java.lang.IllegalArgumentException
 	 *             if {@code value} is not recognized as one of the standard
 	 *             boolean names.
 	 */
-	public static boolean toBoolean(final String stringValue) {
+	public static boolean toBoolean(String stringValue) {
 		if (stringValue == null)
 			throw new NullPointerException(JGitText.get().expectedBooleanStringValue);
 
@@ -230,7 +232,7 @@ public final class StringUtils {
 	 * @return the boolean interpretation of {@code value} or null in case the
 	 *         string does not represent a boolean value
 	 */
-	public static Boolean toBooleanOrNull(final String stringValue) {
+	public static Boolean toBooleanOrNull(String stringValue) {
 		if (stringValue == null)
 			return null;
 

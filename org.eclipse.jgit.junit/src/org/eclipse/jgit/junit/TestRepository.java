@@ -43,6 +43,7 @@
 
 package org.eclipse.jgit.junit;
 
+import static org.eclipse.jgit.lib.Constants.CHARSET;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
@@ -113,12 +114,16 @@ import org.eclipse.jgit.util.FileUtils;
  */
 public class TestRepository<R extends Repository> {
 
+	/** Constant <code>AUTHOR="J. Author"</code> */
 	public static final String AUTHOR = "J. Author";
 
+	/** Constant <code>AUTHOR_EMAIL="jauthor@example.com"</code> */
 	public static final String AUTHOR_EMAIL = "jauthor@example.com";
 
+	/** Constant <code>COMMITTER="J. Committer"</code> */
 	public static final String COMMITTER = "J. Committer";
 
+	/** Constant <code>COMMITTER_EMAIL="jcommitter@example.com"</code> */
 	public static final String COMMITTER_EMAIL = "jcommitter@example.com";
 
 	private final PersonIdent defaultAuthor;
@@ -185,25 +190,38 @@ public class TestRepository<R extends Repository> {
 		defaultCommitter = new PersonIdent(COMMITTER, COMMITTER_EMAIL, now, tz);
 	}
 
-	/** @return the repository this helper class operates against. */
+	/**
+	 * Get repository
+	 *
+	 * @return the repository this helper class operates against.
+	 */
 	public R getRepository() {
 		return db;
 	}
 
-	/** @return get the RevWalk pool all objects are allocated through. */
+	/**
+	 * Get RevWalk
+	 *
+	 * @return get the RevWalk pool all objects are allocated through.
+	 */
 	public RevWalk getRevWalk() {
 		return pool;
 	}
 
 	/**
+	 * Return Git API wrapper
+	 *
 	 * @return an API wrapper for the underlying repository. This wrapper does
-	 *         not allocate any new resources and need not be closed (but closing
-	 *         it is harmless). */
+	 *         not allocate any new resources and need not be closed (but
+	 *         closing it is harmless).
+	 */
 	public Git git() {
 		return git;
 	}
 
 	/**
+	 * Get date
+	 *
 	 * @return current date.
 	 * @since 4.2
 	 */
@@ -211,7 +229,11 @@ public class TestRepository<R extends Repository> {
 		return new Date(mockSystemReader.getCurrentTime());
 	}
 
-	/** @return timezone used for default identities. */
+	/**
+	 * Get timezone
+	 *
+	 * @return timezone used for default identities.
+	 */
 	public TimeZone getTimeZone() {
 		return mockSystemReader.getTimeZone();
 	}
@@ -222,7 +244,7 @@ public class TestRepository<R extends Repository> {
 	 * @param secDelta
 	 *            number of seconds to add to the current time.
 	 */
-	public void tick(final int secDelta) {
+	public void tick(int secDelta) {
 		mockSystemReader.tick(secDelta);
 	}
 
@@ -245,8 +267,8 @@ public class TestRepository<R extends Repository> {
 	 * @return reference to the blob.
 	 * @throws Exception
 	 */
-	public RevBlob blob(final String content) throws Exception {
-		return blob(content.getBytes("UTF-8"));
+	public RevBlob blob(String content) throws Exception {
+		return blob(content.getBytes(CHARSET));
 	}
 
 	/**
@@ -257,7 +279,7 @@ public class TestRepository<R extends Repository> {
 	 * @return reference to the blob.
 	 * @throws Exception
 	 */
-	public RevBlob blob(final byte[] content) throws Exception {
+	public RevBlob blob(byte[] content) throws Exception {
 		ObjectId id;
 		try (ObjectInserter ins = inserter) {
 			id = ins.insert(Constants.OBJ_BLOB, content);
@@ -276,7 +298,7 @@ public class TestRepository<R extends Repository> {
 	 * @return the entry.
 	 * @throws Exception
 	 */
-	public DirCacheEntry file(final String path, final RevBlob blob)
+	public DirCacheEntry file(String path, RevBlob blob)
 			throws Exception {
 		final DirCacheEntry e = new DirCacheEntry(path);
 		e.setFileMode(FileMode.REGULAR_FILE);
@@ -293,10 +315,10 @@ public class TestRepository<R extends Repository> {
 	 * @return reference to the tree specified by the entry list.
 	 * @throws Exception
 	 */
-	public RevTree tree(final DirCacheEntry... entries) throws Exception {
+	public RevTree tree(DirCacheEntry... entries) throws Exception {
 		final DirCache dc = DirCache.newInCore();
 		final DirCacheBuilder b = dc.builder();
-		for (final DirCacheEntry e : entries)
+		for (DirCacheEntry e : entries)
 			b.add(e);
 		b.finish();
 		ObjectId root;
@@ -317,7 +339,7 @@ public class TestRepository<R extends Repository> {
 	 * @return the parsed object entry at this path, never null.
 	 * @throws Exception
 	 */
-	public RevObject get(final RevTree tree, final String path)
+	public RevObject get(RevTree tree, String path)
 			throws Exception {
 		try (TreeWalk tw = new TreeWalk(pool.getObjectReader())) {
 			tw.setFilter(PathFilterGroup.createFromStrings(Collections
@@ -348,7 +370,7 @@ public class TestRepository<R extends Repository> {
 	 * @return the new commit.
 	 * @throws Exception
 	 */
-	public RevCommit commit(final RevCommit... parents) throws Exception {
+	public RevCommit commit(RevCommit... parents) throws Exception {
 		return commit(1, tree(), parents);
 	}
 
@@ -364,7 +386,7 @@ public class TestRepository<R extends Repository> {
 	 * @return the new commit.
 	 * @throws Exception
 	 */
-	public RevCommit commit(final RevTree tree, final RevCommit... parents)
+	public RevCommit commit(RevTree tree, RevCommit... parents)
 			throws Exception {
 		return commit(1, tree, parents);
 	}
@@ -382,7 +404,7 @@ public class TestRepository<R extends Repository> {
 	 * @return the new commit.
 	 * @throws Exception
 	 */
-	public RevCommit commit(final int secDelta, final RevCommit... parents)
+	public RevCommit commit(int secDelta, RevCommit... parents)
 			throws Exception {
 		return commit(secDelta, tree(), parents);
 	}
@@ -423,7 +445,11 @@ public class TestRepository<R extends Repository> {
 		return pool.lookupCommit(id);
 	}
 
-	/** @return a new commit builder. */
+	/**
+	 * Create commit builder
+	 *
+	 * @return a new commit builder.
+	 */
 	public CommitBuilder commit() {
 		return new CommitBuilder();
 	}
@@ -444,7 +470,7 @@ public class TestRepository<R extends Repository> {
 	 * @return the annotated tag object.
 	 * @throws Exception
 	 */
-	public RevTag tag(final String name, final RevObject dst) throws Exception {
+	public RevTag tag(String name, RevObject dst) throws Exception {
 		final TagBuilder t = new TagBuilder();
 		t.setObjectId(dst);
 		t.setTag(name);
@@ -587,6 +613,7 @@ public class TestRepository<R extends Repository> {
 	public void delete(String ref) throws Exception {
 		ref = normalizeRef(ref);
 		RefUpdate u = db.updateRef(ref);
+		u.setForceUpdate(true);
 		switch (u.delete()) {
 		case FAST_FORWARD:
 		case FORCED:
@@ -616,7 +643,7 @@ public class TestRepository<R extends Repository> {
 
 	/**
 	 * Soft-reset HEAD to a detached state.
-	 * <p>
+	 *
 	 * @param id
 	 *            ID of detached head.
 	 * @throws Exception
@@ -730,9 +757,9 @@ public class TestRepository<R extends Repository> {
 	public void updateServerInfo() throws Exception {
 		if (db instanceof FileRepository) {
 			final FileRepository fr = (FileRepository) db;
-			RefWriter rw = new RefWriter(fr.getAllRefs().values()) {
+			RefWriter rw = new RefWriter(fr.getRefDatabase().getRefs()) {
 				@Override
-				protected void writeFile(final String name, final byte[] bin)
+				protected void writeFile(String name, byte[] bin)
 						throws IOException {
 					File path = new File(fr.getDirectory(), name);
 					TestRepository.this.writeFile(path, bin);
@@ -756,14 +783,15 @@ public class TestRepository<R extends Repository> {
 	 * Ensure the body of the given object has been parsed.
 	 *
 	 * @param <T>
-	 *            type of object, e.g. {@link RevTag} or {@link RevCommit}.
+	 *            type of object, e.g. {@link org.eclipse.jgit.revwalk.RevTag}
+	 *            or {@link org.eclipse.jgit.revwalk.RevCommit}.
 	 * @param object
 	 *            reference to the (possibly unparsed) object to force body
 	 *            parsing of.
 	 * @return {@code object}
 	 * @throws Exception
 	 */
-	public <T extends RevObject> T parseBody(final T object) throws Exception {
+	public <T extends RevObject> T parseBody(T object) throws Exception {
 		pool.parseBody(object);
 		return object;
 	}
@@ -824,7 +852,7 @@ public class TestRepository<R extends Repository> {
 				for (RevObject o : tips)
 					ow.markStart(ow.parseAny(o));
 			} else {
-				for (Ref r : db.getAllRefs().values())
+				for (Ref r : db.getRefDatabase().getRefs())
 					ow.markStart(ow.parseAny(r.getObjectId()));
 			}
 
@@ -877,7 +905,7 @@ public class TestRepository<R extends Repository> {
 			final File pack, idx;
 			try (PackWriter pw = new PackWriter(db)) {
 				Set<ObjectId> all = new HashSet<>();
-				for (Ref r : db.getAllRefs().values())
+				for (Ref r : db.getRefDatabase().getRefs())
 					all.add(r.getObjectId());
 				pw.preparePack(m, all, PackWriter.NONE);
 
@@ -912,11 +940,11 @@ public class TestRepository<R extends Repository> {
 	}
 
 	private static File nameFor(ObjectDirectory odb, ObjectId name, String t) {
-		File packdir = new File(odb.getDirectory(), "pack");
+		File packdir = odb.getPackDirectory();
 		return new File(packdir, "pack-" + name.name() + t);
 	}
 
-	private void writeFile(final File p, final byte[] bin) throws IOException,
+	private void writeFile(File p, byte[] bin) throws IOException,
 			ObjectWritingException {
 		final LockFile lck = new LockFile(p);
 		if (!lck.lock())
@@ -934,7 +962,7 @@ public class TestRepository<R extends Repository> {
 	public class BranchBuilder {
 		private final String ref;
 
-		BranchBuilder(final String ref) {
+		BranchBuilder(String ref) {
 			this.ref = ref;
 		}
 
@@ -1065,7 +1093,7 @@ public class TestRepository<R extends Repository> {
 			return add(path, blob(content));
 		}
 
-		public CommitBuilder add(String path, final RevBlob id)
+		public CommitBuilder add(String path, RevBlob id)
 				throws Exception {
 			return edit(new PathEdit(path) {
 				@Override

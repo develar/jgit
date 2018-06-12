@@ -55,9 +55,9 @@ public class TrailingAsteriskMatcher extends NameMatcher {
 					"Pattern must have trailing asterisk: " + pattern); //$NON-NLS-1$
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public boolean matches(String segment, int startIncl, int endExcl,
-			boolean assumeDirectory) {
+	public boolean matches(String segment, int startIncl, int endExcl) {
 		// faster local access, same as in string.indexOf()
 		String s = subPattern;
 		// we don't need to count '*' character itself

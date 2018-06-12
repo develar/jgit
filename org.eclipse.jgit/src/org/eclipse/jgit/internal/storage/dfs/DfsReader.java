@@ -44,12 +44,11 @@
 
 package org.eclipse.jgit.internal.storage.dfs;
 
-import static org.eclipse.jgit.internal.storage.pack.PackExt.PACK;
+import static org.eclipse.jgit.internal.storage.dfs.DfsObjDatabase.PackSource.UNREACHABLE_GARBAGE;
 import static org.eclipse.jgit.lib.Constants.OBJECT_ID_LENGTH;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -66,7 +65,6 @@ import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.errors.StoredObjectRepresentationNotAvailableException;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.internal.storage.dfs.DfsObjDatabase.PackList;
-import org.eclipse.jgit.internal.storage.dfs.DfsObjDatabase.PackSource;
 import org.eclipse.jgit.internal.storage.file.BitmapIndexImpl;
 import org.eclipse.jgit.internal.storage.file.PackBitmapIndex;
 import org.eclipse.jgit.internal.storage.file.PackIndex;
@@ -92,8 +90,8 @@ import org.eclipse.jgit.util.BlockList;
 /**
  * Reader to access repository content through.
  * <p>
- * See the base {@link ObjectReader} documentation for details. Notably, a
- * reader is not thread safe.
+ * See the base {@link org.eclipse.jgit.lib.ObjectReader} documentation for
+ * details. Notably, a reader is not thread safe.
  */
 public class DfsReader extends ObjectReader implements ObjectReuseAsIs {
 	private static final int MAX_RESOLVE_MATCHES = 256;
@@ -133,16 +131,19 @@ public class DfsReader extends ObjectReader implements ObjectReuseAsIs {
 		return baseCache;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public ObjectReader newReader() {
 		return db.newReader();
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void setAvoidUnreachableObjects(boolean avoid) {
 		avoidUnreachable = avoid;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public BitmapIndex getBitmapIndex() throws IOException {
 		for (DfsPackFile pack : db.getPacks()) {
@@ -153,6 +154,7 @@ public class DfsReader extends ObjectReader implements ObjectReuseAsIs {
 		return null;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public Collection<CachedPack> getCachedPacksAndUpdate(
 		BitmapBuilder needBitmap) throws IOException {
@@ -165,6 +167,7 @@ public class DfsReader extends ObjectReader implements ObjectReuseAsIs {
 		return Collections.emptyList();
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public Collection<ObjectId> resolve(AbbreviatedObjectId id)
 			throws IOException {
@@ -193,6 +196,7 @@ public class DfsReader extends ObjectReader implements ObjectReuseAsIs {
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean has(AnyObjectId objectId) throws IOException {
 		if (last != null
@@ -222,6 +226,7 @@ public class DfsReader extends ObjectReader implements ObjectReuseAsIs {
 		return false;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public ObjectLoader open(AnyObjectId objectId, int typeHint)
 			throws MissingObjectException, IncorrectObjectTypeException,
@@ -276,6 +281,7 @@ public class DfsReader extends ObjectReader implements ObjectReuseAsIs {
 		return null;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public Set<ObjectId> getShallowCommits() {
 		return Collections.emptySet();
@@ -385,6 +391,7 @@ public class DfsReader extends ObjectReader implements ObjectReuseAsIs {
 		return avoidUnreachable && pack.isGarbage();
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public <T extends ObjectId> AsyncObjectLoaderQueue<T> open(
 			Iterable<T> objectIds, final boolean reportMissing) {
@@ -444,6 +451,7 @@ public class DfsReader extends ObjectReader implements ObjectReuseAsIs {
 		};
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public <T extends ObjectId> AsyncObjectSizeQueue<T> getObjectSize(
 			Iterable<T> objectIds, final boolean reportMissing) {
@@ -505,6 +513,7 @@ public class DfsReader extends ObjectReader implements ObjectReuseAsIs {
 		};
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public long getObjectSize(AnyObjectId objectId, int typeHint)
 			throws MissingObjectException, IncorrectObjectTypeException,
@@ -550,6 +559,7 @@ public class DfsReader extends ObjectReader implements ObjectReuseAsIs {
 		return -1;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public DfsObjectToPack newObjectToPack(AnyObjectId objectId, int type) {
 		return new DfsObjectToPack(objectId, type);
@@ -566,10 +576,22 @@ public class DfsReader extends ObjectReader implements ObjectReuseAsIs {
 	public void selectObjectRepresentation(PackWriter packer,
 			ProgressMonitor monitor, Iterable<ObjectToPack> objects)
 			throws IOException, MissingObjectException {
-		// Don't check dirty bit on PackList; assume ObjectToPacks all came from the
-		// current list.
-		for (DfsPackFile pack : sortPacksForSelectRepresentation()) {
-			List<DfsObjectToPack> tmp = findAllFromPack(pack, objects);
+		// Don't check dirty bit on PackList; assume ObjectToPacks all came
+		// from the current list.
+		List<DfsPackFile> packs = sortPacksForSelectRepresentation();
+		trySelectRepresentation(packer, monitor, objects, packs, false);
+
+		List<DfsPackFile> garbage = garbagePacksForSelectRepresentation();
+		if (!garbage.isEmpty() && checkGarbagePacks(objects)) {
+			trySelectRepresentation(packer, monitor, objects, garbage, true);
+		}
+	}
+
+	private void trySelectRepresentation(PackWriter packer,
+			ProgressMonitor monitor, Iterable<ObjectToPack> objects,
+			List<DfsPackFile> packs, boolean skipFound) throws IOException {
+		for (DfsPackFile pack : packs) {
+			List<DfsObjectToPack> tmp = findAllFromPack(pack, objects, skipFound);
 			if (tmp.isEmpty())
 				continue;
 			Collections.sort(tmp, OFFSET_SORT);
@@ -587,50 +609,64 @@ public class DfsReader extends ObjectReader implements ObjectReuseAsIs {
 		}
 	}
 
-	private static final Comparator<DfsPackFile> PACK_SORT_FOR_REUSE = new Comparator<DfsPackFile>() {
-		@Override
-		public int compare(DfsPackFile af, DfsPackFile bf) {
-			DfsPackDescription ad = af.getPackDescription();
-			DfsPackDescription bd = bf.getPackDescription();
-			PackSource as = ad.getPackSource();
-			PackSource bs = bd.getPackSource();
+	private static final Comparator<DfsPackFile> PACK_SORT_FOR_REUSE =
+		Comparator.comparing(
+				DfsPackFile::getPackDescription, DfsPackDescription.reuseComparator());
 
-			if (as != null && as == bs && DfsPackDescription.isGC(as)) {
-				// Push smaller GC files last; these likely have higher quality
-				// delta compression and the contained representation should be
-				// favored over other files.
-				return Long.signum(bd.getFileSize(PACK) - ad.getFileSize(PACK));
-			}
-
-			// DfsPackDescription.compareTo already did a reasonable sort.
-			// Rely on Arrays.sort being stable, leaving equal elements.
-			return 0;
-		}
-	};
-
-	private DfsPackFile[] sortPacksForSelectRepresentation()
+	private List<DfsPackFile> sortPacksForSelectRepresentation()
 			throws IOException {
 		DfsPackFile[] packs = db.getPacks();
-		DfsPackFile[] sorted = new DfsPackFile[packs.length];
-		System.arraycopy(packs, 0, sorted, 0, packs.length);
-		Arrays.sort(sorted, PACK_SORT_FOR_REUSE);
+		List<DfsPackFile> sorted = new ArrayList<>(packs.length);
+		for (DfsPackFile p : packs) {
+			if (p.getPackDescription().getPackSource() != UNREACHABLE_GARBAGE) {
+				sorted.add(p);
+			}
+		}
+		Collections.sort(sorted, PACK_SORT_FOR_REUSE);
 		return sorted;
 	}
 
+	private List<DfsPackFile> garbagePacksForSelectRepresentation()
+			throws IOException {
+		DfsPackFile[] packs = db.getPacks();
+		List<DfsPackFile> garbage = new ArrayList<>(packs.length);
+		for (DfsPackFile p : packs) {
+			if (p.getPackDescription().getPackSource() == UNREACHABLE_GARBAGE) {
+				garbage.add(p);
+			}
+		}
+		return garbage;
+	}
+
+	private static boolean checkGarbagePacks(Iterable<ObjectToPack> objects) {
+		for (ObjectToPack otp : objects) {
+			if (!((DfsObjectToPack) otp).isFound()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private List<DfsObjectToPack> findAllFromPack(DfsPackFile pack,
-			Iterable<ObjectToPack> objects) throws IOException {
+			Iterable<ObjectToPack> objects, boolean skipFound)
+					throws IOException {
 		List<DfsObjectToPack> tmp = new BlockList<>();
 		PackIndex idx = pack.getPackIndex(this);
-		for (ObjectToPack otp : objects) {
+		for (ObjectToPack obj : objects) {
+			DfsObjectToPack otp = (DfsObjectToPack) obj;
+			if (skipFound && otp.isFound()) {
+				continue;
+			}
 			long p = idx.findOffset(otp);
 			if (0 < p && !pack.isCorrupt(p)) {
 				otp.setOffset(p);
-				tmp.add((DfsObjectToPack) otp);
+				tmp.add(otp);
 			}
 		}
 		return tmp;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void copyObjectAsIs(PackOutputStream out, ObjectToPack otp,
 			boolean validate) throws IOException,
@@ -639,6 +675,7 @@ public class DfsReader extends ObjectReader implements ObjectReuseAsIs {
 		src.pack.copyAsIs(out, src, validate, this);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void writeObjects(PackOutputStream out, List<ObjectToPack> list)
 			throws IOException {
@@ -646,6 +683,7 @@ public class DfsReader extends ObjectReader implements ObjectReuseAsIs {
 			out.writeObject(otp);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void copyPackAsIs(PackOutputStream out, CachedPack pack)
 			throws IOException {
@@ -655,7 +693,7 @@ public class DfsReader extends ObjectReader implements ObjectReuseAsIs {
 	/**
 	 * Copy bytes from the window to a caller supplied buffer.
 	 *
-	 * @param pack
+	 * @param file
 	 *            the file the desired window is stored within.
 	 * @param position
 	 *            position within the file to read from.
@@ -674,24 +712,24 @@ public class DfsReader extends ObjectReader implements ObjectReuseAsIs {
 	 *             this cursor does not match the provider or id and the proper
 	 *             window could not be acquired through the provider's cache.
 	 */
-	int copy(DfsPackFile pack, long position, byte[] dstbuf, int dstoff, int cnt)
-			throws IOException {
+	int copy(BlockBasedFile file, long position, byte[] dstbuf, int dstoff,
+			int cnt) throws IOException {
 		if (cnt == 0)
 			return 0;
 
-		long length = pack.length;
+		long length = file.length;
 		if (0 <= length && length <= position)
 			return 0;
 
 		int need = cnt;
 		do {
-			pin(pack, position);
+			pin(file, position);
 			int r = block.copy(position, dstbuf, dstoff, need);
 			position += r;
 			dstoff += r;
 			need -= r;
 			if (length < 0)
-				length = pack.length;
+				length = file.length;
 		} while (0 < need && position < length);
 		return cnt - need;
 	}
@@ -756,15 +794,14 @@ public class DfsReader extends ObjectReader implements ObjectReuseAsIs {
 			inf.reset();
 	}
 
-	void pin(DfsPackFile pack, long position) throws IOException {
-		DfsBlock b = block;
-		if (b == null || !b.contains(pack.key, position)) {
+	void pin(BlockBasedFile file, long position) throws IOException {
+		if (block == null || !block.contains(file.key, position)) {
 			// If memory is low, we may need what is in our window field to
 			// be cleaned up by the GC during the get for the next window.
 			// So we always clear it, even though we are just going to set
 			// it again.
 			block = null;
-			block = pack.getOrLoadBlock(position, this);
+			block = file.getOrLoadBlock(position, this);
 		}
 	}
 
@@ -772,12 +809,20 @@ public class DfsReader extends ObjectReader implements ObjectReuseAsIs {
 		block = null;
 	}
 
-	/** @return IO statistics accumulated by this reader. */
+	/**
+	 * Get IO statistics accumulated by this reader.
+	 *
+	 * @return IO statistics accumulated by this reader.
+	 */
 	public DfsReaderIoStats getIoStats() {
 		return new DfsReaderIoStats(stats);
 	}
 
-	/** Release the current window cursor. */
+	/**
+	 * {@inheritDoc}
+	 * <p>
+	 * Release the current window cursor.
+	 */
 	@Override
 	public void close() {
 		last = null;

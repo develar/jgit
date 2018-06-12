@@ -58,7 +58,10 @@ import java.util.List;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.util.TemporaryBuffer;
 
-/** A parsed collection of {@link FileHeader}s from a unified diff patch file */
+/**
+ * A parsed collection of {@link org.eclipse.jgit.patch.FileHeader}s from a
+ * unified diff patch file
+ */
 public class Patch {
 	static final byte[] DIFF_GIT = encodeASCII("diff --git "); //$NON-NLS-1$
 
@@ -81,7 +84,9 @@ public class Patch {
 	/** Formatting errors, if any were identified. */
 	private final List<FormatError> errors;
 
-	/** Create an empty patch. */
+	/**
+	 * Create an empty patch.
+	 */
 	public Patch() {
 		files = new ArrayList<>();
 		errors = new ArrayList<>(0);
@@ -96,11 +101,15 @@ public class Patch {
 	 * @param fh
 	 *            the header of the file.
 	 */
-	public void addFile(final FileHeader fh) {
+	public void addFile(FileHeader fh) {
 		files.add(fh);
 	}
 
-	/** @return list of files described in the patch, in occurrence order. */
+	/**
+	 * Get list of files described in the patch, in occurrence order.
+	 *
+	 * @return list of files described in the patch, in occurrence order.
+	 */
 	public List<? extends FileHeader> getFiles() {
 		return files;
 	}
@@ -111,11 +120,15 @@ public class Patch {
 	 * @param err
 	 *            the error description.
 	 */
-	public void addError(final FormatError err) {
+	public void addError(FormatError err) {
 		errors.add(err);
 	}
 
-	/** @return collection of formatting errors, if any. */
+	/**
+	 * Get collection of formatting errors.
+	 *
+	 * @return collection of formatting errors, if any.
+	 */
 	public List<FormatError> getErrors() {
 		return errors;
 	}
@@ -130,19 +143,19 @@ public class Patch {
 	 * @param is
 	 *            the stream to read the patch data from. The stream is read
 	 *            until EOF is reached.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             there was an error reading from the input stream.
 	 */
-	public void parse(final InputStream is) throws IOException {
+	public void parse(InputStream is) throws IOException {
 		final byte[] buf = readFully(is);
 		parse(buf, 0, buf.length);
 	}
 
-	private static byte[] readFully(final InputStream is) throws IOException {
-		TemporaryBuffer b = new TemporaryBuffer.Heap(Integer.MAX_VALUE);
-		b.copy(is);
-		b.close();
-		return b.toByteArray();
+	private static byte[] readFully(InputStream is) throws IOException {
+		try (TemporaryBuffer b = new TemporaryBuffer.Heap(Integer.MAX_VALUE)) {
+			b.copy(is);
+			return b.toByteArray();
+		}
 	}
 
 	/**
@@ -160,12 +173,12 @@ public class Patch {
 	 *            1 past the last position to end parsing. The total length to
 	 *            be parsed is <code>end - ptr</code>.
 	 */
-	public void parse(final byte[] buf, int ptr, final int end) {
+	public void parse(byte[] buf, int ptr, int end) {
 		while (ptr < end)
 			ptr = parseFile(buf, ptr, end);
 	}
 
-	private int parseFile(final byte[] buf, int c, final int end) {
+	private int parseFile(byte[] buf, int c, int end) {
 		while (c < end) {
 			if (isHunkHdr(buf, c, end) >= 1) {
 				// If we find a disconnected hunk header we might
@@ -221,7 +234,7 @@ public class Patch {
 		return c;
 	}
 
-	private int parseDiffGit(final byte[] buf, final int start, final int end) {
+	private int parseDiffGit(byte[] buf, int start, int end) {
 		final FileHeader fh = new FileHeader(buf, start);
 		int ptr = fh.parseGitFileName(start + DIFF_GIT.length, end);
 		if (ptr < 0)
@@ -258,14 +271,14 @@ public class Patch {
 		return ptr;
 	}
 
-	private static int skipFile(final byte[] buf, int ptr) {
+	private static int skipFile(byte[] buf, int ptr) {
 		ptr = nextLF(buf, ptr);
 		if (match(buf, ptr, OLD_NAME) >= 0)
 			ptr = nextLF(buf, ptr);
 		return ptr;
 	}
 
-	private int parseHunks(final FileHeader fh, int c, final int end) {
+	private int parseHunks(FileHeader fh, int c, int end) {
 		final byte[] buf = fh.buf;
 		while (c < end) {
 			// If we see a file header at this point, we have all of the
@@ -336,7 +349,7 @@ public class Patch {
 		return c;
 	}
 
-	private int parseGitBinary(final FileHeader fh, int c, final int end) {
+	private int parseGitBinary(FileHeader fh, int c, int end) {
 		final BinaryHunk postImage = new BinaryHunk(fh, c);
 		final int nEnd = postImage.parseHunk(c, end);
 		if (nEnd < 0) {
@@ -360,17 +373,17 @@ public class Patch {
 		return c;
 	}
 
-	void warn(final byte[] buf, final int ptr, final String msg) {
+	void warn(byte[] buf, int ptr, String msg) {
 		addError(new FormatError(buf, ptr, FormatError.Severity.WARNING, msg));
 	}
 
-	void error(final byte[] buf, final int ptr, final String msg) {
+	void error(byte[] buf, int ptr, String msg) {
 		addError(new FormatError(buf, ptr, FormatError.Severity.ERROR, msg));
 	}
 
 	private static boolean matchAny(final byte[] buf, final int c,
 			final byte[][] srcs) {
-		for (final byte[] s : srcs) {
+		for (byte[] s : srcs) {
 			if (match(buf, c, s) >= 0)
 				return true;
 		}

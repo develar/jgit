@@ -79,15 +79,17 @@ public class MutableObjectId extends AnyObjectId {
 	 *
 	 * @param index
 	 *            index of the byte to set in the raw form of the ObjectId. Must
-	 *            be in range [0, {@link Constants#OBJECT_ID_LENGTH}).
+	 *            be in range [0,
+	 *            {@link org.eclipse.jgit.lib.Constants#OBJECT_ID_LENGTH}).
 	 * @param value
 	 *            the value of the specified byte at {@code index}. Values are
 	 *            unsigned and thus are in the range [0,255] rather than the
 	 *            signed byte range of [-128, 127].
-	 * @throws ArrayIndexOutOfBoundsException
+	 * @throws java.lang.ArrayIndexOutOfBoundsException
 	 *             {@code index} is less than 0, equal to
-	 *             {@link Constants#OBJECT_ID_LENGTH}, or greater than
-	 *             {@link Constants#OBJECT_ID_LENGTH}.
+	 *             {@link org.eclipse.jgit.lib.Constants#OBJECT_ID_LENGTH}, or
+	 *             greater than
+	 *             {@link org.eclipse.jgit.lib.Constants#OBJECT_ID_LENGTH}.
 	 */
 	public void setByte(int index, int value) {
 		switch (index >> 2) {
@@ -128,7 +130,9 @@ public class MutableObjectId extends AnyObjectId {
 		}
 	}
 
-	/** Make this id match {@link ObjectId#zeroId()}. */
+	/**
+	 * Make this id match {@link org.eclipse.jgit.lib.ObjectId#zeroId()}.
+	 */
 	public void clear() {
 		w1 = 0;
 		w2 = 0;
@@ -158,7 +162,7 @@ public class MutableObjectId extends AnyObjectId {
 	 *            the raw byte buffer to read from. At least 20 bytes must be
 	 *            available within this byte array.
 	 */
-	public void fromRaw(final byte[] bs) {
+	public void fromRaw(byte[] bs) {
 		fromRaw(bs, 0);
 	}
 
@@ -171,7 +175,7 @@ public class MutableObjectId extends AnyObjectId {
 	 * @param p
 	 *            position to read the first byte of data from.
 	 */
-	public void fromRaw(final byte[] bs, final int p) {
+	public void fromRaw(byte[] bs, int p) {
 		w1 = NB.decodeInt32(bs, p);
 		w2 = NB.decodeInt32(bs, p + 4);
 		w3 = NB.decodeInt32(bs, p + 8);
@@ -186,7 +190,7 @@ public class MutableObjectId extends AnyObjectId {
 	 *            the raw int buffer to read from. At least 5 integers must be
 	 *            available within this integers array.
 	 */
-	public void fromRaw(final int[] ints) {
+	public void fromRaw(int[] ints) {
 		fromRaw(ints, 0);
 	}
 
@@ -198,9 +202,8 @@ public class MutableObjectId extends AnyObjectId {
 	 *            must be available within this integers array.
 	 * @param p
 	 *            position to read the first integer of data from.
-	 *
 	 */
-	public void fromRaw(final int[] ints, final int p) {
+	public void fromRaw(int[] ints, int p) {
 		w1 = ints[p];
 		w2 = ints[p + 1];
 		w3 = ints[p + 2];
@@ -212,10 +215,15 @@ public class MutableObjectId extends AnyObjectId {
 	 * Convert an ObjectId from binary representation expressed in integers.
 	 *
 	 * @param a
+	 *            an int.
 	 * @param b
+	 *            an int.
 	 * @param c
+	 *            an int.
 	 * @param d
+	 *            an int.
 	 * @param e
+	 *            an int.
 	 * @since 4.7
 	 */
 	public void set(int a, int b, int c, int d, int e) {
@@ -235,7 +243,7 @@ public class MutableObjectId extends AnyObjectId {
 	 * @param offset
 	 *            position to read the first character from.
 	 */
-	public void fromString(final byte[] buf, final int offset) {
+	public void fromString(byte[] buf, int offset) {
 		fromHexString(buf, offset);
 	}
 
@@ -245,14 +253,14 @@ public class MutableObjectId extends AnyObjectId {
 	 * @param str
 	 *            the string to read from. Must be 40 characters long.
 	 */
-	public void fromString(final String str) {
+	public void fromString(String str) {
 		if (str.length() != Constants.OBJECT_ID_STRING_LENGTH)
 			throw new IllegalArgumentException(MessageFormat.format(
 					JGitText.get().invalidId, str));
 		fromHexString(Constants.encodeASCII(str), 0);
 	}
 
-	private void fromHexString(final byte[] bs, int p) {
+	private void fromHexString(byte[] bs, int p) {
 		try {
 			w1 = RawParseUtils.parseHexInt32(bs, p);
 			w2 = RawParseUtils.parseHexInt32(bs, p + 8);
@@ -265,6 +273,7 @@ public class MutableObjectId extends AnyObjectId {
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public ObjectId toObjectId() {
 		return new ObjectId(this);

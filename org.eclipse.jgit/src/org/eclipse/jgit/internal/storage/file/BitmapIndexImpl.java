@@ -59,7 +59,9 @@ import org.eclipse.jgit.util.BlockList;
 import com.googlecode.javaewah.EWAHCompressedBitmap;
 import com.googlecode.javaewah.IntIterator;
 
-/** A compressed bitmap representation of the entire object graph. */
+/**
+ * A compressed bitmap representation of the entire object graph.
+ */
 public class BitmapIndexImpl implements BitmapIndex {
 	private static final int EXTRA_BITS = 10 * 1024;
 
@@ -85,6 +87,7 @@ public class BitmapIndexImpl implements BitmapIndex {
 		return packIndex;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public CompressedBitmap getBitmap(AnyObjectId objectId) {
 		EWAHCompressedBitmap compressed = packIndex.getBitmap(objectId);
@@ -93,6 +96,7 @@ public class BitmapIndexImpl implements BitmapIndex {
 		return new CompressedBitmap(compressed, this);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public CompressedBitmapBuilder newBitmapBuilder() {
 		return new CompressedBitmapBuilder(this);
@@ -206,22 +210,6 @@ public class BitmapIndexImpl implements BitmapIndex {
 		CompressedBitmapBuilder(BitmapIndexImpl bitmapIndex) {
 			this.bitset = new ComboBitset();
 			this.bitmapIndex = bitmapIndex;
-		}
-
-		@Override
-		public boolean add(AnyObjectId objectId, int type) {
-			int position = bitmapIndex.findOrInsert(objectId, type);
-			if (bitset.contains(position))
-				return false;
-
-			Bitmap entry = bitmapIndex.getBitmap(objectId);
-			if (entry != null) {
-				or(entry);
-				return false;
-			}
-
-			bitset.set(position);
-			return true;
 		}
 
 		@Override

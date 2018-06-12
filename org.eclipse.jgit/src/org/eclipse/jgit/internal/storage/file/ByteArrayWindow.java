@@ -58,20 +58,22 @@ import org.eclipse.jgit.internal.storage.pack.PackOutputStream;
 final class ByteArrayWindow extends ByteWindow {
 	private final byte[] array;
 
-	ByteArrayWindow(final PackFile pack, final long o, final byte[] b) {
+	ByteArrayWindow(PackFile pack, long o, byte[] b) {
 		super(pack, o, b.length);
 		array = b;
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	protected int copy(final int p, final byte[] b, final int o, int n) {
+	protected int copy(int p, byte[] b, int o, int n) {
 		n = Math.min(array.length - p, n);
 		System.arraycopy(array, p, b, o, n);
 		return n;
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	protected int setInput(final int pos, final Inflater inf)
+	protected int setInput(int pos, Inflater inf)
 			throws DataFormatException {
 		int n = array.length - pos;
 		inf.setInput(array, pos, n);

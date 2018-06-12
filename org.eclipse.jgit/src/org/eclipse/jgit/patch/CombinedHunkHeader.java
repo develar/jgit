@@ -54,7 +54,9 @@ import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.AbbreviatedObjectId;
 import org.eclipse.jgit.util.MutableInteger;
 
-/** Hunk header for a hunk appearing in a "diff --cc" style patch. */
+/**
+ * Hunk header for a hunk appearing in a "diff --cc" style patch.
+ */
 public class CombinedHunkHeader extends HunkHeader {
 	private static abstract class CombinedOldImage extends OldImage {
 		int nContext;
@@ -62,7 +64,7 @@ public class CombinedHunkHeader extends HunkHeader {
 
 	private CombinedOldImage[] old;
 
-	CombinedHunkHeader(final CombinedFileHeader fh, final int offset) {
+	CombinedHunkHeader(CombinedFileHeader fh, int offset) {
 		super(fh, offset, null);
 		old = new CombinedOldImage[fh.getParentCount()];
 		for (int i = 0; i < old.length; i++) {
@@ -76,11 +78,13 @@ public class CombinedHunkHeader extends HunkHeader {
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public CombinedFileHeader getFileHeader() {
 		return (CombinedFileHeader) super.getFileHeader();
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public OldImage getOldImage() {
 		return getOldImage(0);
@@ -93,7 +97,7 @@ public class CombinedHunkHeader extends HunkHeader {
 	 *            the ancestor to get the old image data of
 	 * @return image data of the requested ancestor.
 	 */
-	public OldImage getOldImage(final int nthParent) {
+	public OldImage getOldImage(int nthParent) {
 		return old[nthParent];
 	}
 
@@ -121,11 +125,11 @@ public class CombinedHunkHeader extends HunkHeader {
 	}
 
 	@Override
-	int parseBody(final Patch script, final int end) {
+	int parseBody(Patch script, int end) {
 		final byte[] buf = file.buf;
 		int c = nextLF(buf, startOffset);
 
-		for (final CombinedOldImage o : old) {
+		for (CombinedOldImage o : old) {
 			o.nDeleted = 0;
 			o.nAdded = 0;
 			o.nContext = 0;
@@ -203,7 +207,7 @@ public class CombinedHunkHeader extends HunkHeader {
 	}
 
 	@Override
-	void extractFileLines(final OutputStream[] out) throws IOException {
+	void extractFileLines(OutputStream[] out) throws IOException {
 		final byte[] buf = file.buf;
 		int ptr = startOffset;
 		int eol = nextLF(buf, ptr);

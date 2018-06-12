@@ -43,6 +43,7 @@
 
 package org.eclipse.jgit.lfs.lib;
 
+import static java.nio.charset.StandardCharsets.US_ASCII;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -54,7 +55,6 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
@@ -270,7 +270,7 @@ public class LongObjectIdTest {
 	public void testCopyFromStringByte() {
 		AnyLongObjectId id1 = LongObjectIdTestUtils.hash("test");
 		byte[] buf = new byte[64];
-		Charset cs = StandardCharsets.US_ASCII;
+		Charset cs = US_ASCII;
 		cs.encode(id1.name()).get(buf);
 		AnyLongObjectId id2 = LongObjectId.fromString(buf, 0);
 		assertEquals("objects should be equals", id1, id2);
@@ -291,6 +291,8 @@ public class LongObjectIdTest {
 				"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
 		assertEquals(0, id1.compareTo(LongObjectId.fromString(
 				"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")));
+		AnyLongObjectId self = id1;
+		assertEquals(0, id1.compareTo(self));
 
 		assertEquals(-1, id1.compareTo(LongObjectId.fromString(
 				"1123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")));
@@ -390,9 +392,10 @@ public class LongObjectIdTest {
 	public void testCopyToWriter() throws IOException {
 		AnyLongObjectId id1 = LongObjectIdTestUtils.hash("test");
 		ByteArrayOutputStream os = new ByteArrayOutputStream(64);
-		OutputStreamWriter w = new OutputStreamWriter(os, Constants.CHARSET);
-		id1.copyTo(w);
-		w.close();
+		try (OutputStreamWriter w = new OutputStreamWriter(os,
+				Constants.CHARSET)) {
+			id1.copyTo(w);
+		}
 		assertEquals(id1, LongObjectId.fromString(os.toByteArray(), 0));
 	}
 
@@ -400,10 +403,11 @@ public class LongObjectIdTest {
 	public void testCopyToWriterWithBuf() throws IOException {
 		AnyLongObjectId id1 = LongObjectIdTestUtils.hash("test");
 		ByteArrayOutputStream os = new ByteArrayOutputStream(64);
-		OutputStreamWriter w = new OutputStreamWriter(os, Constants.CHARSET);
-		char[] buf = new char[64];
-		id1.copyTo(buf, w);
-		w.close();
+		try (OutputStreamWriter w = new OutputStreamWriter(os,
+				Constants.CHARSET)) {
+			char[] buf = new char[64];
+			id1.copyTo(buf, w);
+		}
 		assertEquals(id1, LongObjectId.fromString(os.toByteArray(), 0));
 	}
 

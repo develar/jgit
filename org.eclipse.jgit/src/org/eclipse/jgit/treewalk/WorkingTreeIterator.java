@@ -60,6 +60,8 @@ import java.text.MessageFormat;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.eclipse.jgit.api.errors.FilterFailedException;
 import org.eclipse.jgit.attributes.AttributesNode;
@@ -67,7 +69,6 @@ import org.eclipse.jgit.attributes.AttributesRule;
 import org.eclipse.jgit.attributes.FilterCommand;
 import org.eclipse.jgit.attributes.FilterCommandRegistry;
 import org.eclipse.jgit.diff.RawText;
-import org.eclipse.jgit.dircache.DirCache;
 import org.eclipse.jgit.dircache.DirCacheEntry;
 import org.eclipse.jgit.dircache.DirCacheIterator;
 import org.eclipse.jgit.errors.CorruptObjectException;
@@ -101,13 +102,15 @@ import org.eclipse.jgit.util.io.EolStreamTypeUtil;
 import org.eclipse.jgit.util.sha1.SHA1;
 
 /**
- * Walks a working directory tree as part of a {@link TreeWalk}.
+ * Walks a working directory tree as part of a
+ * {@link org.eclipse.jgit.treewalk.TreeWalk}.
  * <p>
  * Most applications will want to use the standard implementation of this
- * iterator, {@link FileTreeIterator}, as that does all IO through the standard
- * <code>java.io</code> package. Plugins for a Java based IDE may however wish
- * to create their own implementations of this class to allow traversal of the
- * IDE's project space, as well as benefit from any caching the IDE may have.
+ * iterator, {@link org.eclipse.jgit.treewalk.FileTreeIterator}, as that does
+ * all IO through the standard <code>java.io</code> package. Plugins for a Java
+ * based IDE may however wish to create their own implementations of this class
+ * to allow traversal of the IDE's project space, as well as benefit from any
+ * caching the IDE may have.
  *
  * @see FileTreeIterator
  */
@@ -208,7 +211,7 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	 * @param p
 	 *            parent tree iterator.
 	 */
-	protected WorkingTreeIterator(final WorkingTreeIterator p) {
+	protected WorkingTreeIterator(WorkingTreeIterator p) {
 		super(p);
 		state = p.state;
 		repository = p.repository;
@@ -234,7 +237,8 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	}
 
 	/**
-	 * Define the matching {@link DirCacheIterator}, to optimize ObjectIds.
+	 * Define the matching {@link org.eclipse.jgit.dircache.DirCacheIterator},
+	 * to optimize ObjectIds.
 	 *
 	 * Once the DirCacheIterator has been set this iterator must only be
 	 * advanced by the TreeWalk that is supplied, as it assumes that itself and
@@ -244,13 +248,54 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	 * @param walk
 	 *            the walk that will be advancing this iterator.
 	 * @param treeId
-	 *            index of the matching {@link DirCacheIterator}.
+	 *            index of the matching
+	 *            {@link org.eclipse.jgit.dircache.DirCacheIterator}.
 	 */
 	public void setDirCacheIterator(TreeWalk walk, int treeId) {
 		state.walk = walk;
 		state.dirCacheTree = treeId;
 	}
 
+	/**
+	 * Retrieves the {@link DirCacheIterator} at the current entry if
+	 * {@link #setDirCacheIterator(TreeWalk, int)} was called.
+	 *
+	 * @return the DirCacheIterator, or {@code null} if not set or not at the
+	 *         current entry
+	 * @since 5.0
+	 */
+	protected DirCacheIterator getDirCacheIterator() {
+		if (state.dirCacheTree >= 0 && state.walk != null) {
+			return state.walk.getTree(state.dirCacheTree,
+					DirCacheIterator.class);
+		}
+		return null;
+	}
+
+	/**
+	 * Defines whether this {@link WorkingTreeIterator} walks ignored
+	 * directories.
+	 *
+	 * @param includeIgnored
+	 *            {@code false} to skip ignored directories, if possible;
+	 *            {@code true} to always include them in the walk
+	 * @since 5.0
+	 */
+	public void setWalkIgnoredDirectories(boolean includeIgnored) {
+		state.walkIgnored = includeIgnored;
+	}
+
+	/**
+	 * Tells whether this {@link WorkingTreeIterator} walks ignored directories.
+	 *
+	 * @return {@code true} if it does, {@code false} otherwise
+	 * @since 5.0
+	 */
+	public boolean walksIgnoredDirectories() {
+		return state.walkIgnored;
+	}
+
+	/** {@inheritDoc} */
 	@Override
 	public boolean hasId() {
 		if (contentIdFromPtr == ptr)
@@ -258,6 +303,7 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 		return (mode & FileMode.TYPE_MASK) == FileMode.TYPE_FILE;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public byte[] idBuffer() {
 		if (contentIdFromPtr == ptr)
@@ -295,6 +341,7 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 		return zeroid;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean isWorkTree() {
 		return true;
@@ -304,6 +351,8 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	 * Get submodule id for given entry.
 	 *
 	 * @param e
+	 *            a {@link org.eclipse.jgit.treewalk.WorkingTreeIterator.Entry}
+	 *            object.
 	 * @return non-null submodule id
 	 */
 	protected byte[] idSubmodule(Entry e) {
@@ -323,33 +372,29 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	 * relative to the directory.
 	 *
 	 * @param directory
+	 *            a {@link java.io.File} object.
 	 * @param e
+	 *            a {@link org.eclipse.jgit.treewalk.WorkingTreeIterator.Entry}
+	 *            object.
 	 * @return non-null submodule id
 	 */
 	protected byte[] idSubmodule(File directory, Entry e) {
-		final Repository submoduleRepo;
-		try {
-			submoduleRepo = SubmoduleWalk.getSubmoduleRepository(directory,
-					e.getName());
+		try (Repository submoduleRepo = SubmoduleWalk.getSubmoduleRepository(
+				directory, e.getName(),
+				repository != null ? repository.getFS() : FS.DETECTED)) {
+			if (submoduleRepo == null) {
+				return zeroid;
+			}
+			ObjectId head = submoduleRepo.resolve(Constants.HEAD);
+			if (head == null) {
+				return zeroid;
+			}
+			byte[] id = new byte[Constants.OBJECT_ID_LENGTH];
+			head.copyRawTo(id, 0);
+			return id;
 		} catch (IOException exception) {
 			return zeroid;
 		}
-		if (submoduleRepo == null)
-			return zeroid;
-
-		final ObjectId head;
-		try {
-			head = submoduleRepo.resolve(Constants.HEAD);
-		} catch (IOException exception) {
-			return zeroid;
-		} finally {
-			submoduleRepo.close();
-		}
-		if (head == null)
-			return zeroid;
-		final byte[] id = new byte[Constants.OBJECT_ID_LENGTH];
-		head.copyRawTo(id, 0);
-		return id;
 	}
 
 	private static final byte[] digits = { '0', '1', '2', '3', '4', '5', '6',
@@ -358,7 +403,7 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	private static final byte[] hblob = Constants
 			.encodedTypeString(Constants.OBJ_BLOB);
 
-	private byte[] idBufferBlob(final Entry e) {
+	private byte[] idBufferBlob(Entry e) {
 		try {
 			final InputStream is = e.openInputStream();
 			if (is == null)
@@ -416,7 +461,7 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 		return filterClean(is, opType);
 	}
 
-	private static void safeClose(final InputStream in) {
+	private static void safeClose(InputStream in) {
 		try {
 			in.close();
 		} catch (IOException err2) {
@@ -462,7 +507,7 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 				while (command.run() != -1) {
 					// loop as long as command.run() tells there is work to do
 				}
-				return buffer.openInputStream();
+				return buffer.openInputStreamWithAutoDestroy();
 			}
 			FS fs = repository.getFS();
 			ProcessBuilder filterProcessBuilder = fs.runInShell(filterCommand,
@@ -485,7 +530,7 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 						RawParseUtils.decode(result.getStderr()
 								.toByteArray(MAX_EXCEPTION_TEXT_SIZE))));
 			}
-			return result.getStdout().openInputStream();
+			return result.getStdout().openInputStreamWithAutoDestroy();
 		}
 		return in;
 	}
@@ -504,11 +549,13 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 		return state.options;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public int idOffset() {
 		return contentIdOffset;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void reset() {
 		if (!first()) {
@@ -518,26 +565,30 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean first() {
 		return ptr == 0;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean eof() {
 		return ptr == entryCnt;
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public void next(final int delta) throws CorruptObjectException {
+	public void next(int delta) throws CorruptObjectException {
 		ptr += delta;
 		if (!eof()) {
 			parseEntry();
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public void back(final int delta) throws CorruptObjectException {
+	public void back(int delta) throws CorruptObjectException {
 		ptr -= delta;
 		parseEntry();
 	}
@@ -568,7 +619,7 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	 * Get the filtered input length of this entry
 	 *
 	 * @return size of the content, in bytes
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
 	public long getEntryContentLength() throws IOException {
 		if (canonLen == -1) {
@@ -610,7 +661,7 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	 * The caller will close the stream once complete.
 	 *
 	 * @return a stream to read from the file.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the file could not be opened for reading.
 	 */
 	public InputStream openEntryStream() throws IOException {
@@ -626,7 +677,7 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	 * Determine if the current entry path is ignored by an ignore rule.
 	 *
 	 * @return true if the entry was ignored by an ignore rule file.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             a relevant ignore rule file exists but cannot be read.
 	 */
 	public boolean isEntryIgnored() throws IOException {
@@ -639,58 +690,64 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	 * @param pLen
 	 *            the length of the path in the path buffer.
 	 * @return true if the entry is ignored by an ignore rule.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             a relevant ignore rule file exists but cannot be read.
 	 */
-	protected boolean isEntryIgnored(final int pLen) throws IOException {
-		return isEntryIgnored(pLen, mode, false);
+	protected boolean isEntryIgnored(int pLen) throws IOException {
+		return isEntryIgnored(pLen, mode);
 	}
 
 	/**
-	 * Determine if the entry path is ignored by an ignore rule. Consider
-	 * possible rule negation from child iterator.
+	 * Determine if the entry path is ignored by an ignore rule.
 	 *
 	 * @param pLen
 	 *            the length of the path in the path buffer.
 	 * @param fileMode
 	 *            the original iterator file mode
-	 * @param negatePrevious
-	 *            true if the previous matching iterator rule was negation
 	 * @return true if the entry is ignored by an ignore rule.
 	 * @throws IOException
 	 *             a relevant ignore rule file exists but cannot be read.
 	 */
-	private boolean isEntryIgnored(final int pLen, int fileMode,
-			boolean negatePrevious)
+	private boolean isEntryIgnored(int pLen, int fileMode)
 			throws IOException {
-		IgnoreNode rules = getIgnoreNode();
-		if (rules != null) {
-			// The ignore code wants path to start with a '/' if possible.
-			// If we have the '/' in our path buffer because we are inside
-			// a subdirectory include it in the range we convert to string.
-			//
-			int pOff = pathOffset;
-			if (0 < pOff)
-				pOff--;
-			String p = TreeWalk.pathOf(path, pOff, pLen);
-			switch (rules.isIgnored(p, FileMode.TREE.equals(fileMode),
-					negatePrevious)) {
-			case IGNORED:
-				return true;
-			case NOT_IGNORED:
-				return false;
-			case CHECK_PARENT:
-				negatePrevious = false;
-				break;
-			case CHECK_PARENT_NEGATE_FIRST_MATCH:
-				negatePrevious = true;
-				break;
-			}
+		// The ignore code wants path to start with a '/' if possible.
+		// If we have the '/' in our path buffer because we are inside
+		// a sub-directory include it in the range we convert to string.
+		//
+		final int pOff = 0 < pathOffset ? pathOffset - 1 : pathOffset;
+		String pathRel = TreeWalk.pathOf(this.path, pOff, pLen);
+		String parentRel = getParentPath(pathRel);
+
+		// CGit is processing .gitignore files by starting at the root of the
+		// repository and then recursing into subdirectories. With this
+		// approach, top-level ignored directories will be processed first which
+		// allows to skip entire subtrees and further .gitignore-file processing
+		// within these subtrees.
+		//
+		// We will follow the same approach by marking directories as "ignored"
+		// here. This allows to have a simplified FastIgnore.checkIgnore()
+		// implementation (both in terms of code and computational complexity):
+		//
+		// Without the "ignored" flag, we would have to apply the ignore-check
+		// to a path and all of its parents always(!), to determine whether a
+		// path is ignored directly or by one of its parent directories; with
+		// the "ignored" flag, we know at this point that the parent directory
+		// is definitely not ignored, thus the path can only become ignored if
+		// there is a rule matching the path itself.
+		if (isDirectoryIgnored(parentRel)) {
+			return true;
 		}
-		if (parent instanceof WorkingTreeIterator)
-			return ((WorkingTreeIterator) parent).isEntryIgnored(pLen, fileMode,
-					negatePrevious);
-		return false;
+
+		IgnoreNode rules = getIgnoreNode();
+		final Boolean ignored = rules != null
+				? rules.checkIgnored(pathRel, FileMode.TREE.equals(fileMode))
+				: null;
+		if (ignored != null) {
+			return ignored.booleanValue();
+		}
+		return parent instanceof WorkingTreeIterator
+				&& ((WorkingTreeIterator) parent).isEntryIgnored(pLen,
+						fileMode);
 	}
 
 	private IgnoreNode getIgnoreNode() throws IOException {
@@ -700,12 +757,12 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	}
 
 	/**
-	 * Retrieves the {@link AttributesNode} for the current entry.
+	 * Retrieves the {@link org.eclipse.jgit.attributes.AttributesNode} for the
+	 * current entry.
 	 *
-	 * @return {@link AttributesNode} for the current entry.
+	 * @return the {@link org.eclipse.jgit.attributes.AttributesNode} for the
+	 *         current entry.
 	 * @throws IOException
-	 *             if an error is raised while parsing the .gitattributes file
-	 * @since 3.7
 	 */
 	public AttributesNode getEntryAttributesNode() throws IOException {
 		if (attributesNode instanceof PerDirectoryAttributesNode)
@@ -730,7 +787,7 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	 *            files in the subtree of the work tree this iterator operates
 	 *            on
 	 */
-	protected void init(final Entry[] list) {
+	protected void init(Entry[] list) {
 		// Filter out nulls, . and .. as these are not valid tree entries,
 		// also cache the encoded forms of the path names for efficient use
 		// later on during sorting and iteration.
@@ -809,9 +866,10 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	 * Is the file mode of the current entry different than the given raw mode?
 	 *
 	 * @param rawMode
+	 *            an int.
 	 * @return true if different, false otherwise
 	 */
-	public boolean isModeDifferent(final int rawMode) {
+	public boolean isModeDifferent(int rawMode) {
 		// Determine difference in mode-bits of file and index-entry. In the
 		// bitwise presentation of modeDiff we'll have a '1' when the two modes
 		// differ at this position.
@@ -835,12 +893,14 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 
 	/**
 	 * Compare the metadata (mode, length, modification-timestamp) of the
-	 * current entry and a {@link DirCacheEntry}
+	 * current entry and a {@link org.eclipse.jgit.dircache.DirCacheEntry}
 	 *
 	 * @param entry
-	 *            the {@link DirCacheEntry} to compare with
-	 * @return a {@link MetadataDiff} which tells whether and how the entries
-	 *         metadata differ
+	 *            the {@link org.eclipse.jgit.dircache.DirCacheEntry} to compare
+	 *            with
+	 * @return a
+	 *         {@link org.eclipse.jgit.treewalk.WorkingTreeIterator.MetadataDiff}
+	 *         which tells whether and how the entries metadata differ
 	 */
 	public MetadataDiff compareMetadata(DirCacheEntry entry) {
 		if (entry.isAssumeValid())
@@ -890,7 +950,7 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 
 	/**
 	 * Checks whether this entry differs from a given entry from the
-	 * {@link DirCache}.
+	 * {@link org.eclipse.jgit.dircache.DirCache}.
 	 *
 	 * File status information is used and if status is same we consider the
 	 * file identical to the state in the working directory. Native git uses
@@ -904,7 +964,7 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	 * @param reader
 	 *            access to repository objects if necessary. Should not be null.
 	 * @return true if content is most likely different.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 * @since 3.3
 	 */
 	public boolean isModified(DirCacheEntry entry, boolean forceContentCheck,
@@ -931,7 +991,19 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 			}
 			return false;
 		case DIFFER_BY_METADATA:
-			if (mode == FileMode.SYMLINK.getBits())
+			if (mode == FileMode.TREE.getBits()
+					&& entry.getFileMode().equals(FileMode.GITLINK)) {
+				byte[] idBuffer = idBuffer();
+				int idOffset = idOffset();
+				if (entry.getObjectId().compareTo(idBuffer, idOffset) == 0) {
+					return true;
+				} else if (ObjectId.zeroId().compareTo(idBuffer,
+						idOffset) == 0) {
+					return new File(repository.getWorkTree(),
+							entry.getPathString()).list().length > 0;
+				}
+				return false;
+			} else if (mode == FileMode.SYMLINK.getBits())
 				return contentCheck(entry, reader);
 			return true;
 		default:
@@ -945,12 +1017,13 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	 * in the index.
 	 *
 	 * @param indexIter
-	 *            {@link DirCacheIterator} positioned at the same entry as this
-	 *            iterator or null if no {@link DirCacheIterator} is available
-	 *            at this iterator's current entry
+	 *            {@link org.eclipse.jgit.dircache.DirCacheIterator} positioned
+	 *            at the same entry as this iterator or null if no
+	 *            {@link org.eclipse.jgit.dircache.DirCacheIterator} is
+	 *            available at this iterator's current entry
 	 * @return index file mode
 	 */
-	public FileMode getIndexFileMode(final DirCacheIterator indexIter) {
+	public FileMode getIndexFileMode(DirCacheIterator indexIter) {
 		final FileMode wtMode = getEntryFileMode();
 		if (indexIter == null) {
 			return wtMode;
@@ -1067,7 +1140,7 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	 * @param entry
 	 *            to read
 	 * @return the entry's content as a normalized string
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             if the entry cannot be read or does not denote a symlink
 	 * @since 4.6
 	 */
@@ -1131,13 +1204,17 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 		return contentDigest.digest();
 	}
 
-	/** A single entry within a working directory tree. */
-	protected static abstract class Entry {
+	/**
+	 * A single entry within a working directory tree.
+	 *
+	 * @since 5.0
+	 */
+	public static abstract class Entry {
 		byte[] encodedName;
 
 		int encodedNameLen;
 
-		void encodeName(final CharsetEncoder enc) {
+		void encodeName(CharsetEncoder enc) {
 			final ByteBuffer b;
 			try {
 				b = enc.encode(CharBuffer.wrap(getName()));
@@ -1238,11 +1315,8 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 
 		IgnoreNode load() throws IOException {
 			IgnoreNode r = new IgnoreNode();
-			InputStream in = entry.openInputStream();
-			try {
+			try (InputStream in = entry.openInputStream()) {
 				r.parse(in);
-			} finally {
-				in.close();
 			}
 			return r.getRules().isEmpty() ? null : r;
 		}
@@ -1290,11 +1364,8 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 		private static void loadRulesFromFile(IgnoreNode r, File exclude)
 				throws FileNotFoundException, IOException {
 			if (FS.DETECTED.exists(exclude)) {
-				FileInputStream in = new FileInputStream(exclude);
-				try {
+				try (FileInputStream in = new FileInputStream(exclude)) {
 					r.parse(in);
-				} finally {
-					in.close();
 				}
 			}
 		}
@@ -1311,11 +1382,8 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 
 		AttributesNode load() throws IOException {
 			AttributesNode r = new AttributesNode();
-			InputStream in = entry.openInputStream();
-			try {
+			try (InputStream in = entry.openInputStream()) {
 				r.parse(in);
-			} finally {
-				in.close();
 			}
 			return r.getRules().isEmpty() ? null : r;
 		}
@@ -1336,7 +1404,12 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 		TreeWalk walk;
 
 		/** Position of the matching {@link DirCacheIterator}. */
-		int dirCacheTree;
+		int dirCacheTree = -1;
+
+		/** Whether the iterator shall walk ignored directories. */
+		boolean walkIgnored = false;
+
+		final Map<String, Boolean> directoryToIgnored = new HashMap<>();
 
 		IteratorState(WorkingTreeOptions options) {
 			this.options = options;
@@ -1351,9 +1424,11 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	}
 
 	/**
+	 * Get the clean filter command for the current entry.
+	 *
 	 * @return the clean filter command for the current entry or
 	 *         <code>null</code> if no such command is defined
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 * @since 4.2
 	 */
 	public String getCleanFilterCommand() throws IOException {
@@ -1369,11 +1444,13 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 	}
 
 	/**
+	 * Get the eol stream type for the current entry.
+	 *
 	 * @return the eol stream type for the current entry or <code>null</code> if
 	 *         it cannot be determined. When state or state.walk is null or the
-	 *         {@link TreeWalk} is not based on a {@link Repository} then null
-	 *         is returned.
-	 * @throws IOException
+	 *         {@link org.eclipse.jgit.treewalk.TreeWalk} is not based on a
+	 *         {@link org.eclipse.jgit.lib.Repository} then null is returned.
+	 * @throws java.io.IOException
 	 * @since 4.3
 	 */
 	public EolStreamType getEolStreamType() throws IOException {
@@ -1394,11 +1471,7 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 		if (eolStreamTypeHolder == null) {
 			EolStreamType type=null;
 			if (state.walk != null) {
-				if (opType != null) {
-					type = state.walk.getEolStreamType(opType);
-				} else {
-					type=state.walk.getEolStreamType();
-				}
+				type = state.walk.getEolStreamType(opType);
 			} else {
 				switch (getOptions().getAutoCRLF()) {
 				case FALSE:
@@ -1413,5 +1486,68 @@ public abstract class WorkingTreeIterator extends AbstractTreeIterator {
 			eolStreamTypeHolder = new Holder<>(type);
 		}
 		return eolStreamTypeHolder.get();
+	}
+
+	private boolean isDirectoryIgnored(String pathRel) throws IOException {
+		final int pOff = 0 < pathOffset ? pathOffset - 1 : pathOffset;
+		final String base = TreeWalk.pathOf(this.path, 0, pOff);
+		final String pathAbs = concatPath(base, pathRel);
+		return isDirectoryIgnored(pathRel, pathAbs);
+	}
+
+	private boolean isDirectoryIgnored(String pathRel, String pathAbs)
+			throws IOException {
+		assert pathRel.length() == 0 || (pathRel.charAt(0) != '/'
+				&& pathRel.charAt(pathRel.length() - 1) != '/');
+		assert pathAbs.length() == 0 || (pathAbs.charAt(0) != '/'
+				&& pathAbs.charAt(pathAbs.length() - 1) != '/');
+		assert pathAbs.endsWith(pathRel);
+
+		Boolean ignored = state.directoryToIgnored.get(pathAbs);
+		if (ignored != null) {
+			return ignored.booleanValue();
+		}
+
+		final String parentRel = getParentPath(pathRel);
+		if (parentRel != null && isDirectoryIgnored(parentRel)) {
+			state.directoryToIgnored.put(pathAbs, Boolean.TRUE);
+			return true;
+		}
+
+		final IgnoreNode node = getIgnoreNode();
+		for (String p = pathRel; node != null
+				&& !"".equals(p); p = getParentPath(p)) { //$NON-NLS-1$
+			ignored = node.checkIgnored(p, true);
+			if (ignored != null) {
+				state.directoryToIgnored.put(pathAbs, ignored);
+				return ignored.booleanValue();
+			}
+		}
+
+		if (!(this.parent instanceof WorkingTreeIterator)) {
+			state.directoryToIgnored.put(pathAbs, Boolean.FALSE);
+			return false;
+		}
+
+		final WorkingTreeIterator wtParent = (WorkingTreeIterator) this.parent;
+		final String parentRelPath = concatPath(
+				TreeWalk.pathOf(this.path, wtParent.pathOffset, pathOffset - 1),
+				pathRel);
+		assert concatPath(TreeWalk.pathOf(wtParent.path, 0,
+				Math.max(0, wtParent.pathOffset - 1)), parentRelPath)
+						.equals(pathAbs);
+		return wtParent.isDirectoryIgnored(parentRelPath, pathAbs);
+	}
+
+	private static String getParentPath(String path) {
+		final int slashIndex = path.lastIndexOf('/', path.length() - 2);
+		if (slashIndex > 0) {
+			return path.substring(path.charAt(0) == '/' ? 1 : 0, slashIndex);
+		}
+		return path.length() > 0 ? "" : null; //$NON-NLS-1$
+	}
+
+	private static String concatPath(String p1, String p2) {
+		return p1 + (p1.length() > 0 && p2.length() > 0 ? "/" : "") + p2; //$NON-NLS-1$ //$NON-NLS-2$
 	}
 }

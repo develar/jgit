@@ -143,7 +143,9 @@ public class NetRC {
 		COMMAND, MACHINE, LOGIN, PASSWORD, DEFAULT, ACCOUNT, MACDEF
 	}
 
-	/** */
+	/**
+	 * <p>Constructor for NetRC.</p>
+	 */
 	public NetRC() {
 		netrc = getDefaultFile();
 		if (netrc != null)
@@ -151,6 +153,8 @@ public class NetRC {
 	}
 
 	/**
+	 * <p>Constructor for NetRC.</p>
+	 *
 	 * @param netrc
 	 *            the .netrc file
 	 */
@@ -176,6 +180,7 @@ public class NetRC {
 	 * Get entry by host name
 	 *
 	 * @param host
+	 *            the host name
 	 * @return entry associated with host name or null
 	 */
 	public NetRCEntry getEntry(String host) {
@@ -194,6 +199,8 @@ public class NetRC {
 	}
 
 	/**
+	 * Get all entries collected from .netrc file
+	 *
 	 * @return all entries collected from .netrc file
 	 */
 	public Collection<NetRCEntry> getEntries() {
@@ -204,9 +211,7 @@ public class NetRC {
 		this.hosts.clear();
 		this.lastModified = this.netrc.lastModified();
 
-		BufferedReader r = null;
-		try {
-			r = new BufferedReader(new FileReader(netrc));
+		try (BufferedReader r = new BufferedReader(new FileReader(netrc))) {
 			String line = null;
 
 			NetRCEntry entry = new NetRCEntry();
@@ -308,13 +313,6 @@ public class NetRC {
 				hosts.put(entry.machine, entry);
 		} catch (IOException e) {
 			throw new RuntimeException(e);
-		} finally {
-			try {
-				if (r != null)
-					r.close();
-			} catch (IOException e) {
-				throw new RuntimeException(e);
-			}
 		}
 	}
 }

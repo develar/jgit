@@ -30,7 +30,10 @@ java_library(
 
 java_library(
     name = "gson",
-    visibility = ["//org.eclipse.jgit.lfs.server:__pkg__"],
+    visibility = [
+        "//org.eclipse.jgit.lfs:__pkg__",
+        "//org.eclipse.jgit.lfs.server:__pkg__",
+    ],
     exports = ["@gson//jar"],
 )
 
@@ -106,8 +109,20 @@ java_library(
 
 java_library(
     name = "jsch",
-    visibility = ["//org.eclipse.jgit:__pkg__"],
+    visibility = [
+        "//org.eclipse.jgit:__pkg__",
+        "//org.eclipse.jgit.test:__pkg__",
+    ],
     exports = ["@jsch//jar"],
+)
+
+java_library(
+    name = "jzlib",
+    visibility = [
+        "//org.eclipse.jgit:__pkg__",
+        "//org.eclipse.jgit.test:__pkg__",
+    ],
+    exports = ["@jzlib//jar"],
 )
 
 java_library(
@@ -115,9 +130,9 @@ java_library(
     testonly = 1,
     visibility = ["//visibility:public"],
     exports = [
-       "@junit//jar",
-       "@hamcrest_core//jar",
-       "@hamcrest_library//jar",
+        "@hamcrest_core//jar",
+        "@hamcrest_library//jar",
+        "@junit//jar",
     ],
 )
 

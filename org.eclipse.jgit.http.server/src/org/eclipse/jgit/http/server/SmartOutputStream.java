@@ -83,6 +83,7 @@ class SmartOutputStream extends TemporaryBuffer {
 		this.compressStream = compressStream;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	protected OutputStream overflow() throws IOException {
 		startedOutput = true;
@@ -95,6 +96,7 @@ class SmartOutputStream extends TemporaryBuffer {
 		return out;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void close() throws IOException {
 		super.close();
@@ -108,11 +110,8 @@ class SmartOutputStream extends TemporaryBuffer {
 			if (256 < out.length() && acceptsGzipEncoding(req)) {
 				TemporaryBuffer gzbuf = new TemporaryBuffer.Heap(LIMIT);
 				try {
-					GZIPOutputStream gzip = new GZIPOutputStream(gzbuf);
-					try {
+					try (GZIPOutputStream gzip = new GZIPOutputStream(gzbuf)) {
 						out.writeTo(gzip, null);
-					} finally {
-						gzip.close();
 					}
 					if (gzbuf.length() < out.length()) {
 						out = gzbuf;
@@ -129,12 +128,9 @@ class SmartOutputStream extends TemporaryBuffer {
 			// hardcoded LIMIT constant above assures us we wouldn't store
 			// more than 2 GiB of content in memory.
 			rsp.setContentLength((int) out.length());
-			final OutputStream os = rsp.getOutputStream();
-			try {
+			try (OutputStream os = rsp.getOutputStream()) {
 				out.writeTo(os, null);
 				os.flush();
-			} finally {
-				os.close();
 			}
 		}
 	}

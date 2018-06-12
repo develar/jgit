@@ -48,7 +48,9 @@ import java.io.InputStream;
 import java.io.InterruptedIOException;
 import java.io.OutputStream;
 
-/** Thread to copy from an input stream to an output stream. */
+/**
+ * Thread to copy from an input stream to an output stream.
+ */
 public class StreamCopyThread extends Thread {
 	private static final int BUFFER_SIZE = 1024;
 
@@ -71,25 +73,11 @@ public class StreamCopyThread extends Thread {
 	 *            stream to copy into. The destination stream is automatically
 	 *            closed when the thread terminates.
 	 */
-	public StreamCopyThread(final InputStream i, final OutputStream o) {
+	public StreamCopyThread(InputStream i, OutputStream o) {
 		setName(Thread.currentThread().getName() + "-StreamCopy"); //$NON-NLS-1$
 		src = i;
 		dst = o;
 		writeLock = new Object();
-	}
-
-	/**
-	 * Request the thread to flush the output stream as soon as possible.
-	 * <p>
-	 * This is an asynchronous request to the thread. The actual flush will
-	 * happen at some future point in time, when the thread wakes up to process
-	 * the request.
-	 */
-	@Deprecated
-	public void flush() {
-		synchronized (writeLock) {
-			interrupt();
-		}
 	}
 
 	/**
@@ -98,7 +86,7 @@ public class StreamCopyThread extends Thread {
 	 * This method signals to the copy thread that it should stop as soon as
 	 * there is no more IO occurring.
 	 *
-	 * @throws InterruptedException
+	 * @throws java.lang.InterruptedException
 	 *             the calling thread was interrupted.
 	 */
 	public void halt() throws InterruptedException {
@@ -112,6 +100,7 @@ public class StreamCopyThread extends Thread {
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void run() {
 		try {

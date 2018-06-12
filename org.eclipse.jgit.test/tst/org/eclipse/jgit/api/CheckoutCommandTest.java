@@ -74,8 +74,7 @@ import org.eclipse.jgit.dircache.DirCache;
 import org.eclipse.jgit.dircache.DirCacheEntry;
 import org.eclipse.jgit.junit.JGitTestUtil;
 import org.eclipse.jgit.junit.RepositoryTestCase;
-import org.eclipse.jgit.lfs.CleanFilter;
-import org.eclipse.jgit.lfs.SmudgeFilter;
+import org.eclipse.jgit.lfs.BuiltinLFS;
 import org.eclipse.jgit.lib.ConfigConstants;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.Ref;
@@ -85,7 +84,6 @@ import org.eclipse.jgit.lib.Sets;
 import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.storage.file.FileBasedConfig;
-import org.eclipse.jgit.transport.RefSpec;
 import org.eclipse.jgit.transport.RemoteConfig;
 import org.eclipse.jgit.transport.URIish;
 import org.eclipse.jgit.util.FileUtils;
@@ -103,8 +101,7 @@ public class CheckoutCommandTest extends RepositoryTestCase {
 	@Override
 	@Before
 	public void setUp() throws Exception {
-		CleanFilter.register();
-		SmudgeFilter.register();
+		BuiltinLFS.register();
 		super.setUp();
 		git = new Git(db);
 		// commit something
@@ -173,15 +170,12 @@ public class CheckoutCommandTest extends RepositoryTestCase {
 	@Test
 	public void testCheckoutWithNonDeletedFiles() throws Exception {
 		File testFile = writeTrashFile("temp", "");
-		FileInputStream fis = new FileInputStream(testFile);
-		try {
+		try (FileInputStream fis = new FileInputStream(testFile)) {
 			FileUtils.delete(testFile);
 			return;
 		} catch (IOException e) {
 			// the test makes only sense if deletion of
 			// a file with open stream fails
-		} finally {
-			fis.close();
 		}
 		FileUtils.delete(testFile);
 		CheckoutCommand co = git.checkout();
@@ -195,15 +189,12 @@ public class CheckoutCommandTest extends RepositoryTestCase {
 		git.checkout().setName("master").call();
 		assertTrue(testFile.exists());
 		// lock the file so it can't be deleted (in Windows, that is)
-		fis = new FileInputStream(testFile);
-		try {
+		try (FileInputStream fis = new FileInputStream(testFile)) {
 			assertEquals(Status.NOT_TRIED, co.getResult().getStatus());
 			co.setName("test").call();
 			assertTrue(testFile.exists());
 			assertEquals(Status.NONDELETED, co.getResult().getStatus());
 			assertTrue(co.getResult().getUndeletedList().contains("Test.txt"));
-		} finally {
-			fis.close();
 		}
 	}
 
@@ -431,8 +422,8 @@ public class CheckoutCommandTest extends RepositoryTestCase {
 			config.save();
 
 			// fetch from first repository
-			RefSpec spec = new RefSpec("+refs/heads/*:refs/remotes/origin/*");
-			git2.fetch().setRemote("origin").setRefSpecs(spec).call();
+			git2.fetch().setRemote("origin")
+					.setRefSpecs("+refs/heads/*:refs/remotes/origin/*").call();
 			return db2;
 		}
 	}
@@ -825,7 +816,7 @@ public class CheckoutCommandTest extends RepositoryTestCase {
 	}
 
 	private File writeTempFile(String body) throws IOException {
-		File f = File.createTempFile("AddCommandTest_", "");
+		File f = File.createTempFile("CheckoutCommandTest_", "");
 		JGitTestUtil.write(f, body);
 		return f;
 	}

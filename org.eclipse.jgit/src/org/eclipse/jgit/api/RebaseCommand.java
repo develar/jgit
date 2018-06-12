@@ -238,7 +238,12 @@ public class RebaseCommand extends GitCommand<RebaseResult> {
 	private boolean preserveMerges = false;
 
 	/**
+	 * <p>
+	 * Constructor for RebaseCommand.
+	 * </p>
+	 *
 	 * @param repo
+	 *            the {@link org.eclipse.jgit.lib.Repository}
 	 */
 	protected RebaseCommand(Repository repo) {
 		super(repo);
@@ -247,16 +252,12 @@ public class RebaseCommand extends GitCommand<RebaseResult> {
 	}
 
 	/**
+	 * {@inheritDoc}
+	 * <p>
 	 * Executes the {@code Rebase} command with all the options and parameters
 	 * collected by the setter methods of this class. Each instance of this
 	 * class should only be used for one invocation of the command. Don't call
 	 * this method twice on an instance.
-	 *
-	 * @return an object describing the result of this command
-	 * @throws GitAPIException
-	 * @throws WrongRepositoryStateException
-	 * @throws NoHeadException
-	 * @throws RefNotFoundException
 	 */
 	@Override
 	public RebaseResult call() throws GitAPIException, NoHeadException,
@@ -425,6 +426,7 @@ public class RebaseCommand extends GitCommand<RebaseResult> {
 		refUpdate.setNewObjectId(commitId);
 		refUpdate.setRefLogIdent(refLogIdent);
 		refUpdate.setRefLogMessage(refLogMessage, false);
+		refUpdate.setForceRefLog(true);
 		if (currentRef != null)
 			refUpdate.setExpectedOldObjectId(currentRef.getObjectId());
 		else
@@ -930,6 +932,7 @@ public class RebaseCommand extends GitCommand<RebaseResult> {
 		try {
 			DirCacheCheckout dco = new DirCacheCheckout(repo, dc, headTree);
 			dco.setFailOnConflict(false);
+			dco.setProgressMonitor(monitor);
 			boolean needsDeleteFiles = dco.checkout();
 			if (needsDeleteFiles) {
 				List<String> fileList = dco.getToBeDeleted();
@@ -1227,12 +1230,14 @@ public class RebaseCommand extends GitCommand<RebaseResult> {
 	}
 
 	/**
-	 * checks if we can fast-forward and returns the new head if it is possible
+	 * Check if we can fast-forward and returns the new head if it is possible
 	 *
 	 * @param newCommit
+	 *            a {@link org.eclipse.jgit.revwalk.RevCommit} object to check
+	 *            if we can fast-forward to.
 	 * @return the new head, or null
-	 * @throws IOException
-	 * @throws GitAPIException
+	 * @throws java.io.IOException
+	 * @throws org.eclipse.jgit.api.errors.GitAPIException
 	 */
 	public RevCommit tryFastForward(RevCommit newCommit) throws IOException,
 			GitAPIException {
@@ -1261,6 +1266,7 @@ public class RebaseCommand extends GitCommand<RebaseResult> {
 
 		CheckoutCommand co = new CheckoutCommand(repo);
 		try {
+			co.setProgressMonitor(monitor);
 			co.setName(newCommit.name()).call();
 			if (headName.startsWith(Constants.R_HEADS)) {
 				RefUpdate rup = repo.updateRef(headName);
@@ -1403,6 +1409,7 @@ public class RebaseCommand extends GitCommand<RebaseResult> {
 			DirCacheCheckout dco = new DirCacheCheckout(repo, head.getTree(),
 					repo.lockDirCache(), commit.getTree());
 			dco.setFailOnConflict(true);
+			dco.setProgressMonitor(monitor);
 			try {
 				dco.checkout();
 			} catch (org.eclipse.jgit.errors.CheckoutConflictException cce) {
@@ -1435,6 +1442,8 @@ public class RebaseCommand extends GitCommand<RebaseResult> {
 
 
 	/**
+	 * Set upstream {@code RevCommit}
+	 *
 	 * @param upstream
 	 *            the upstream commit
 	 * @return {@code this}
@@ -1446,6 +1455,8 @@ public class RebaseCommand extends GitCommand<RebaseResult> {
 	}
 
 	/**
+	 * Set the upstream commit
+	 *
 	 * @param upstream
 	 *            id of the upstream commit
 	 * @return {@code this}
@@ -1463,10 +1474,12 @@ public class RebaseCommand extends GitCommand<RebaseResult> {
 	}
 
 	/**
+	 * Set the upstream branch
+	 *
 	 * @param upstream
-	 *            the upstream branch
+	 *            the name of the upstream branch
 	 * @return {@code this}
-	 * @throws RefNotFoundException
+	 * @throws org.eclipse.jgit.api.errors.RefNotFoundException
 	 */
 	public RebaseCommand setUpstream(String upstream)
 			throws RefNotFoundException {
@@ -1501,6 +1514,8 @@ public class RebaseCommand extends GitCommand<RebaseResult> {
 	}
 
 	/**
+	 * Set the operation to execute during rebase
+	 *
 	 * @param operation
 	 *            the operation to perform
 	 * @return {@code this}
@@ -1511,6 +1526,8 @@ public class RebaseCommand extends GitCommand<RebaseResult> {
 	}
 
 	/**
+	 * Set progress monitor
+	 *
 	 * @param monitor
 	 *            a progress monitor
 	 * @return this instance
@@ -1524,15 +1541,18 @@ public class RebaseCommand extends GitCommand<RebaseResult> {
 	}
 
 	/**
-	 * Enables interactive rebase
+	 * Enable interactive rebase
 	 * <p>
 	 * Does not stop after initialization of interactive rebase. This is
 	 * equivalent to
-	 * {@link RebaseCommand#runInteractively(InteractiveHandler, boolean)
+	 * {@link org.eclipse.jgit.api.RebaseCommand#runInteractively(InteractiveHandler, boolean)
 	 * runInteractively(handler, false)};
 	 * </p>
 	 *
 	 * @param handler
+	 *            the
+	 *            {@link org.eclipse.jgit.api.RebaseCommand.InteractiveHandler}
+	 *            to use
 	 * @return this
 	 */
 	public RebaseCommand runInteractively(InteractiveHandler handler) {
@@ -1540,14 +1560,17 @@ public class RebaseCommand extends GitCommand<RebaseResult> {
 	}
 
 	/**
-	 * Enables interactive rebase
+	 * Enable interactive rebase
 	 * <p>
 	 * If stopAfterRebaseInteractiveInitialization is {@code true} the rebase
 	 * stops after initialization of interactive rebase returning
-	 * {@link RebaseResult#INTERACTIVE_PREPARED_RESULT}
+	 * {@link org.eclipse.jgit.api.RebaseResult#INTERACTIVE_PREPARED_RESULT}
 	 * </p>
 	 *
 	 * @param handler
+	 *            the
+	 *            {@link org.eclipse.jgit.api.RebaseCommand.InteractiveHandler}
+	 *            to use
 	 * @param stopAfterRebaseInteractiveInitialization
 	 *            if {@code true} the rebase stops after initialization
 	 * @return this instance
@@ -1561,6 +1584,8 @@ public class RebaseCommand extends GitCommand<RebaseResult> {
 	}
 
 	/**
+	 * Set the <code>MergeStrategy</code>.
+	 *
 	 * @param strategy
 	 *            The merge strategy to use during this rebase operation.
 	 * @return {@code this}
@@ -1572,9 +1597,11 @@ public class RebaseCommand extends GitCommand<RebaseResult> {
 	}
 
 	/**
+	 * Whether to preserve merges during rebase
+	 *
 	 * @param preserve
-	 *            True to re-create merges during rebase. Defaults to false, a
-	 *            flattening rebase.
+	 *            {@code true} to re-create merges during rebase. Defaults to
+	 *            {@code false}, a flattening rebase.
 	 * @return {@code this}
 	 * @since 3.5
 	 */
@@ -1707,23 +1734,17 @@ public class RebaseCommand extends GitCommand<RebaseResult> {
 				String content)
 				throws IOException {
 			File file = new File(parentDir, name);
-			FileOutputStream fos = new FileOutputStream(file);
-			try {
+			try (FileOutputStream fos = new FileOutputStream(file)) {
 				fos.write(content.getBytes(Constants.CHARACTER_ENCODING));
 				fos.write('\n');
-			} finally {
-				fos.close();
 			}
 		}
 
 		private static void appendToFile(File file, String content)
 				throws IOException {
-			FileOutputStream fos = new FileOutputStream(file, true);
-			try {
+			try (FileOutputStream fos = new FileOutputStream(file, true)) {
 				fos.write(content.getBytes(Constants.CHARACTER_ENCODING));
 				fos.write('\n');
-			} finally {
-				fos.close();
 			}
 		}
 	}

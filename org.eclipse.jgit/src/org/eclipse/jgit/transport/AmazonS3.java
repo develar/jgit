@@ -43,6 +43,8 @@
 
 package org.eclipse.jgit.transport;
 
+import static org.eclipse.jgit.lib.Constants.CHARSET;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -126,14 +128,14 @@ public class AmazonS3 {
 		SIGNED_HEADERS.add("date"); //$NON-NLS-1$
 	}
 
-	private static boolean isSignedHeader(final String name) {
+	private static boolean isSignedHeader(String name) {
 		final String nameLC = StringUtils.toLowerCase(name);
 		return SIGNED_HEADERS.contains(nameLC) || nameLC.startsWith("x-amz-"); //$NON-NLS-1$
 	}
 
-	private static String toCleanString(final List<String> list) {
+	private static String toCleanString(List<String> list) {
 		final StringBuilder s = new StringBuilder();
-		for (final String v : list) {
+		for (String v : list) {
 			if (s.length() > 0)
 				s.append(',');
 			s.append(v.replaceAll("\n", "").trim()); //$NON-NLS-1$ //$NON-NLS-2$
@@ -141,7 +143,7 @@ public class AmazonS3 {
 		return s.toString();
 	}
 
-	private static String remove(final Map<String, String> m, final String k) {
+	private static String remove(Map<String, String> m, String k) {
 		final String r = m.remove(k);
 		return r != null ? r : ""; //$NON-NLS-1$
 	}
@@ -229,7 +231,6 @@ public class AmazonS3 {
 	 *
 	 * @param props
 	 *            connection properties.
-	 *
 	 */
 	public AmazonS3(final Properties props) {
 		domain = props.getProperty(Keys.DOMAIN, "s3.amazonaws.com"); //$NON-NLS-1$
@@ -279,10 +280,10 @@ public class AmazonS3 {
 	 * @return connection to stream the content of the object. The request
 	 *         properties of the connection may not be modified by the caller as
 	 *         the request parameters have already been signed.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             sending the request was not possible.
 	 */
-	public URLConnection get(final String bucket, final String key)
+	public URLConnection get(String bucket, String key)
 			throws IOException {
 		for (int curAttempt = 0; curAttempt < maxAttempts; curAttempt++) {
 			final HttpURLConnection c = open("GET", bucket, key); //$NON-NLS-1$
@@ -308,10 +309,10 @@ public class AmazonS3 {
 	 * @param u
 	 *            connection previously created by {@link #get(String, String)}}.
 	 * @return stream to read plain text from.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             decryption could not be configured.
 	 */
-	public InputStream decrypt(final URLConnection u) throws IOException {
+	public InputStream decrypt(URLConnection u) throws IOException {
 		return encryption.decrypt(u.getInputStream());
 	}
 
@@ -331,11 +332,11 @@ public class AmazonS3 {
 	 * @return list of keys starting with <code>prefix</code>, after removing
 	 *         <code>prefix</code> (or <code>prefix + "/"</code>)from all
 	 *         of them.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             sending the request was not possible, or the response XML
 	 *             document could not be parsed properly.
 	 */
-	public List<String> list(final String bucket, String prefix)
+	public List<String> list(String bucket, String prefix)
 			throws IOException {
 		if (prefix.length() > 0 && !prefix.endsWith("/")) //$NON-NLS-1$
 			prefix += "/"; //$NON-NLS-1$
@@ -355,10 +356,10 @@ public class AmazonS3 {
 	 *            name of the bucket storing the object.
 	 * @param key
 	 *            key of the object within its bucket.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             deletion failed due to communications error.
 	 */
-	public void delete(final String bucket, final String key)
+	public void delete(String bucket, String key)
 			throws IOException {
 		for (int curAttempt = 0; curAttempt < maxAttempts; curAttempt++) {
 			final HttpURLConnection c = open("DELETE", bucket, key); //$NON-NLS-1$
@@ -392,18 +393,18 @@ public class AmazonS3 {
 	 * @param data
 	 *            new data content for the object. Must not be null. Zero length
 	 *            array will create a zero length object.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             creation/updating failed due to communications error.
 	 */
-	public void put(final String bucket, final String key, final byte[] data)
+	public void put(String bucket, String key, byte[] data)
 			throws IOException {
 		if (encryption != WalkEncryption.NONE) {
 			// We have to copy to produce the cipher text anyway so use
 			// the large object code path as it supports that behavior.
 			//
-			final OutputStream os = beginPut(bucket, key, null, null);
-			os.write(data);
-			os.close();
+			try (OutputStream os = beginPut(bucket, key, null, null)) {
+				os.write(data);
+			}
 			return;
 		}
 
@@ -417,11 +418,8 @@ public class AmazonS3 {
 			authorize(c);
 			c.setDoOutput(true);
 			c.setFixedLengthStreamingMode(data.length);
-			final OutputStream os = c.getOutputStream();
-			try {
+			try (OutputStream os = c.getOutputStream()) {
 				os.write(data);
-			} finally {
-				os.close();
 			}
 
 			switch (HttpSupport.response(c)) {
@@ -461,7 +459,7 @@ public class AmazonS3 {
 	 * @param monitorTask
 	 *            (optional) task name to display during the close method.
 	 * @return a stream which accepts the new data, and transmits once closed.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             if encryption was enabled it could not be configured.
 	 */
 	public OutputStream beginPut(final String bucket, final String key,
@@ -502,12 +500,10 @@ public class AmazonS3 {
 			authorize(c);
 			c.setDoOutput(true);
 			monitor.beginTask(monitorTask, (int) (len / 1024));
-			final OutputStream os = c.getOutputStream();
-			try {
+			try (OutputStream os = c.getOutputStream()) {
 				buf.writeTo(os, monitor);
 			} finally {
 				monitor.endTask();
-				os.close();
 			}
 
 			switch (HttpSupport.response(c)) {
@@ -528,12 +524,11 @@ public class AmazonS3 {
 				JGitText.get().amazonS3ActionFailed, action, key,
 				Integer.valueOf(HttpSupport.response(c)),
 				c.getResponseMessage()));
-		final InputStream errorStream = c.getErrorStream();
-		if (errorStream == null) {
+		if (c.getErrorStream() == null) {
 			return err;
 		}
 
-		try {
+		try (InputStream errorStream = c.getErrorStream()) {
 			final ByteArrayOutputStream b = new ByteArrayOutputStream();
 			byte[] buf = new byte[2048];
 			for (;;) {
@@ -549,13 +544,11 @@ public class AmazonS3 {
 			if (buf.length > 0) {
 				err.initCause(new IOException("\n" + new String(buf))); //$NON-NLS-1$
 			}
-		} finally {
-			errorStream.close();
 		}
 		return err;
 	}
 
-	IOException maxAttempts(final String action, final String key) {
+	IOException maxAttempts(String action, String key) {
 		return new IOException(MessageFormat.format(
 				JGitText.get().amazonS3ActionFailedGivingUp, action, key,
 				Integer.valueOf(maxAttempts)));
@@ -604,10 +597,10 @@ public class AmazonS3 {
 		return c;
 	}
 
-	void authorize(final HttpURLConnection c) throws IOException {
+	void authorize(HttpURLConnection c) throws IOException {
 		final Map<String, List<String>> reqHdr = c.getRequestProperties();
 		final SortedMap<String, String> sigHdr = new TreeMap<>();
-		for (final Map.Entry<String, List<String>> entry : reqHdr.entrySet()) {
+		for (Map.Entry<String, List<String>> entry : reqHdr.entrySet()) {
 			final String hdr = entry.getKey();
 			if (isSignedHeader(hdr))
 				sigHdr.put(StringUtils.toLowerCase(hdr), toCleanString(entry.getValue()));
@@ -626,7 +619,7 @@ public class AmazonS3 {
 		s.append(remove(sigHdr, "date")); //$NON-NLS-1$
 		s.append('\n');
 
-		for (final Map.Entry<String, String> e : sigHdr.entrySet()) {
+		for (Map.Entry<String, String> e : sigHdr.entrySet()) {
 			s.append(e.getKey());
 			s.append(':');
 			s.append(e.getValue());
@@ -642,7 +635,7 @@ public class AmazonS3 {
 		try {
 			final Mac m = Mac.getInstance(HMAC);
 			m.init(privateKey);
-			sec = Base64.encodeBytes(m.doFinal(s.toString().getBytes("UTF-8"))); //$NON-NLS-1$
+			sec = Base64.encodeBytes(m.doFinal(s.toString().getBytes(CHARSET)));
 		} catch (NoSuchAlgorithmException e) {
 			throw new IOException(MessageFormat.format(JGitText.get().noHMACsupport, HMAC, e.getMessage()));
 		} catch (InvalidKeyException e) {
@@ -651,14 +644,11 @@ public class AmazonS3 {
 		c.setRequestProperty("Authorization", "AWS " + publicKey + ":" + sec); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
 	}
 
-	static Properties properties(final File authFile)
+	static Properties properties(File authFile)
 			throws FileNotFoundException, IOException {
 		final Properties p = new Properties();
-		final FileInputStream in = new FileInputStream(authFile);
-		try {
+		try (FileInputStream in = new FileInputStream(authFile)) {
 			p.load(in);
-		} finally {
-			in.close();
 		}
 		return p;
 	}
@@ -674,7 +664,7 @@ public class AmazonS3 {
 
 		private StringBuilder data;
 
-		ListParser(final String bn, final String p) {
+		ListParser(String bn, String p) {
 			bucket = bn;
 			prefix = p;
 		}
@@ -701,16 +691,13 @@ public class AmazonS3 {
 						throw new IOException(JGitText.get().noXMLParserAvailable);
 					}
 					xr.setContentHandler(this);
-					final InputStream in = c.getInputStream();
-					try {
+					try (InputStream in = c.getInputStream()) {
 						xr.parse(new InputSource(in));
 					} catch (SAXException parsingError) {
-						final IOException p;
-						p = new IOException(MessageFormat.format(JGitText.get().errorListing, prefix));
-						p.initCause(parsingError);
-						throw p;
-					} finally {
-						in.close();
+						throw new IOException(
+								MessageFormat.format(
+										JGitText.get().errorListing, prefix),
+								parsingError);
 					}
 					return;
 
@@ -740,7 +727,7 @@ public class AmazonS3 {
 		}
 
 		@Override
-		public void characters(final char[] ch, final int s, final int n)
+		public void characters(char[] ch, int s, int n)
 				throws SAXException {
 			if (data != null)
 				data.append(ch, s, n);

@@ -66,6 +66,7 @@ public final class TgzFormat extends BaseFormat implements
 
 	private final ArchiveCommand.Format<ArchiveOutputStream> tarFormat = new TarFormat();
 
+	/** {@inheritDoc} */
 	@Override
 	public ArchiveOutputStream createArchiveOutputStream(OutputStream s)
 			throws IOException {
@@ -73,9 +74,7 @@ public final class TgzFormat extends BaseFormat implements
 				Collections.<String, Object> emptyMap());
 	}
 
-	/**
-	 * @since 4.0
-	 */
+	/** {@inheritDoc} */
 	@Override
 	public ArchiveOutputStream createArchiveOutputStream(OutputStream s,
 			Map<String, Object> o) throws IOException {
@@ -83,17 +82,7 @@ public final class TgzFormat extends BaseFormat implements
 		return tarFormat.createArchiveOutputStream(out, o);
 	}
 
-	@Deprecated
-	@Override
-	public void putEntry(ArchiveOutputStream out,
-			String path, FileMode mode, ObjectLoader loader)
-			throws IOException {
-		putEntry(out, null, path, mode,loader);
-	}
-
-	/**
-	 * @since 4.7
-	 */
+	/** {@inheritDoc} */
 	@Override
 	public void putEntry(ArchiveOutputStream out,
 			ObjectId tree, String path, FileMode mode, ObjectLoader loader)
@@ -101,16 +90,19 @@ public final class TgzFormat extends BaseFormat implements
 		tarFormat.putEntry(out, tree, path, mode, loader);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public Iterable<String> suffixes() {
 		return SUFFIXES;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean equals(Object other) {
 		return (other instanceof TgzFormat);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public int hashCode() {
 		return getClass().hashCode();

@@ -43,7 +43,7 @@
 
 package org.eclipse.jgit.lib;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.eclipse.jgit.lib.Constants.CHARSET;
 
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -67,7 +67,10 @@ public class RebaseTodoFile {
 	private Repository repo;
 
 	/**
+	 * Constructor for RebaseTodoFile.
+	 *
 	 * @param repo
+	 *            a {@link org.eclipse.jgit.lib.Repository} object.
 	 */
 	public RebaseTodoFile(Repository repo) {
 		this.repo = repo;
@@ -84,7 +87,7 @@ public class RebaseTodoFile {
 	 * @param includeComments
 	 *            <code>true</code> if also comments should be reported
 	 * @return the list of steps
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
 	public List<RebaseTodoLine> readRebaseTodo(String path,
 			boolean includeComments) throws IOException {
@@ -180,7 +183,7 @@ public class RebaseTodoFile {
 			switch (tokenCount) {
 			case 0:
 				String actionToken = new String(buf, tokenBegin,
-						nextSpace - tokenBegin - 1, UTF_8);
+						nextSpace - tokenBegin - 1, CHARSET);
 				tokenBegin = nextSpace;
 				action = RebaseTodoLine.Action.parse(actionToken);
 				if (action == null)
@@ -189,7 +192,7 @@ public class RebaseTodoFile {
 			case 1:
 				nextSpace = RawParseUtils.next(buf, tokenBegin, ' ');
 				String commitToken = new String(buf, tokenBegin,
-						nextSpace - tokenBegin - 1, UTF_8);
+						nextSpace - tokenBegin - 1, CHARSET);
 				tokenBegin = nextSpace;
 				commit = AbbreviatedObjectId.fromString(commitToken);
 				break;
@@ -214,7 +217,7 @@ public class RebaseTodoFile {
 	 *            the steps to be written
 	 * @param append
 	 *            whether to append to an existing file or to write a new file
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 */
 	public void writeRebaseTodoFile(String path, List<RebaseTodoLine> steps,
 			boolean append) throws IOException {

@@ -46,13 +46,9 @@ import java.io.IOException;
 
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.JGitInternalException;
-import org.eclipse.jgit.lib.CommitBuilder;
 import org.eclipse.jgit.lib.Constants;
-import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectInserter;
-import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Ref;
-import org.eclipse.jgit.lib.RefUpdate;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.notes.Note;
 import org.eclipse.jgit.notes.NoteMap;
@@ -73,12 +69,18 @@ public class RemoveNoteCommand extends GitCommand<Note> {
 	private String notesRef = Constants.R_NOTES_COMMITS;
 
 	/**
+	 * <p>
+	 * Constructor for RemoveNoteCommand.
+	 * </p>
+	 *
 	 * @param repo
+	 *            the {@link org.eclipse.jgit.lib.Repository}
 	 */
 	protected RemoveNoteCommand(Repository repo) {
 		super(repo);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public Note call() throws GitAPIException {
 		checkCallable();
@@ -93,7 +95,8 @@ public class RemoveNoteCommand extends GitCommand<Note> {
 				map = NoteMap.read(walk.getObjectReader(), notesCommit);
 			}
 			map.set(id, null, inserter);
-			commitNoteMap(walk, map, notesCommit, inserter,
+			AddNoteCommand.commitNoteMap(repo, notesRef, walk, map, notesCommit,
+					inserter,
 					"Notes removed by 'git notes remove'"); //$NON-NLS-1$
 			return map.getNote(id);
 		} catch (IOException e) {
@@ -105,6 +108,8 @@ public class RemoveNoteCommand extends GitCommand<Note> {
 	 * Sets the object id of object you want to remove a note
 	 *
 	 * @param id
+	 *            the {@link org.eclipse.jgit.revwalk.RevObject} to remove a
+	 *            note from.
 	 * @return {@code this}
 	 */
 	public RemoveNoteCommand setObjectId(RevObject id) {
@@ -113,37 +118,14 @@ public class RemoveNoteCommand extends GitCommand<Note> {
 		return this;
 	}
 
-	private void commitNoteMap(RevWalk walk, NoteMap map,
-			RevCommit notesCommit,
-			ObjectInserter inserter,
-			String msg)
-			throws IOException {
-		// commit the note
-		CommitBuilder builder = new CommitBuilder();
-		builder.setTreeId(map.writeTree(inserter));
-		builder.setAuthor(new PersonIdent(repo));
-		builder.setCommitter(builder.getAuthor());
-		builder.setMessage(msg);
-		if (notesCommit != null)
-			builder.setParentIds(notesCommit);
-		ObjectId commit = inserter.insert(builder);
-		inserter.flush();
-		RefUpdate refUpdate = repo.updateRef(notesRef);
-		if (notesCommit != null)
-			refUpdate.setExpectedOldObjectId(notesCommit);
-		else
-			refUpdate.setExpectedOldObjectId(ObjectId.zeroId());
-		refUpdate.setNewObjectId(commit);
-		refUpdate.update(walk);
-	}
-
 	/**
-	 * @param notesRef
-	 *            the ref to read notes from. Note, the default value of
-	 *            {@link Constants#R_NOTES_COMMITS} will be used if nothing is
-	 *            set
-	 * @return {@code this}
+	 * Set the name of the <code>Ref</code> to remove a note from.
 	 *
+	 * @param notesRef
+	 *            the {@code Ref} to read notes from. Note, the default value of
+	 *            {@link org.eclipse.jgit.lib.Constants#R_NOTES_COMMITS} will be
+	 *            used if nothing is set
+	 * @return {@code this}
 	 * @see Constants#R_NOTES_COMMITS
 	 */
 	public RemoveNoteCommand setNotesRef(String notesRef) {

@@ -60,8 +60,10 @@ import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.NullProgressMonitor;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectIdRef;
+import org.eclipse.jgit.lib.ProgressMonitor;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Ref.Storage;
 import org.eclipse.jgit.lib.Repository;
@@ -95,26 +97,25 @@ public class CherryPickCommand extends GitCommand<CherryPickResult> {
 
 	private boolean noCommit = false;
 
+	private ProgressMonitor monitor = NullProgressMonitor.INSTANCE;
+
 	/**
+	 * Constructor for CherryPickCommand
+	 *
 	 * @param repo
+	 *            the {@link org.eclipse.jgit.lib.Repository}
 	 */
 	protected CherryPickCommand(Repository repo) {
 		super(repo);
 	}
 
 	/**
+	 * {@inheritDoc}
+	 * <p>
 	 * Executes the {@code Cherry-Pick} command with all the options and
 	 * parameters collected by the setter methods (e.g. {@link #include(Ref)} of
 	 * this class. Each instance of this class should only be used for one
 	 * invocation of the command. Don't call this method twice on an instance.
-	 *
-	 * @return the result of the cherry-pick
-	 * @throws GitAPIException
-	 * @throws WrongRepositoryStateException
-	 * @throws ConcurrentRefUpdateException
-	 * @throws UnmergedPathsException
-	 * @throws NoMessageException
-	 * @throws NoHeadException
 	 */
 	@Override
 	public CherryPickResult call() throws GitAPIException, NoMessageException,
@@ -163,6 +164,7 @@ public class CherryPickCommand extends GitCommand<CherryPickResult> {
 							newHead.getTree(), repo.lockDirCache(),
 							merger.getResultTreeId());
 					dco.setFailOnConflict(true);
+					dco.setProgressMonitor(monitor);
 					dco.checkout();
 					if (!noCommit)
 						newHead = new Git(getRepository()).commit()
@@ -224,6 +226,8 @@ public class CherryPickCommand extends GitCommand<CherryPickResult> {
 	}
 
 	/**
+	 * Include a reference to a commit
+	 *
 	 * @param commit
 	 *            a reference to a commit which is cherry-picked to the current
 	 *            head
@@ -236,6 +240,8 @@ public class CherryPickCommand extends GitCommand<CherryPickResult> {
 	}
 
 	/**
+	 * Include a commit
+	 *
 	 * @param commit
 	 *            the Id of a commit which is cherry-picked to the current head
 	 * @return {@code this}
@@ -245,6 +251,8 @@ public class CherryPickCommand extends GitCommand<CherryPickResult> {
 	}
 
 	/**
+	 * Include a commit
+	 *
 	 * @param name
 	 *            a name given to the commit
 	 * @param commit
@@ -257,6 +265,8 @@ public class CherryPickCommand extends GitCommand<CherryPickResult> {
 	}
 
 	/**
+	 * Set the name that should be used in the "OURS" place for conflict markers
+	 *
 	 * @param ourCommitName
 	 *            the name that should be used in the "OURS" place for conflict
 	 *            markers
@@ -278,12 +288,14 @@ public class CherryPickCommand extends GitCommand<CherryPickResult> {
 	 * @return {@code this}
 	 * @since 3.1
 	 */
-	public CherryPickCommand setReflogPrefix(final String prefix) {
+	public CherryPickCommand setReflogPrefix(String prefix) {
 		this.reflogPrefix = prefix;
 		return this;
 	}
 
 	/**
+	 * Set the {@code MergeStrategy}
+	 *
 	 * @param strategy
 	 *            The merge strategy to use during this Cherry-pick.
 	 * @return {@code this}
@@ -295,6 +307,8 @@ public class CherryPickCommand extends GitCommand<CherryPickResult> {
 	}
 
 	/**
+	 * Set the (1-based) parent number to diff against
+	 *
 	 * @param mainlineParentNumber
 	 *            the (1-based) parent number to diff against. This allows
 	 *            cherry-picking of merges.
@@ -323,6 +337,24 @@ public class CherryPickCommand extends GitCommand<CherryPickResult> {
 		return this;
 	}
 
+	/**
+	 * The progress monitor associated with the cherry-pick operation. By
+	 * default, this is set to <code>NullProgressMonitor</code>
+	 *
+	 * @see NullProgressMonitor
+	 * @param monitor
+	 *            a {@link org.eclipse.jgit.lib.ProgressMonitor}
+	 * @return {@code this}
+	 * @since 4.11
+	 */
+	public CherryPickCommand setProgressMonitor(ProgressMonitor monitor) {
+		if (monitor == null) {
+			monitor = NullProgressMonitor.INSTANCE;
+		}
+		this.monitor = monitor;
+		return this;
+	}
+
 	private String calculateOurName(Ref headRef) {
 		if (ourCommitName != null)
 			return ourCommitName;
@@ -332,6 +364,7 @@ public class CherryPickCommand extends GitCommand<CherryPickResult> {
 		return headName;
 	}
 
+	/** {@inheritDoc} */
 	@SuppressWarnings("nls")
 	@Override
 	public String toString() {

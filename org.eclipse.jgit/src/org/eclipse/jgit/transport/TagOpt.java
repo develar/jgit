@@ -48,7 +48,9 @@ import java.text.MessageFormat;
 
 import org.eclipse.jgit.internal.JGitText;
 
-/** Specification of annotated tag behavior during fetch. */
+/**
+ * Specification of annotated tag behavior during fetch.
+ */
 public enum TagOpt {
 	/**
 	 * Automatically follow tags if we fetch the thing they point at.
@@ -82,7 +84,7 @@ public enum TagOpt {
 
 	private final String option;
 
-	private TagOpt(final String o) {
+	private TagOpt(String o) {
 		option = o;
 	}
 
@@ -102,10 +104,10 @@ public enum TagOpt {
 	 *            the configuration file text value.
 	 * @return the option that matches the passed parameter.
 	 */
-	public static TagOpt fromOption(final String o) {
+	public static TagOpt fromOption(String o) {
 		if (o == null || o.length() == 0)
 			return AUTO_FOLLOW;
-		for (final TagOpt tagopt : values()) {
+		for (TagOpt tagopt : values()) {
 			if (tagopt.option().equals(o))
 				return tagopt;
 		}

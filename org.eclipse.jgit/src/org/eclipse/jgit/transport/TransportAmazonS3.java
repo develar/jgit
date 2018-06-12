@@ -86,8 +86,9 @@ import org.eclipse.jgit.lib.SymbolicRef;
  * extended HTTP/1.1 semantics. This make it possible to read or write Git data
  * from a remote repository that is stored on S3.
  * <p>
- * Unlike the HTTP variant (see {@link TransportHttp}) we rely upon being able
- * to list objects in a bucket, as the S3 API supports this function. By listing
+ * Unlike the HTTP variant (see
+ * {@link org.eclipse.jgit.transport.TransportHttp}) we rely upon being able to
+ * list objects in a bucket, as the S3 API supports this function. By listing
  * the bucket contents we can avoid relying on <code>objects/info/packs</code>
  * or <code>info/refs</code> in the remote repository.
  * <p>
@@ -201,6 +202,7 @@ public class TransportAmazonS3 extends HttpTransport implements WalkTransport {
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public FetchConnection openFetch() throws TransportException {
 		final DatabaseS3 c = new DatabaseS3(bucket, keyPrefix + "/objects"); //$NON-NLS-1$
@@ -209,6 +211,7 @@ public class TransportAmazonS3 extends HttpTransport implements WalkTransport {
 		return r;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public PushConnection openPush() throws TransportException {
 		final DatabaseS3 c = new DatabaseS3(bucket, keyPrefix + "/objects"); //$NON-NLS-1$
@@ -217,6 +220,7 @@ public class TransportAmazonS3 extends HttpTransport implements WalkTransport {
 		return r;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void close() {
 		// No explicit connections are maintained.
@@ -263,7 +267,7 @@ public class TransportAmazonS3 extends HttpTransport implements WalkTransport {
 		}
 
 		@Override
-		WalkRemoteObjectDatabase openAlternate(final String location)
+		WalkRemoteObjectDatabase openAlternate(String location)
 				throws IOException {
 			return new DatabaseS3(bucketName, resolveKey(location));
 		}
@@ -274,7 +278,7 @@ public class TransportAmazonS3 extends HttpTransport implements WalkTransport {
 			have.addAll(s3.list(bucket, resolveKey("pack"))); //$NON-NLS-1$
 
 			final Collection<String> packs = new ArrayList<>();
-			for (final String n : have) {
+			for (String n : have) {
 				if (!n.startsWith("pack-") || !n.endsWith(".pack")) //$NON-NLS-1$ //$NON-NLS-2$
 					continue;
 
@@ -286,7 +290,7 @@ public class TransportAmazonS3 extends HttpTransport implements WalkTransport {
 		}
 
 		@Override
-		FileStream open(final String path) throws IOException {
+		FileStream open(String path) throws IOException {
 			final URLConnection c = s3.get(bucket, resolveKey(path));
 			final InputStream raw = c.getInputStream();
 			final InputStream in = s3.decrypt(c);
@@ -295,7 +299,7 @@ public class TransportAmazonS3 extends HttpTransport implements WalkTransport {
 		}
 
 		@Override
-		void deleteFile(final String path) throws IOException {
+		void deleteFile(String path) throws IOException {
 			s3.delete(bucket, resolveKey(path));
 		}
 
@@ -307,7 +311,7 @@ public class TransportAmazonS3 extends HttpTransport implements WalkTransport {
 		}
 
 		@Override
-		void writeFile(final String path, final byte[] data) throws IOException {
+		void writeFile(String path, byte[] data) throws IOException {
 			s3.put(bucket, resolveKey(path), data);
 		}
 
@@ -319,7 +323,7 @@ public class TransportAmazonS3 extends HttpTransport implements WalkTransport {
 			return avail;
 		}
 
-		private void readLooseRefs(final TreeMap<String, Ref> avail)
+		private void readLooseRefs(TreeMap<String, Ref> avail)
 				throws TransportException {
 			try {
 				for (final String n : s3.list(bucket, resolveKey(ROOT_DIR
@@ -330,16 +334,13 @@ public class TransportAmazonS3 extends HttpTransport implements WalkTransport {
 			}
 		}
 
-		private Ref readRef(final TreeMap<String, Ref> avail, final String rn)
+		private Ref readRef(TreeMap<String, Ref> avail, String rn)
 				throws TransportException {
 			final String s;
 			String ref = ROOT_DIR + rn;
 			try {
-				final BufferedReader br = openReader(ref);
-				try {
+				try (BufferedReader br = openReader(ref)) {
 					s = br.readLine();
-				} finally {
-					br.close();
 				}
 			} catch (FileNotFoundException noRef) {
 				return null;
@@ -373,7 +374,7 @@ public class TransportAmazonS3 extends HttpTransport implements WalkTransport {
 			throw new TransportException(getURI(), MessageFormat.format(JGitText.get().transportExceptionBadRef, rn, s));
 		}
 
-		private Storage loose(final Ref r) {
+		private Storage loose(Ref r) {
 			if (r != null && r.getStorage() == Storage.PACKED)
 				return Storage.LOOSE_PACKED;
 			return Storage.LOOSE;

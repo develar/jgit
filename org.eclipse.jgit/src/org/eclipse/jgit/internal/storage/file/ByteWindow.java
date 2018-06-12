@@ -66,7 +66,17 @@ abstract class ByteWindow {
 
 	protected final long end;
 
-	protected ByteWindow(final PackFile p, final long s, final int n) {
+	/**
+	 * Constructor for ByteWindow.
+	 *
+	 * @param p
+	 *            a {@link org.eclipse.jgit.internal.storage.file.PackFile}.
+	 * @param s
+	 *            where the byte window starts in the pack file
+	 * @param n
+	 *            size of the byte window
+	 */
+	protected ByteWindow(PackFile p, long s, int n) {
 		pack = p;
 		start = s;
 		end = start + n;
@@ -76,7 +86,7 @@ abstract class ByteWindow {
 		return (int) (end - start);
 	}
 
-	final boolean contains(final PackFile neededFile, final long neededPos) {
+	final boolean contains(PackFile neededFile, long neededPos) {
 		return pack == neededFile && start <= neededPos && neededPos < end;
 	}
 
@@ -127,6 +137,17 @@ abstract class ByteWindow {
 		return setInput((int) (pos - start), inf);
 	}
 
+	/**
+	 * Set the input
+	 *
+	 * @param pos
+	 *            position
+	 * @param inf
+	 *            an {@link java.util.zip.Inflater} object.
+	 * @return size of the byte window
+	 * @throws java.util.zip.DataFormatException
+	 *             if any.
+	 */
 	protected abstract int setInput(int pos, Inflater inf)
 			throws DataFormatException;
 }

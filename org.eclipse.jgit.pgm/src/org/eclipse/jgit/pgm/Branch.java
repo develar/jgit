@@ -87,6 +87,12 @@ class Branch extends TextBuiltin {
 
 	private List<String> delete;
 
+	/**
+	 * Delete branches
+	 *
+	 * @param names
+	 *            a {@link java.util.List} of branch names.
+	 */
 	@Option(name = "--delete", aliases = {
 			"-d" }, metaVar = "metaVar_branchNames", usage = "usage_deleteFullyMergedBranch", handler = OptionWithValuesListHandler.class)
 	public void delete(List<String> names) {
@@ -98,6 +104,12 @@ class Branch extends TextBuiltin {
 
 	private List<String> deleteForce;
 
+	/**
+	 * Forcefully delete branches
+	 *
+	 * @param names
+	 *            a {@link java.util.List} of branch names.
+	 */
 	@Option(name = "--delete-force", aliases = {
 			"-D" }, metaVar = "metaVar_branchNames", usage = "usage_deleteBranchEvenIfNotMerged", handler = OptionWithValuesListHandler.class)
 	public void deleteForce(List<String> names) {
@@ -107,6 +119,12 @@ class Branch extends TextBuiltin {
 		deleteForce = names;
 	}
 
+	/**
+	 * Forcefully create a list of branches
+	 *
+	 * @param branchAndStartPoint
+	 *            a branch name and a start point
+	 */
 	@Option(name = "--create-force", aliases = {
 			"-f" }, metaVar = "metaVar_branchAndStartPoint", usage = "usage_forceCreateBranchEvenExists", handler = OptionWithValuesListHandler.class)
 	public void createForce(List<String> branchAndStartPoint) {
@@ -125,6 +143,12 @@ class Branch extends TextBuiltin {
 		}
 	}
 
+	/**
+	 * Move or rename a branch
+	 *
+	 * @param currentAndNew
+	 *            the current and the new branch name
+	 */
 	@Option(name = "--move", aliases = {
 			"-m" }, metaVar = "metaVar_oldNewBranchNames", usage = "usage_moveRenameABranch", handler = OptionWithValuesListHandler.class)
 	public void moveRename(List<String> currentAndNew) {
@@ -156,6 +180,7 @@ class Branch extends TextBuiltin {
 
 	private int maxNameLength;
 
+	/** {@inheritDoc} */
 	@Override
 	protected void run() throws Exception {
 		if (delete != null || deleteForce != null) {
@@ -267,7 +292,7 @@ class Branch extends TextBuiltin {
 				addRefs(refs, Constants.R_REMOTES);
 
 				try (ObjectReader reader = db.newObjectReader()) {
-					for (final Entry<String, Ref> e : printRefs.entrySet()) {
+					for (Entry<String, Ref> e : printRefs.entrySet()) {
 						final Ref ref = e.getValue();
 						printHead(reader, e.getKey(),
 								current.equals(ref.getName()), ref);
@@ -277,15 +302,15 @@ class Branch extends TextBuiltin {
 		}
 	}
 
-	private void addRefs(final Collection<Ref> refs, final String prefix) {
-		for (final Ref ref : RefComparator.sort(refs)) {
+	private void addRefs(Collection<Ref> refs, String prefix) {
+		for (Ref ref : RefComparator.sort(refs)) {
 			final String name = ref.getName();
 			if (name.startsWith(prefix))
 				addRef(name.substring(name.indexOf('/', 5) + 1), ref);
 		}
 	}
 
-	private void addRef(final String name, final Ref ref) {
+	private void addRef(String name, Ref ref) {
 		printRefs.put(name, ref);
 		maxNameLength = Math.max(maxNameLength, name.length());
 	}

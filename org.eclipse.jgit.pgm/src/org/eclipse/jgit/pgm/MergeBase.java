@@ -63,11 +63,12 @@ class MergeBase extends TextBuiltin {
 	}
 
 	@Argument(index = 1, metaVar = "metaVar_commitish", required = true)
-	private final List<RevCommit> commits = new ArrayList<>();
+	private List<RevCommit> commits = new ArrayList<>();
 
+	/** {@inheritDoc} */
 	@Override
 	protected void run() throws Exception {
-		for (final RevCommit c : commits)
+		for (RevCommit c : commits)
 			argWalk.markStart(c);
 		argWalk.setRevFilter(RevFilter.MERGE_BASE);
 		int max = all ? Integer.MAX_VALUE : 1;

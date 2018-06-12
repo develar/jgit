@@ -121,7 +121,6 @@ public class FileSnapshot {
 	 *
 	 * @param modified
 	 *            the last modification time of the file
-	 *
 	 * @return the snapshot.
 	 */
 	public static FileSnapshot save(long modified) {
@@ -145,6 +144,8 @@ public class FileSnapshot {
 	}
 
 	/**
+	 * Get time of last snapshot update
+	 *
 	 * @return time of last snapshot update
 	 */
 	public long lastModified() {
@@ -208,6 +209,7 @@ public class FileSnapshot {
 		return lastModified == other.lastModified;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public boolean equals(Object other) {
 		if (other instanceof FileSnapshot)
@@ -215,6 +217,7 @@ public class FileSnapshot {
 		return false;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public int hashCode() {
 		// This is pretty pointless, but override hashCode to ensure that
@@ -223,6 +226,7 @@ public class FileSnapshot {
 		return (int) lastModified;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public String toString() {
 		if (this == DIRTY)
@@ -235,7 +239,7 @@ public class FileSnapshot {
 				+ ", read: " + f.format(new Date(lastRead)) + "]"; //$NON-NLS-1$ //$NON-NLS-2$
 	}
 
-	private boolean notRacyClean(final long read) {
+	private boolean notRacyClean(long read) {
 		// The last modified time granularity of FAT filesystems is 2 seconds.
 		// Using 2.5 seconds here provides a reasonably high assurance that
 		// a modification was not missed.
@@ -243,7 +247,7 @@ public class FileSnapshot {
 		return read - lastModified > 2500;
 	}
 
-	private boolean isModified(final long currLastModified) {
+	private boolean isModified(long currLastModified) {
 		// Any difference indicates the path was modified.
 		//
 		if (lastModified != currLastModified)

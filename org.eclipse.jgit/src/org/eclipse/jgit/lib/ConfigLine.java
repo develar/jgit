@@ -73,7 +73,7 @@ class ConfigLine {
 	/** The text content after entry. */
 	String suffix;
 
-	ConfigLine forValue(final String newValue) {
+	ConfigLine forValue(String newValue) {
 		final ConfigLine e = new ConfigLine();
 		e.prefix = prefix;
 		e.section = section;
@@ -91,12 +91,12 @@ class ConfigLine {
 				&& eqIgnoreCase(name, aKey);
 	}
 
-	boolean match(final String aSection, final String aSubsection) {
+	boolean match(String aSection, String aSubsection) {
 		return eqIgnoreCase(section, aSection)
 				&& eqSameCase(subsection, aSubsection);
 	}
 
-	private static boolean eqIgnoreCase(final String a, final String b) {
+	private static boolean eqIgnoreCase(String a, String b) {
 		if (a == null && b == null)
 			return true;
 		if (a == null || b == null)
@@ -104,7 +104,7 @@ class ConfigLine {
 		return StringUtils.equalsIgnoreCase(a, b);
 	}
 
-	private static boolean eqSameCase(final String a, final String b) {
+	private static boolean eqSameCase(String a, String b) {
 		if (a == null && b == null)
 			return true;
 		if (a == null || b == null)
@@ -112,6 +112,7 @@ class ConfigLine {
 		return a.equals(b);
 	}
 
+	/** {@inheritDoc} */
 	@SuppressWarnings("nls")
 	@Override
 	public String toString() {

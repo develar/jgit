@@ -68,15 +68,13 @@ import org.eclipse.jgit.errors.TranslationStringMissingException;
  * </pre>
  */
 public class NLS {
-	/** The root locale constant. It is defined here because the Locale.ROOT is not defined in Java 5 */
+	/**
+	 * The root locale constant. It is defined here because the Locale.ROOT is
+	 * not defined in Java 5
+	 */
 	public static final Locale ROOT_LOCALE = new Locale("", "", ""); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
 
-	private static final InheritableThreadLocal<NLS> local = new InheritableThreadLocal<NLS>() {
-		@Override
-		protected NLS initialValue() {
-			return new NLS(Locale.getDefault());
-		}
-	};
+	private static final InheritableThreadLocal<NLS> local = new InheritableThreadLocal<>();
 
 	/**
 	 * Sets the locale for the calling thread.
@@ -96,27 +94,43 @@ public class NLS {
 	/**
 	 * Sets the JVM default locale as the locale for the calling thread.
 	 * <p>
-	 * Semantically this is equivalent to <code>NLS.setLocale(Locale.getDefault())</code>.
+	 * Semantically this is equivalent to
+	 * <code>NLS.setLocale(Locale.getDefault())</code>.
 	 */
 	public static void useJVMDefaultLocale() {
-		local.set(new NLS(Locale.getDefault()));
+		useJVMDefaultInternal();
+	}
+
+	// TODO(ms): change signature of public useJVMDefaultLocale() in 5.0 to get
+	// rid of this internal method
+	private static NLS useJVMDefaultInternal() {
+		NLS b = new NLS(Locale.getDefault());
+		local.set(b);
+		return b;
 	}
 
 	/**
 	 * Returns an instance of the translation bundle of the required type. All
 	 * public String fields of the bundle instance will get their values
-	 * injected as described in the {@link TranslationBundle}.
+	 * injected as described in the
+	 * {@link org.eclipse.jgit.nls.TranslationBundle}.
 	 *
-	 * @param <T>
-	 *            required bundle type
 	 * @param type
 	 *            required bundle type
 	 * @return an instance of the required bundle type
-	 * @exception TranslationBundleLoadingException see {@link TranslationBundleLoadingException}
-	 * @exception TranslationStringMissingException see {@link TranslationStringMissingException}
+	 * @exception TranslationBundleLoadingException
+	 *                see
+	 *                {@link org.eclipse.jgit.errors.TranslationBundleLoadingException}
+	 * @exception TranslationStringMissingException
+	 *                see
+	 *                {@link org.eclipse.jgit.errors.TranslationStringMissingException}
 	 */
 	public static <T extends TranslationBundle> T getBundleFor(Class<T> type) {
-		return local.get().get(type);
+		NLS b = local.get();
+		if (b == null) {
+			b = useJVMDefaultInternal();
+		}
+		return b.get(type);
 	}
 
 	final private Locale locale;

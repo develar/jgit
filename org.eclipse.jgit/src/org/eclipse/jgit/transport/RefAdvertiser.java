@@ -43,7 +43,7 @@
 
 package org.eclipse.jgit.transport;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.eclipse.jgit.lib.Constants.CHARSET;
 import static org.eclipse.jgit.lib.Constants.OBJECT_ID_STRING_LENGTH;
 import static org.eclipse.jgit.transport.GitProtocolConstants.OPTION_SYMREF;
 
@@ -53,11 +53,12 @@ import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CharsetEncoder;
 import java.nio.charset.CoderResult;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.SortedMap;
 
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.Constants;
@@ -65,13 +66,15 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.RefComparator;
 import org.eclipse.jgit.lib.Repository;
-import org.eclipse.jgit.util.RefMap;
 
-/** Support for the start of {@link UploadPack} and {@link ReceivePack}. */
+/**
+ * Support for the start of {@link org.eclipse.jgit.transport.UploadPack} and
+ * {@link org.eclipse.jgit.transport.ReceivePack}.
+ */
 public abstract class RefAdvertiser {
 	/** Advertiser which frames lines in a {@link PacketLineOut} format. */
 	public static class PacketLineOutRefAdvertiser extends RefAdvertiser {
-		private final CharsetEncoder utf8 = UTF_8.newEncoder();
+		private final CharsetEncoder utf8 = CHARSET.newEncoder();
 		private final PacketLineOut pckOut;
 
 		private byte[] binArr = new byte[256];
@@ -149,7 +152,7 @@ public abstract class RefAdvertiser {
 		}
 
 		@Override
-		protected void writeOne(final CharSequence line) throws IOException {
+		protected void writeOne(CharSequence line) throws IOException {
 			pckOut.writeString(line.toString());
 		}
 
@@ -173,6 +176,11 @@ public abstract class RefAdvertiser {
 
 	boolean first = true;
 
+	private boolean useProtocolV2;
+
+	/* only used in protocol v2 */
+	private final Map<String, String> symrefs = new HashMap<>();
+
 	/**
 	 * Initialize this advertiser with a repository for peeling tags.
 	 *
@@ -181,6 +189,16 @@ public abstract class RefAdvertiser {
 	 */
 	public void init(Repository src) {
 		repository = src;
+	}
+
+	/**
+	 * @param b
+	 *              true if this advertiser should advertise using the protocol
+	 *              v2 format, false otherwise
+	 * @since 5.0
+	 */
+	public void setUseProtocolV2(boolean b) {
+		useProtocolV2 = b;
 	}
 
 	/**
@@ -196,7 +214,7 @@ public abstract class RefAdvertiser {
 	 *            true to show the dereferenced value of a tag as the special
 	 *            ref <code>$tag^{}</code> ; false to omit it from the output.
 	 */
-	public void setDerefTags(final boolean deref) {
+	public void setDerefTags(boolean deref) {
 		derefTags = deref;
 	}
 
@@ -247,11 +265,14 @@ public abstract class RefAdvertiser {
 	 *            The symbolic ref, e.g. "HEAD"
 	 * @param to
 	 *            The real ref it points to, e.g. "refs/heads/master"
-	 *
 	 * @since 3.6
 	 */
 	public void addSymref(String from, String to) {
-		advertiseCapability(OPTION_SYMREF, from + ':' + to);
+		if (useProtocolV2) {
+			symrefs.put(from, to);
+		} else {
+			advertiseCapability(OPTION_SYMREF, from + ':' + to);
+		}
 	}
 
 	/**
@@ -262,16 +283,58 @@ public abstract class RefAdvertiser {
 	 *            sorted before display if necessary, and therefore may appear
 	 *            in any order.
 	 * @return set of ObjectIds that were advertised to the client.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the underlying output stream failed to write out an
 	 *             advertisement record.
+	 * @deprecated use {@link #send(Collection)} instead.
 	 */
+	@Deprecated
 	public Set<ObjectId> send(Map<String, Ref> refs) throws IOException {
-		for (Ref ref : getSortedRefs(refs)) {
-			if (ref.getObjectId() == null)
-				continue;
+		return send(refs.values());
+	}
 
-			advertiseAny(ref.getObjectId(), ref.getName());
+	/**
+	 * Format an advertisement for the supplied refs.
+	 *
+	 * @param refs
+	 *            zero or more refs to format for the client. The collection is
+	 *            sorted before display if necessary, and therefore may appear
+	 *            in any order.
+	 * @return set of ObjectIds that were advertised to the client.
+	 * @throws java.io.IOException
+	 *             the underlying output stream failed to write out an
+	 *             advertisement record.
+	 * @since 5.0
+	 */
+	public Set<ObjectId> send(Collection<Ref> refs) throws IOException {
+		for (Ref ref : RefComparator.sort(refs)) {
+			// TODO(jrn) revive the SortedMap optimization e.g. by introducing
+			// SortedList
+			ObjectId objectId = ref.getObjectId();
+			if (objectId == null) {
+				continue;
+			}
+
+			if (useProtocolV2) {
+				String symrefPart = symrefs.containsKey(ref.getName())
+						? (" symref-target:" + symrefs.get(ref.getName())) //$NON-NLS-1$
+						: ""; //$NON-NLS-1$
+				String peelPart = ""; //$NON-NLS-1$
+				if (derefTags) {
+					if (!ref.isPeeled() && repository != null) {
+						ref = repository.getRefDatabase().peel(ref);
+					}
+					ObjectId peeledObjectId = ref.getPeeledObjectId();
+					if (peeledObjectId != null) {
+						peelPart = " peeled:" + peeledObjectId.getName(); //$NON-NLS-1$
+					}
+				}
+				writeOne(objectId.getName() + " " + ref.getName() + symrefPart //$NON-NLS-1$
+						+ peelPart + "\n"); //$NON-NLS-1$
+				continue;
+			}
+
+			advertiseAny(objectId, ref.getName());
 
 			if (!derefTags)
 				continue;
@@ -279,20 +342,13 @@ public abstract class RefAdvertiser {
 			if (!ref.isPeeled()) {
 				if (repository == null)
 					continue;
-				ref = repository.peel(ref);
+				ref = repository.getRefDatabase().peel(ref);
 			}
 
 			if (ref.getPeeledObjectId() != null)
 				advertiseAny(ref.getPeeledObjectId(), ref.getName() + "^{}"); //$NON-NLS-1$
 		}
 		return sent;
-	}
-
-	private Iterable<Ref> getSortedRefs(Map<String, Ref> all) {
-		if (all instanceof RefMap
-				|| (all instanceof SortedMap && ((SortedMap) all).comparator() == null))
-			return all.values();
-		return RefComparator.sort(all.values());
 	}
 
 	/**
@@ -305,7 +361,7 @@ public abstract class RefAdvertiser {
 	 *
 	 * @param id
 	 *            identity of the object that is assumed to exist.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the underlying output stream failed to write out an
 	 *             advertisement record.
 	 */
@@ -313,18 +369,22 @@ public abstract class RefAdvertiser {
 		advertiseAnyOnce(id, ".have"); //$NON-NLS-1$
 	}
 
-	/** @return true if no advertisements have been sent yet. */
+	/**
+	 * Whether no advertisements have been sent yet.
+	 *
+	 * @return true if no advertisements have been sent yet.
+	 */
 	public boolean isEmpty() {
 		return first;
 	}
 
-	private void advertiseAnyOnce(AnyObjectId obj, final String refName)
+	private void advertiseAnyOnce(AnyObjectId obj, String refName)
 			throws IOException {
 		if (!sent.contains(obj))
 			advertiseAny(obj, refName);
 	}
 
-	private void advertiseAny(AnyObjectId obj, final String refName)
+	private void advertiseAny(AnyObjectId obj, String refName)
 			throws IOException {
 		sent.add(obj.toObjectId());
 		advertiseId(obj, refName);
@@ -341,11 +401,11 @@ public abstract class RefAdvertiser {
 	 * @param refName
 	 *            name of the reference to advertise the object as, can be any
 	 *            string not including the NUL byte.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the underlying output stream failed to write out an
 	 *             advertisement record.
 	 */
-	public void advertiseId(final AnyObjectId id, final String refName)
+	public void advertiseId(AnyObjectId id, String refName)
 			throws IOException {
 		tmpLine.setLength(0);
 		id.copyTo(tmpId, tmpLine);
@@ -355,7 +415,7 @@ public abstract class RefAdvertiser {
 			first = false;
 			if (!capablities.isEmpty()) {
 				tmpLine.append('\0');
-				for (final String capName : capablities) {
+				for (String capName : capablities) {
 					tmpLine.append(' ');
 					tmpLine.append(capName);
 				}
@@ -372,7 +432,7 @@ public abstract class RefAdvertiser {
 	 * @param line
 	 *            the advertisement line to be written. The line always ends
 	 *            with LF. Never null or the empty string.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the underlying output stream failed to write out an
 	 *             advertisement record.
 	 */
@@ -381,7 +441,7 @@ public abstract class RefAdvertiser {
 	/**
 	 * Mark the end of the advertisements.
 	 *
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the underlying output stream failed to write out an
 	 *             advertisement record.
 	 */

@@ -86,17 +86,17 @@ class Daemon extends TextBuiltin {
 	@Option(name = "--timeout", metaVar = "metaVar_seconds", usage = "usage_abortConnectionIfNoActivity")
 	int timeout = -1;
 
-	@Option(name = "--enable", metaVar = "metaVar_service", usage = "usage_enableTheServiceInAllRepositories", multiValued = true)
-	final List<String> enable = new ArrayList<>();
+	@Option(name = "--enable", metaVar = "metaVar_service", usage = "usage_enableTheServiceInAllRepositories")
+	List<String> enable = new ArrayList<>();
 
-	@Option(name = "--disable", metaVar = "metaVar_service", usage = "usage_disableTheServiceInAllRepositories", multiValued = true)
-	final List<String> disable = new ArrayList<>();
+	@Option(name = "--disable", metaVar = "metaVar_service", usage = "usage_disableTheServiceInAllRepositories")
+	List<String> disable = new ArrayList<>();
 
-	@Option(name = "--allow-override", metaVar = "metaVar_service", usage = "usage_configureTheServiceInDaemonServicename", multiValued = true)
-	final List<String> canOverride = new ArrayList<>();
+	@Option(name = "--allow-override", metaVar = "metaVar_service", usage = "usage_configureTheServiceInDaemonServicename")
+	List<String> canOverride = new ArrayList<>();
 
-	@Option(name = "--forbid-override", metaVar = "metaVar_service", usage = "usage_configureTheServiceInDaemonServicename", multiValued = true)
-	final List<String> forbidOverride = new ArrayList<>();
+	@Option(name = "--forbid-override", metaVar = "metaVar_service", usage = "usage_configureTheServiceInDaemonServicename")
+	List<String> forbidOverride = new ArrayList<>();
 
 	@Option(name = "--export-all", usage = "usage_exportWithoutGitDaemonExportOk")
 	boolean exportAll;
@@ -109,13 +109,15 @@ class Daemon extends TextBuiltin {
 	}
 
 	@Argument(required = true, metaVar = "metaVar_directory", usage = "usage_directoriesToExport")
-	final List<File> directory = new ArrayList<>();
+	List<File> directory = new ArrayList<>();
 
+	/** {@inheritDoc} */
 	@Override
 	protected boolean requiresRepository() {
 		return false;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	protected void run() throws Exception {
 		PackConfig packConfig = new PackConfig();
@@ -140,7 +142,7 @@ class Daemon extends TextBuiltin {
 			packConfig.setExecutor(Executors.newFixedThreadPool(threads));
 
 		final FileResolver<DaemonClient> resolver = new FileResolver<>();
-		for (final File f : directory) {
+		for (File f : directory) {
 			outw.println(MessageFormat.format(CLIText.get().exporting, f.getAbsolutePath()));
 			resolver.exportDirectory(f);
 		}
@@ -155,14 +157,14 @@ class Daemon extends TextBuiltin {
 		if (0 <= timeout)
 			d.setTimeout(timeout);
 
-		for (final String n : enable)
+		for (String n : enable)
 			service(d, n).setEnabled(true);
-		for (final String n : disable)
+		for (String n : disable)
 			service(d, n).setEnabled(false);
 
-		for (final String n : canOverride)
+		for (String n : canOverride)
 			service(d, n).setOverridable(true);
-		for (final String n : forbidOverride)
+		for (String n : forbidOverride)
 			service(d, n).setOverridable(false);
 		if (ketchServerType == KetchServerType.LEADER) {
 			startKetchLeader(d);

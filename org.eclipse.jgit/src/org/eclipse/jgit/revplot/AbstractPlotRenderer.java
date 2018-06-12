@@ -92,14 +92,14 @@ public abstract class AbstractPlotRenderer<TLane extends PlotLane, TColor> {
 	 *            total height (in pixels) of this cell.
 	 */
 	@SuppressWarnings("unchecked")
-	protected void paintCommit(final PlotCommit<TLane> commit, final int h) {
+	protected void paintCommit(PlotCommit<TLane> commit, int h) {
 		final int dotSize = computeDotSize(h);
 		final TLane myLane = commit.getLane();
 		final int myLaneX = laneC(myLane);
 		final TColor myColor = laneColor(myLane);
 
 		int maxCenter = myLaneX;
-		for (final TLane passingLane : (TLane[]) commit.passingLanes) {
+		for (TLane passingLane : (TLane[]) commit.passingLanes) {
 			final int cx = laneC(passingLane);
 			final TColor c = laneColor(passingLane);
 			drawLine(c, cx, 0, cx, h, LINE_WIDTH);
@@ -190,7 +190,7 @@ public abstract class AbstractPlotRenderer<TLane extends PlotLane, TColor> {
 	 */
 	protected abstract int drawLabel(int x, int y, Ref ref);
 
-	private static int computeDotSize(final int h) {
+	private static int computeDotSize(int h) {
 		int d = (int) (Math.min(h, LANE_WIDTH) * 0.50f);
 		d += (d & 1);
 		return d;
@@ -282,12 +282,12 @@ public abstract class AbstractPlotRenderer<TLane extends PlotLane, TColor> {
 	 */
 	protected abstract void drawText(String msg, int x, int y);
 
-	private static int laneX(final PlotLane myLane) {
+	private static int laneX(PlotLane myLane) {
 		final int p = myLane != null ? myLane.getPosition() : 0;
 		return LEFT_PAD + LANE_WIDTH * p;
 	}
 
-	private static int laneC(final PlotLane myLane) {
+	private static int laneC(PlotLane myLane) {
 		return laneX(myLane) + LANE_WIDTH / 2;
 	}
 }

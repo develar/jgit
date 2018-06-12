@@ -43,10 +43,15 @@
 package org.eclipse.jgit.api;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
+import java.io.File;
 import java.util.Collection;
 
+import org.eclipse.jgit.junit.JGitTestUtil;
 import org.eclipse.jgit.junit.RepositoryTestCase;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
@@ -56,7 +61,6 @@ import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.transport.FetchResult;
-import org.eclipse.jgit.transport.RefSpec;
 import org.eclipse.jgit.transport.RemoteConfig;
 import org.eclipse.jgit.transport.TagOpt;
 import org.eclipse.jgit.transport.TrackingRefUpdate;
@@ -93,9 +97,8 @@ public class FetchCommandTest extends RepositoryTestCase {
 		RevCommit commit = remoteGit.commit().setMessage("initial commit").call();
 		Ref tagRef = remoteGit.tag().setName("tag").call();
 
-		RefSpec spec = new RefSpec("refs/heads/master:refs/heads/x");
-		git.fetch().setRemote("test").setRefSpecs(spec)
-				.call();
+		git.fetch().setRemote("test")
+				.setRefSpecs("refs/heads/master:refs/heads/x").call();
 
 		assertEquals(commit.getId(),
 				db.resolve(commit.getId().getName() + "^{commit}"));
@@ -104,12 +107,31 @@ public class FetchCommandTest extends RepositoryTestCase {
 	}
 
 	@Test
+	public void testForcedFetch() throws Exception {
+		remoteGit.commit().setMessage("commit").call();
+		remoteGit.commit().setMessage("commit2").call();
+		git.fetch().setRemote("test")
+				.setRefSpecs("refs/heads/master:refs/heads/master").call();
+
+		remoteGit.commit().setAmend(true).setMessage("amended").call();
+		FetchResult res = git.fetch().setRemote("test")
+				.setRefSpecs("refs/heads/master:refs/heads/master").call();
+		assertEquals(RefUpdate.Result.REJECTED,
+				res.getTrackingRefUpdate("refs/heads/master").getResult());
+		res = git.fetch().setRemote("test")
+				.setRefSpecs("refs/heads/master:refs/heads/master")
+				.setForceUpdate(true).call();
+		assertEquals(RefUpdate.Result.FORCED,
+				res.getTrackingRefUpdate("refs/heads/master").getResult());
+	}
+
+	@Test
 	public void fetchShouldAutoFollowTag() throws Exception {
 		remoteGit.commit().setMessage("commit").call();
 		Ref tagRef = remoteGit.tag().setName("foo").call();
 
-		RefSpec spec = new RefSpec("refs/heads/*:refs/remotes/origin/*");
-		git.fetch().setRemote("test").setRefSpecs(spec)
+		git.fetch().setRemote("test")
+				.setRefSpecs("refs/heads/*:refs/remotes/origin/*")
 				.setTagOpt(TagOpt.AUTO_FOLLOW).call();
 
 		assertEquals(tagRef.getObjectId(), db.resolve("foo"));
@@ -120,8 +142,8 @@ public class FetchCommandTest extends RepositoryTestCase {
 		remoteGit.commit().setMessage("commit").call();
 		Ref tagRef = remoteGit.tag().setName("foo").call();
 		remoteGit.commit().setMessage("commit2").call();
-		RefSpec spec = new RefSpec("refs/heads/*:refs/remotes/origin/*");
-		git.fetch().setRemote("test").setRefSpecs(spec)
+		git.fetch().setRemote("test")
+				.setRefSpecs("refs/heads/*:refs/remotes/origin/*")
 				.setTagOpt(TagOpt.AUTO_FOLLOW).call();
 		assertEquals(tagRef.getObjectId(), db.resolve("foo"));
 	}
@@ -132,9 +154,8 @@ public class FetchCommandTest extends RepositoryTestCase {
 		remoteGit.checkout().setName("other").setCreateBranch(true).call();
 		remoteGit.commit().setMessage("commit2").call();
 		remoteGit.tag().setName("foo").call();
-		RefSpec spec = new RefSpec(
-				"refs/heads/master:refs/remotes/origin/master");
-		git.fetch().setRemote("test").setRefSpecs(spec)
+		git.fetch().setRemote("test")
+				.setRefSpecs("refs/heads/master:refs/remotes/origin/master")
 				.setTagOpt(TagOpt.AUTO_FOLLOW).call();
 		assertNull(db.resolve("foo"));
 	}
@@ -146,7 +167,7 @@ public class FetchCommandTest extends RepositoryTestCase {
 		Ref tagRef = remoteGit.tag().setName(tagName).call();
 		ObjectId originalId = tagRef.getObjectId();
 
-		RefSpec spec = new RefSpec("refs/heads/*:refs/remotes/origin/*");
+		String spec = "refs/heads/*:refs/remotes/origin/*";
 		git.fetch().setRemote("test").setRefSpecs(spec)
 				.setTagOpt(TagOpt.AUTO_FOLLOW).call();
 		assertEquals(originalId, db.resolve(tagName));
@@ -172,7 +193,7 @@ public class FetchCommandTest extends RepositoryTestCase {
 		remoteGit.commit().setMessage("commit").call();
 		Ref tagRef1 = remoteGit.tag().setName(tagName).call();
 
-		RefSpec spec = new RefSpec("refs/heads/*:refs/remotes/origin/*");
+		String spec = "refs/heads/*:refs/remotes/origin/*";
 		git.fetch().setRemote("test").setRefSpecs(spec)
 				.setTagOpt(TagOpt.AUTO_FOLLOW).call();
 		assertEquals(tagRef1.getObjectId(), db.resolve(tagName));
@@ -187,5 +208,44 @@ public class FetchCommandTest extends RepositoryTestCase {
 				+ tagName);
 		assertEquals(RefUpdate.Result.FORCED, update.getResult());
 		assertEquals(tagRef2.getObjectId(), db.resolve(tagName));
+	}
+
+	@Test
+	public void testFetchWithPruneShouldKeepOriginHead() throws Exception {
+		// Create a commit in the test repo.
+		commitFile("foo", "foo", "master");
+		// Produce a real clone of the git repo
+		Git cloned = Git.cloneRepository()
+				.setDirectory(createTempDirectory("testCloneRepository"))
+				.setURI("file://"
+						+ git.getRepository().getWorkTree().getAbsolutePath())
+				.call();
+		assertNotNull(cloned);
+		Repository clonedRepo = cloned.getRepository();
+		addRepoToClose(clonedRepo);
+		ObjectId originMasterId = clonedRepo
+				.resolve("refs/remotes/origin/master");
+		assertNotNull("Should have origin/master", originMasterId);
+		assertNotEquals("origin/master should not be zero ID",
+				ObjectId.zeroId(), originMasterId);
+		// Canonical git creates origin/HEAD; JGit (for now) doesn't. Let's
+		// pretend we did the clone via command-line git.
+		ObjectId originHeadId = clonedRepo.resolve("refs/remotes/origin/HEAD");
+		if (originHeadId == null) {
+			JGitTestUtil.write(
+					new File(clonedRepo.getDirectory(),
+							"refs/remotes/origin/HEAD"),
+					"ref: refs/remotes/origin/master\n");
+			originHeadId = clonedRepo.resolve("refs/remotes/origin/HEAD");
+		}
+		assertEquals("Should have origin/HEAD", originMasterId, originHeadId);
+		FetchResult result = cloned.fetch().setRemote("origin")
+				.setRemoveDeletedRefs(true).call();
+		assertTrue("Fetch after clone should be up-to-date",
+				result.getTrackingRefUpdates().isEmpty());
+		assertEquals("origin/master should still exist", originMasterId,
+				clonedRepo.resolve("refs/remotes/origin/master"));
+		assertEquals("origin/HEAD should be unchanged", originHeadId,
+				clonedRepo.resolve("refs/remotes/origin/HEAD"));
 	}
 }

@@ -56,6 +56,7 @@ import org.eclipse.jgit.api.errors.JGitInternalException;
 import org.eclipse.jgit.api.errors.RefNotFoundException;
 import org.eclipse.jgit.errors.LockFailedException;
 import org.eclipse.jgit.internal.JGitText;
+import org.eclipse.jgit.internal.storage.file.RefDirectory;
 import org.eclipse.jgit.internal.storage.file.ReflogWriter;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
@@ -68,6 +69,9 @@ import org.eclipse.jgit.util.FileUtils;
 
 /**
  * Command class to delete a stashed commit reference
+ * <p>
+ * Currently only supported on a traditional file repository using
+ * one-file-per-ref reflogs.
  *
  * @see <a href="http://www.kernel.org/pub/software/scm/git/docs/git-stash.html"
  *      >Git documentation about Stash</a>
@@ -80,10 +84,17 @@ public class StashDropCommand extends GitCommand<ObjectId> {
 	private boolean all;
 
 	/**
+	 * Constructor for StashDropCommand.
+	 *
 	 * @param repo
+	 *            a {@link org.eclipse.jgit.lib.Repository} object.
 	 */
 	public StashDropCommand(Repository repo) {
 		super(repo);
+		if (!(repo.getRefDatabase() instanceof RefDirectory)) {
+			throw new UnsupportedOperationException(
+					JGitText.get().stashDropNotSupported);
+		}
 	}
 
 	/**
@@ -93,9 +104,10 @@ public class StashDropCommand extends GitCommand<ObjectId> {
 	 * unspecified
 	 *
 	 * @param stashRef
+	 *            the 0-based index of the stash reference
 	 * @return {@code this}
 	 */
-	public StashDropCommand setStashRef(final int stashRef) {
+	public StashDropCommand setStashRef(int stashRef) {
 		if (stashRef < 0)
 			throw new IllegalArgumentException();
 
@@ -104,14 +116,15 @@ public class StashDropCommand extends GitCommand<ObjectId> {
 	}
 
 	/**
-	 * Set wheter drop all stashed commits
+	 * Set whether to drop all stashed commits
 	 *
 	 * @param all
-	 *            true to drop all stashed commits, false to drop only the
-	 *            stashed commit set via calling {@link #setStashRef(int)}
+	 *            {@code true} to drop all stashed commits, {@code false} to
+	 *            drop only the stashed commit set via calling
+	 *            {@link #setStashRef(int)}
 	 * @return {@code this}
 	 */
-	public StashDropCommand setAll(final boolean all) {
+	public StashDropCommand setAll(boolean all) {
 		this.all = all;
 		return this;
 	}
@@ -125,7 +138,7 @@ public class StashDropCommand extends GitCommand<ObjectId> {
 		}
 	}
 
-	private RefUpdate createRefUpdate(final Ref stashRef) throws IOException {
+	private RefUpdate createRefUpdate(Ref stashRef) throws IOException {
 		RefUpdate update = repo.updateRef(R_STASH);
 		update.disableRefLog();
 		update.setExpectedOldObjectId(stashRef.getObjectId());
@@ -133,7 +146,7 @@ public class StashDropCommand extends GitCommand<ObjectId> {
 		return update;
 	}
 
-	private void deleteRef(final Ref stashRef) {
+	private void deleteRef(Ref stashRef) {
 		try {
 			Result result = createRefUpdate(stashRef).delete();
 			if (Result.FORCED != result)
@@ -165,11 +178,10 @@ public class StashDropCommand extends GitCommand<ObjectId> {
 	}
 
 	/**
+	 * {@inheritDoc}
+	 * <p>
 	 * Drop the configured entry from the stash reflog and return value of the
 	 * stash reference after the drop occurs
-	 *
-	 * @return commit id of stash reference or null if no more stashed changes
-	 * @throws GitAPIException
 	 */
 	@Override
 	public ObjectId call() throws GitAPIException {
@@ -205,10 +217,11 @@ public class StashDropCommand extends GitCommand<ObjectId> {
 			return null;
 		}
 
-		ReflogWriter writer = new ReflogWriter(repo, true);
+		RefDirectory refdb = (RefDirectory) repo.getRefDatabase();
+		ReflogWriter writer = new ReflogWriter(refdb, true);
 		String stashLockRef = ReflogWriter.refLockFor(R_STASH);
-		File stashLockFile = writer.logFor(stashLockRef);
-		File stashFile = writer.logFor(R_STASH);
+		File stashLockFile = refdb.logFor(stashLockRef);
+		File stashFile = refdb.logFor(R_STASH);
 		if (stashLockFile.exists())
 			throw new JGitInternalException(JGitText.get().stashDropFailed,
 					new LockFailedException(stashFile));

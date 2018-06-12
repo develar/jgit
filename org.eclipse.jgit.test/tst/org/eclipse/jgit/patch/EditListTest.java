@@ -89,18 +89,15 @@ public class EditListTest {
 		assertEquals(new Edit(23 - 1, 25 - 1, 22 - 1, 28 - 1), e.get(2));
 	}
 
-	private Patch parseTestPatchFile(final String patchFile) throws IOException {
-		final InputStream in = getClass().getResourceAsStream(patchFile);
-		if (in == null) {
-			fail("No " + patchFile + " test vector");
-			return null; // Never happens
-		}
-		try {
+	private Patch parseTestPatchFile(String patchFile) throws IOException {
+		try (InputStream in = getClass().getResourceAsStream(patchFile)) {
+			if (in == null) {
+				fail("No " + patchFile + " test vector");
+				return null; // Never happens
+			}
 			final Patch p = new Patch();
 			p.parse(in);
 			return p;
-		} finally {
-			in.close();
 		}
 	}
 }

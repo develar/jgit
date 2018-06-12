@@ -55,13 +55,13 @@ import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.ObjectStream;
-import org.eclipse.jgit.treewalk.FileTreeIterator;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.WorkingTreeIterator;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
 
 /**
- * Supplies the content of a file for {@link DiffFormatter}.
+ * Supplies the content of a file for
+ * {@link org.eclipse.jgit.diff.DiffFormatter}.
  * <p>
  * A content source is not thread-safe. Sources may contain state, including
  * information about the last ObjectLoader they returned. Callers must be
@@ -83,8 +83,9 @@ public abstract class ContentSource {
 	/**
 	 * Construct a content source for a working directory.
 	 *
-	 * If the iterator is a {@link FileTreeIterator} an optimized version is
-	 * used that doesn't require seeking through a TreeWalk.
+	 * If the iterator is a {@link org.eclipse.jgit.treewalk.FileTreeIterator}
+	 * an optimized version is used that doesn't require seeking through a
+	 * TreeWalk.
 	 *
 	 * @param iterator
 	 *            the iterator to obtain source files through.
@@ -102,7 +103,7 @@ public abstract class ContentSource {
 	 * @param id
 	 *            blob id of the file, if known.
 	 * @return the size in bytes.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the file cannot be accessed.
 	 */
 	public abstract long size(String path, ObjectId id) throws IOException;
@@ -117,7 +118,7 @@ public abstract class ContentSource {
 	 * @return a loader that can supply the content of the file. The loader must
 	 *         be used before another loader can be obtained from this same
 	 *         source.
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the file cannot be accessed.
 	 */
 	public abstract ObjectLoader open(String path, ObjectId id)
@@ -169,10 +170,11 @@ public abstract class ContentSource {
 		@Override
 		public ObjectLoader open(String path, ObjectId id) throws IOException {
 			seek(path);
+			long entrySize = ptr.getEntryContentLength();
 			return new ObjectLoader() {
 				@Override
 				public long getSize() {
-					return ptr.getEntryLength();
+					return entrySize;
 				}
 
 				@Override
@@ -183,7 +185,7 @@ public abstract class ContentSource {
 				@Override
 				public ObjectStream openStream() throws MissingObjectException,
 						IOException {
-					long contentLength = ptr.getEntryContentLength();
+					long contentLength = entrySize;
 					InputStream in = ptr.openEntryStream();
 					in = new BufferedInputStream(in);
 					return new ObjectStream.Filter(getType(), contentLength, in);

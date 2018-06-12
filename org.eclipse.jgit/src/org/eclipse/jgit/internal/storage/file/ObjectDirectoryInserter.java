@@ -78,11 +78,12 @@ class ObjectDirectoryInserter extends ObjectInserter {
 
 	private Deflater deflate;
 
-	ObjectDirectoryInserter(final FileObjectDatabase dest, final Config cfg) {
+	ObjectDirectoryInserter(FileObjectDatabase dest, Config cfg) {
 		db = dest;
 		config = cfg.get(WriteConfig.KEY);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public ObjectId insert(int type, byte[] data, int off, int len)
 			throws IOException {
@@ -114,8 +115,9 @@ class ObjectDirectoryInserter extends ObjectInserter {
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public ObjectId insert(final int type, long len, final InputStream is)
+	public ObjectId insert(int type, long len, InputStream is)
 			throws IOException {
 		return insert(type, len, is, false);
 	}
@@ -166,21 +168,25 @@ class ObjectDirectoryInserter extends ObjectInserter {
 				.format(JGitText.get().unableToCreateNewObject, dst));
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public PackParser newPackParser(InputStream in) throws IOException {
 		return new ObjectDirectoryPackParser(db, in);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public ObjectReader newReader() {
 		return new WindowCursor(db, this);
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void flush() throws IOException {
 		// Do nothing. Loose objects are immediately visible.
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void close() {
 		if (deflate != null) {
@@ -261,7 +267,7 @@ class ObjectDirectoryInserter extends ObjectInserter {
 		}
 	}
 
-	void writeHeader(OutputStream out, final int type, long len)
+	void writeHeader(OutputStream out, int type, long len)
 			throws IOException {
 		out.write(Constants.encodedTypeString(type));
 		out.write((byte) ' ');
@@ -273,7 +279,7 @@ class ObjectDirectoryInserter extends ObjectInserter {
 		return File.createTempFile("noz", null, db.getDirectory()); //$NON-NLS-1$
 	}
 
-	DeflaterOutputStream compress(final OutputStream out) {
+	DeflaterOutputStream compress(OutputStream out) {
 		if (deflate == null)
 			deflate = new Deflater(config.getCompression());
 		else

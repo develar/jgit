@@ -83,6 +83,11 @@ public class PushCommandTest extends RepositoryTestCase {
 
 		// create other repository
 		Repository db2 = createWorkRepository();
+		final StoredConfig config2 = db2.getConfig();
+
+		// this tests that this config can be parsed properly
+		config2.setString("fsck", "", "missingEmail", "ignore");
+		config2.save();
 
 		// setup the first repository
 		final StoredConfig config = db.getConfig();
@@ -147,7 +152,7 @@ public class PushCommandTest extends RepositoryTestCase {
 		}
 	}
 
-	private File writeHookFile(final String name, final String data)
+	private File writeHookFile(String name, String data)
 			throws IOException {
 		File path = new File(db.getWorkTree() + "/.git/hooks/", name);
 		JGitTestUtil.write(path, data);
@@ -240,7 +245,7 @@ public class PushCommandTest extends RepositoryTestCase {
 				git.add().addFilepattern("f" + i).call();
 				commit = git.commit().setMessage("adding f" + i).call();
 				git.push().setRemote("test").call();
-				git2.getRepository().getAllRefs();
+				git2.getRepository().getRefDatabase().getRefs();
 				assertEquals("failed to update on attempt " + i, commit.getId(),
 						git2.getRepository().resolve("refs/heads/test"));
 			}

@@ -49,7 +49,9 @@ import java.text.MessageFormat;
 
 import org.eclipse.jgit.internal.JGitText;
 
-/** Thrown when a PackFile previously failed and is known to be unusable */
+/**
+ * Thrown when a PackFile previously failed and is known to be unusable
+ */
 public class PackInvalidException extends IOException {
 	private static final long serialVersionUID = 1L;
 
@@ -59,7 +61,7 @@ public class PackInvalidException extends IOException {
 	 * @param path
 	 *            path of the invalid pack file.
 	 */
-	public PackInvalidException(final File path) {
+	public PackInvalidException(File path) {
 		this(path.getAbsolutePath());
 	}
 
@@ -69,7 +71,7 @@ public class PackInvalidException extends IOException {
 	 * @param path
 	 *            path of the invalid pack file.
 	 */
-	public PackInvalidException(final String path) {
+	public PackInvalidException(String path) {
 		super(MessageFormat.format(JGitText.get().packFileInvalid, path));
 	}
 }

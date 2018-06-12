@@ -76,8 +76,9 @@ import org.eclipse.jgit.util.RawParseUtils;
  * an unrecoverable error.
  *
  * @see SideBandOutputStream
+ * @since 4.11
  */
-class SideBandInputStream extends InputStream {
+public class SideBandInputStream extends InputStream {
 	static final int CH_DATA = 1;
 	static final int CH_PROGRESS = 2;
 	static final int CH_ERROR = 3;
@@ -120,6 +121,7 @@ class SideBandInputStream extends InputStream {
 		out = outputStream;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public int read() throws IOException {
 		needDataPacket();
@@ -129,8 +131,9 @@ class SideBandInputStream extends InputStream {
 		return rawIn.read();
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public int read(final byte[] b, int off, int len) throws IOException {
+	public int read(byte[] b, int off, int len) throws IOException {
 		int r = 0;
 		while (len > 0) {
 			needDataPacket();
@@ -200,7 +203,7 @@ class SideBandInputStream extends InputStream {
 		progressBuffer = pkt;
 	}
 
-	private void doProgressLine(final String msg) throws IOException {
+	private void doProgressLine(String msg) throws IOException {
 		Matcher matcher;
 
 		matcher = P_BOUNDED.matcher(msg);
@@ -236,7 +239,7 @@ class SideBandInputStream extends InputStream {
 			out.write(msg.getBytes());
 	}
 
-	private void beginTask(final int totalWorkUnits) {
+	private void beginTask(int totalWorkUnits) {
 		monitor.beginTask(remote(currentTask), totalWorkUnits);
 	}
 
@@ -251,7 +254,7 @@ class SideBandInputStream extends InputStream {
 		return r.toString();
 	}
 
-	private String readString(final int len) throws IOException {
+	private String readString(int len) throws IOException {
 		final byte[] raw = new byte[len];
 		IO.readFully(rawIn, raw, 0, len);
 		return RawParseUtils.decode(Constants.CHARSET, raw, 0, len);

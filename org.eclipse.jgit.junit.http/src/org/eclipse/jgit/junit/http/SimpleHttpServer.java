@@ -69,27 +69,72 @@ public class SimpleHttpServer {
 
 	private URIish uri;
 
+	private URIish secureUri;
+
+	/**
+	 * Constructor for <code>SimpleHttpServer</code>.
+	 *
+	 * @param repository
+	 */
 	public SimpleHttpServer(Repository repository) {
-		this.db = repository;
-		server = new AppServer();
+		this(repository, false);
 	}
 
+	/**
+	 * Constructor for <code>SimpleHttpServer</code>.
+	 *
+	 * @param repository
+	 * @param withSsl
+	 */
+	public SimpleHttpServer(Repository repository, boolean withSsl) {
+		this.db = repository;
+		server = new AppServer(0, withSsl ? 0 : -1);
+	}
+
+	/**
+	 * Start the server
+	 *
+	 * @throws Exception
+	 */
 	public void start() throws Exception {
 		ServletContextHandler sBasic = server.authBasic(smart("/sbasic"));
 		server.setUp();
 		final String srcName = db.getDirectory().getName();
 		uri = toURIish(sBasic, srcName);
+		int sslPort = server.getSecurePort();
+		if (sslPort > 0) {
+			secureUri = uri.setPort(sslPort).setScheme("https");
+		}
 	}
 
+	/**
+	 * Stop the server.
+	 *
+	 * @throws Exception
+	 */
 	public void stop() throws Exception {
 		server.tearDown();
 	}
 
+	/**
+	 * Get the <code>uri</code>.
+	 *
+	 * @return the uri
+	 */
 	public URIish getUri() {
 		return uri;
 	}
 
-	private ServletContextHandler smart(final String path) {
+	/**
+	 * Get the <code>secureUri</code>.
+	 *
+	 * @return the secure uri
+	 */
+	public URIish getSecureUri() {
+		return secureUri;
+	}
+
+	private ServletContextHandler smart(String path) {
 		GitServlet gs = new GitServlet();
 		gs.setRepositoryResolver(new RepositoryResolver<HttpServletRequest>() {
 			@Override
@@ -109,7 +154,7 @@ public class SimpleHttpServer {
 		return ctx;
 	}
 
-	private static String nameOf(final Repository db) {
+	private static String nameOf(Repository db) {
 		return db.getDirectory().getName();
 	}
 

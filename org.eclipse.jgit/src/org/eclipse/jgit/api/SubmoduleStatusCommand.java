@@ -62,8 +62,8 @@ import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
 /**
  * A class used to execute a submodule status command.
  *
- * @see <a
- *      href="http://www.kernel.org/pub/software/scm/git/docs/git-submodule.html"
+ * @see <a href=
+ *      "http://www.kernel.org/pub/software/scm/git/docs/git-submodule.html"
  *      >Git documentation about submodules</a>
  */
 public class SubmoduleStatusCommand extends
@@ -72,9 +72,12 @@ public class SubmoduleStatusCommand extends
 	private final Collection<String> paths;
 
 	/**
+	 * Constructor for SubmoduleStatusCommand.
+	 *
 	 * @param repo
+	 *            a {@link org.eclipse.jgit.lib.Repository} object.
 	 */
-	public SubmoduleStatusCommand(final Repository repo) {
+	public SubmoduleStatusCommand(Repository repo) {
 		super(repo);
 		paths = new ArrayList<>();
 	}
@@ -86,11 +89,12 @@ public class SubmoduleStatusCommand extends
 	 *            (with <code>/</code> as separator)
 	 * @return this command
 	 */
-	public SubmoduleStatusCommand addPath(final String path) {
+	public SubmoduleStatusCommand addPath(String path) {
 		paths.add(path);
 		return this;
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public Map<String, SubmoduleStatus> call() throws GitAPIException {
 		checkCallable();
@@ -126,16 +130,14 @@ public class SubmoduleStatusCommand extends
 					id);
 
 		// Report uninitialized if no submodule repository
-		Repository subRepo = generator.getRepository();
-		if (subRepo == null)
-			return new SubmoduleStatus(SubmoduleStatusType.UNINITIALIZED, path,
-					id);
+		ObjectId headId = null;
+		try (Repository subRepo = generator.getRepository()) {
+			if (subRepo == null) {
+				return new SubmoduleStatus(SubmoduleStatusType.UNINITIALIZED,
+						path, id);
+			}
 
-		ObjectId headId;
-		try {
 			headId = subRepo.resolve(Constants.HEAD);
-		} finally {
-			subRepo.close();
 		}
 
 		// Report uninitialized if no HEAD commit in submodule repository

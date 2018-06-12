@@ -42,6 +42,7 @@
  */
 package org.eclipse.jgit.api;
 
+import static org.eclipse.jgit.lib.Constants.CHARSET;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -1463,7 +1464,7 @@ public class RebaseCommandTest extends RepositoryTestCase {
 		assertEquals("GIT_AUTHOR_DATE='@123456789 -0100'", lines[2]);
 
 		PersonIdent parsedIdent = git.rebase().parseAuthor(
-				convertedAuthor.getBytes("UTF-8"));
+				convertedAuthor.getBytes(CHARSET));
 		assertEquals(ident.getName(), parsedIdent.getName());
 		assertEquals(ident.getEmailAddress(), parsedIdent.getEmailAddress());
 		// this is rounded to the last second
@@ -1480,7 +1481,7 @@ public class RebaseCommandTest extends RepositoryTestCase {
 		assertEquals("GIT_AUTHOR_DATE='@123456789 +0930'", lines[2]);
 
 		parsedIdent = git.rebase().parseAuthor(
-				convertedAuthor.getBytes("UTF-8"));
+				convertedAuthor.getBytes(CHARSET));
 		assertEquals(ident.getName(), parsedIdent.getName());
 		assertEquals(ident.getEmailAddress(), parsedIdent.getEmailAddress());
 		assertEquals(123456789000L, parsedIdent.getWhen().getTime());
@@ -2102,9 +2103,8 @@ public class RebaseCommandTest extends RepositoryTestCase {
 	private int countPicks() throws IOException {
 		int count = 0;
 		File todoFile = getTodoFile();
-		BufferedReader br = new BufferedReader(new InputStreamReader(
-				new FileInputStream(todoFile), "UTF-8"));
-		try {
+		try (BufferedReader br = new BufferedReader(new InputStreamReader(
+				new FileInputStream(todoFile), CHARSET))) {
 			String line = br.readLine();
 			while (line != null) {
 				int firstBlank = line.indexOf(' ');
@@ -2122,8 +2122,6 @@ public class RebaseCommandTest extends RepositoryTestCase {
 				line = br.readLine();
 			}
 			return count;
-		} finally {
-			br.close();
 		}
 	}
 

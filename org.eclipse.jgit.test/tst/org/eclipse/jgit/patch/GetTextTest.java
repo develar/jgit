@@ -43,6 +43,8 @@
 
 package org.eclipse.jgit.patch;
 
+import static java.nio.charset.StandardCharsets.ISO_8859_1;
+import static org.eclipse.jgit.lib.Constants.CHARSET;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -58,7 +60,7 @@ import org.junit.Test;
 public class GetTextTest {
 	@Test
 	public void testGetText_BothISO88591() throws IOException {
-		final Charset cs = Charset.forName("ISO-8859-1");
+		final Charset cs = ISO_8859_1;
 		final Patch p = parseTestPatchFile();
 		assertTrue(p.getErrors().isEmpty());
 		assertEquals(1, p.getFiles().size());
@@ -69,7 +71,7 @@ public class GetTextTest {
 
 	@Test
 	public void testGetText_NoBinary() throws IOException {
-		final Charset cs = Charset.forName("ISO-8859-1");
+		final Charset cs = ISO_8859_1;
 		final Patch p = parseTestPatchFile();
 		assertTrue(p.getErrors().isEmpty());
 		assertEquals(1, p.getFiles().size());
@@ -80,8 +82,8 @@ public class GetTextTest {
 
 	@Test
 	public void testGetText_Convert() throws IOException {
-		final Charset csOld = Charset.forName("ISO-8859-1");
-		final Charset csNew = Charset.forName("UTF-8");
+		final Charset csOld = ISO_8859_1;
+		final Charset csNew = CHARSET;
 		final Patch p = parseTestPatchFile();
 		assertTrue(p.getErrors().isEmpty());
 		assertEquals(1, p.getFiles().size());
@@ -100,8 +102,8 @@ public class GetTextTest {
 
 	@Test
 	public void testGetText_DiffCc() throws IOException {
-		final Charset csOld = Charset.forName("ISO-8859-1");
-		final Charset csNew = Charset.forName("UTF-8");
+		final Charset csOld = ISO_8859_1;
+		final Charset csNew = CHARSET;
 		final Patch p = parseTestPatchFile();
 		assertTrue(p.getErrors().isEmpty());
 		assertEquals(1, p.getFiles().size());
@@ -121,28 +123,24 @@ public class GetTextTest {
 
 	private Patch parseTestPatchFile() throws IOException {
 		final String patchFile = JGitTestUtil.getName() + ".patch";
-		final InputStream in = getClass().getResourceAsStream(patchFile);
-		if (in == null) {
-			fail("No " + patchFile + " test vector");
-			return null; // Never happens
-		}
-		try {
+		try (InputStream in = getClass().getResourceAsStream(patchFile)) {
+			if (in == null) {
+				fail("No " + patchFile + " test vector");
+				return null; // Never happens
+			}
 			final Patch p = new Patch();
 			p.parse(in);
 			return p;
-		} finally {
-			in.close();
 		}
 	}
 
-	private String readTestPatchFile(final Charset cs) throws IOException {
+	private String readTestPatchFile(Charset cs) throws IOException {
 		final String patchFile = JGitTestUtil.getName() + ".patch";
-		final InputStream in = getClass().getResourceAsStream(patchFile);
-		if (in == null) {
-			fail("No " + patchFile + " test vector");
-			return null; // Never happens
-		}
-		try {
+		try (InputStream in = getClass().getResourceAsStream(patchFile)) {
+			if (in == null) {
+				fail("No " + patchFile + " test vector");
+				return null; // Never happens
+			}
 			final InputStreamReader r = new InputStreamReader(in, cs);
 			char[] tmp = new char[2048];
 			final StringBuilder s = new StringBuilder();
@@ -150,8 +148,6 @@ public class GetTextTest {
 			while ((n = r.read(tmp)) > 0)
 				s.append(tmp, 0, n);
 			return s.toString();
-		} finally {
-			in.close();
 		}
 	}
 }

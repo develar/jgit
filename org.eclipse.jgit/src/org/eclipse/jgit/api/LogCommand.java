@@ -42,13 +42,10 @@
  */
 package org.eclipse.jgit.api;
 
-import static org.eclipse.jgit.lib.RefDatabase.ALL;
-
 import java.io.IOException;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.JGitInternalException;
@@ -78,7 +75,7 @@ import org.eclipse.jgit.treewalk.filter.TreeFilter;
  * to finally execute the command. Each instance of this class should only be
  * used for one invocation of the command (means: one call to {@link #call()})
  * <p>
- * Examples (<code>git</code> is a {@link Git} instance):
+ * Examples (<code>git</code> is a {@link org.eclipse.jgit.api.Git} instance):
  * <p>
  * Get newest 10 commits, starting from the current branch:
  *
@@ -114,7 +111,10 @@ public class LogCommand extends GitCommand<Iterable<RevCommit>> {
 	private int skip = -1;
 
 	/**
+	 * Constructor for LogCommand.
+	 *
 	 * @param repo
+	 *            the {@link org.eclipse.jgit.lib.Repository}
 	 */
 	protected LogCommand(Repository repo) {
 		super(repo);
@@ -122,15 +122,13 @@ public class LogCommand extends GitCommand<Iterable<RevCommit>> {
 	}
 
 	/**
+	 * {@inheritDoc}
+	 * <p>
 	 * Executes the {@code Log} command with all the options and parameters
 	 * collected by the setter methods (e.g. {@link #add(AnyObjectId)},
 	 * {@link #not(AnyObjectId)}, ..) of this class. Each instance of this class
 	 * should only be used for one invocation of the command. Don't call this
 	 * method twice on an instance.
-	 *
-	 * @return an iteration over RevCommits
-	 * @throws NoHeadException
-	 *             of the references ref cannot be resolved
 	 */
 	@Override
 	public Iterable<RevCommit> call() throws GitAPIException, NoHeadException {
@@ -174,23 +172,26 @@ public class LogCommand extends GitCommand<Iterable<RevCommit>> {
 	 *
 	 * @see RevWalk#markStart(RevCommit)
 	 * @param start
+	 *            the id of the commit to start from
 	 * @return {@code this}
-	 * @throws MissingObjectException
+	 * @throws org.eclipse.jgit.errors.MissingObjectException
 	 *             the commit supplied is not available from the object
 	 *             database. This usually indicates the supplied commit is
 	 *             invalid, but the reference was constructed during an earlier
-	 *             invocation to {@link RevWalk#lookupCommit(AnyObjectId)}.
-	 * @throws IncorrectObjectTypeException
+	 *             invocation to
+	 *             {@link org.eclipse.jgit.revwalk.RevWalk#lookupCommit(AnyObjectId)}.
+	 * @throws org.eclipse.jgit.errors.IncorrectObjectTypeException
 	 *             the object was not parsed yet and it was discovered during
 	 *             parsing that it is not actually a commit. This usually
 	 *             indicates the caller supplied a non-commit SHA-1 to
-	 *             {@link RevWalk#lookupCommit(AnyObjectId)}.
+	 *             {@link org.eclipse.jgit.revwalk.RevWalk#lookupCommit(AnyObjectId)}.
 	 * @throws JGitInternalException
 	 *             a low-level exception of JGit has occurred. The original
 	 *             exception can be retrieved by calling
-	 *             {@link Exception#getCause()}. Expect only
+	 *             {@link java.lang.Exception#getCause()}. Expect only
 	 *             {@code IOException's} to be wrapped. Subclasses of
-	 *             {@link IOException} (e.g. {@link MissingObjectException}) are
+	 *             {@link java.io.IOException} (e.g.
+	 *             {@link org.eclipse.jgit.errors.MissingObjectException}) are
 	 *             typically not wrapped here but thrown as original exception
 	 */
 	public LogCommand add(AnyObjectId start) throws MissingObjectException,
@@ -202,23 +203,26 @@ public class LogCommand extends GitCommand<Iterable<RevCommit>> {
 	 * Same as {@code --not start}, or {@code ^start}
 	 *
 	 * @param start
+	 *            a {@link org.eclipse.jgit.lib.AnyObjectId}
 	 * @return {@code this}
-	 * @throws MissingObjectException
+	 * @throws org.eclipse.jgit.errors.MissingObjectException
 	 *             the commit supplied is not available from the object
 	 *             database. This usually indicates the supplied commit is
 	 *             invalid, but the reference was constructed during an earlier
-	 *             invocation to {@link RevWalk#lookupCommit(AnyObjectId)}.
-	 * @throws IncorrectObjectTypeException
+	 *             invocation to
+	 *             {@link org.eclipse.jgit.revwalk.RevWalk#lookupCommit(AnyObjectId)}.
+	 * @throws org.eclipse.jgit.errors.IncorrectObjectTypeException
 	 *             the object was not parsed yet and it was discovered during
 	 *             parsing that it is not actually a commit. This usually
 	 *             indicates the caller supplied a non-commit SHA-1 to
-	 *             {@link RevWalk#lookupCommit(AnyObjectId)}.
+	 *             {@link org.eclipse.jgit.revwalk.RevWalk#lookupCommit(AnyObjectId)}.
 	 * @throws JGitInternalException
 	 *             a low-level exception of JGit has occurred. The original
 	 *             exception can be retrieved by calling
-	 *             {@link Exception#getCause()}. Expect only
+	 *             {@link java.lang.Exception#getCause()}. Expect only
 	 *             {@code IOException's} to be wrapped. Subclasses of
-	 *             {@link IOException} (e.g. {@link MissingObjectException}) are
+	 *             {@link java.io.IOException} (e.g.
+	 *             {@link org.eclipse.jgit.errors.MissingObjectException}) are
 	 *             typically not wrapped here but thrown as original exception
 	 */
 	public LogCommand not(AnyObjectId start) throws MissingObjectException,
@@ -230,24 +234,28 @@ public class LogCommand extends GitCommand<Iterable<RevCommit>> {
 	 * Adds the range {@code since..until}
 	 *
 	 * @param since
+	 *            a {@link org.eclipse.jgit.lib.AnyObjectId} object.
 	 * @param until
+	 *            a {@link org.eclipse.jgit.lib.AnyObjectId} object.
 	 * @return {@code this}
-	 * @throws MissingObjectException
+	 * @throws org.eclipse.jgit.errors.MissingObjectException
 	 *             the commit supplied is not available from the object
 	 *             database. This usually indicates the supplied commit is
 	 *             invalid, but the reference was constructed during an earlier
-	 *             invocation to {@link RevWalk#lookupCommit(AnyObjectId)}.
-	 * @throws IncorrectObjectTypeException
+	 *             invocation to
+	 *             {@link org.eclipse.jgit.revwalk.RevWalk#lookupCommit(AnyObjectId)}.
+	 * @throws org.eclipse.jgit.errors.IncorrectObjectTypeException
 	 *             the object was not parsed yet and it was discovered during
 	 *             parsing that it is not actually a commit. This usually
 	 *             indicates the caller supplied a non-commit SHA-1 to
-	 *             {@link RevWalk#lookupCommit(AnyObjectId)}.
+	 *             {@link org.eclipse.jgit.revwalk.RevWalk#lookupCommit(AnyObjectId)}.
 	 * @throws JGitInternalException
 	 *             a low-level exception of JGit has occurred. The original
 	 *             exception can be retrieved by calling
-	 *             {@link Exception#getCause()}. Expect only
+	 *             {@link java.lang.Exception#getCause()}. Expect only
 	 *             {@code IOException's} to be wrapped. Subclasses of
-	 *             {@link IOException} (e.g. {@link MissingObjectException}) are
+	 *             {@link java.io.IOException} (e.g.
+	 *             {@link org.eclipse.jgit.errors.MissingObjectException}) are
 	 *             typically not wrapped here but thrown as original exception
 	 */
 	public LogCommand addRange(AnyObjectId since, AnyObjectId until)
@@ -260,14 +268,13 @@ public class LogCommand extends GitCommand<Iterable<RevCommit>> {
 	 *
 	 * @see #add(AnyObjectId)
 	 * @return {@code this}
-	 * @throws IOException
+	 * @throws java.io.IOException
 	 *             the references could not be accessed
 	 */
 	public LogCommand all() throws IOException {
-		Map<String, Ref> refs = getRepository().getRefDatabase().getRefs(ALL);
-		for (Ref ref : refs.values()) {
+		for (Ref ref : getRepository().getRefDatabase().getRefs()) {
 			if(!ref.isPeeled())
-				ref = getRepository().peel(ref);
+				ref = getRepository().getRefDatabase().peel(ref);
 
 			ObjectId objectId = ref.getPeeledObjectId();
 			if (objectId == null)
@@ -354,8 +361,7 @@ public class LogCommand extends GitCommand<Iterable<RevCommit>> {
 
 
 	/**
-	 * Sets a filter for the <code>LogCommand</code>.
-	 *
+	 * Set a filter for the <code>LogCommand</code>.
 	 *
 	 * @param aFilter
 	 *            the filter that this instance of <code>LogCommand</code>

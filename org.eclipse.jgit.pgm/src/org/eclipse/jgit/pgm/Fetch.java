@@ -53,8 +53,8 @@ import org.eclipse.jgit.api.FetchCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.SubmoduleConfig.FetchRecurseSubmodulesMode;
-import org.eclipse.jgit.pgm.internal.CLIText;
 import org.eclipse.jgit.lib.TextProgressMonitor;
+import org.eclipse.jgit.pgm.internal.CLIText;
 import org.eclipse.jgit.transport.FetchResult;
 import org.eclipse.jgit.transport.RefSpec;
 import org.eclipse.jgit.transport.TagOpt;
@@ -100,6 +100,9 @@ class Fetch extends AbstractFetchCommand implements FetchCommand.Callback {
 		tags = Boolean.FALSE;
 	}
 
+	@Option(name = "--force", usage = "usage_forcedFetch", aliases = { "-f" })
+	private Boolean force;
+
 	private FetchRecurseSubmodulesMode recurseSubmodules;
 
 	@Option(name = "--recurse-submodules", usage = "usage_recurseSubmodules")
@@ -131,6 +134,7 @@ class Fetch extends AbstractFetchCommand implements FetchCommand.Callback {
 	@Argument(index = 1, metaVar = "metaVar_refspec")
 	private List<RefSpec> toget;
 
+	/** {@inheritDoc} */
 	@Override
 	protected void run() throws Exception {
 		try (Git git = new Git(db)) {
@@ -154,6 +158,9 @@ class Fetch extends AbstractFetchCommand implements FetchCommand.Callback {
 			if (quiet == null || !quiet.booleanValue())
 				fetch.setProgressMonitor(new TextProgressMonitor(errw));
 			fetch.setRecurseSubmodules(recurseSubmodules).setCallback(this);
+			if (force != null) {
+				fetch.setForceUpdate(force.booleanValue());
+			}
 
 			FetchResult result = fetch.call();
 			if (result.getTrackingRefUpdates().isEmpty()
@@ -164,6 +171,7 @@ class Fetch extends AbstractFetchCommand implements FetchCommand.Callback {
 		}
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void fetchingSubmodule(String name) {
 		try {

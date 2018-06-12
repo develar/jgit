@@ -91,13 +91,15 @@ public class IsolatedOutputStream extends OutputStream {
 				new ArrayBlockingQueue<Runnable>(1), new NamedThreadFactory());
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void write(int ch) throws IOException {
 		write(new byte[] { (byte) ch }, 0, 1);
 	}
 
+	/** {@inheritDoc} */
 	@Override
-	public void write(final byte[] buf, final int pos, final int cnt)
+	public void write(byte[] buf, int pos, int cnt)
 			throws IOException {
 		checkClosed();
 		execute(new Callable<Void>() {
@@ -109,6 +111,7 @@ public class IsolatedOutputStream extends OutputStream {
 		});
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void flush() throws IOException {
 		checkClosed();
@@ -121,6 +124,7 @@ public class IsolatedOutputStream extends OutputStream {
 		});
 	}
 
+	/** {@inheritDoc} */
 	@Override
 	public void close() throws IOException {
 		if (!copier.isShutdown()) {

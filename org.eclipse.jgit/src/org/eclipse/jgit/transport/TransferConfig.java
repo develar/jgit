@@ -62,22 +62,61 @@ import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.util.SystemReader;
 
 /**
- * The standard "transfer", "fetch", "receive", and "uploadpack" configuration
- * parameters.
+ * The standard "transfer", "fetch", "protocol", "receive", and "uploadpack"
+ * configuration parameters.
  */
 public class TransferConfig {
 	private static final String FSCK = "fsck"; //$NON-NLS-1$
 
 	/** Key for {@link Config#get(SectionParser)}. */
-	public static final Config.SectionParser<TransferConfig> KEY = new SectionParser<TransferConfig>() {
-		@Override
-		public TransferConfig parse(final Config cfg) {
-			return new TransferConfig(cfg);
-		}
-	};
+	public static final Config.SectionParser<TransferConfig> KEY =
+			TransferConfig::new;
 
-	enum FsckMode {
-		ERROR, WARN, IGNORE;
+	/**
+	 * A git configuration value for how to handle a fsck failure of a particular kind.
+	 * Used in e.g. fsck.missingEmail.
+	 * @since 4.9
+	 */
+	public enum FsckMode {
+		/**
+		 * Treat it as an error (the default).
+		 */
+		ERROR,
+		/**
+		 * Issue a warning (in fact, jgit treats this like IGNORE, but git itself does warn).
+		 */
+		WARN,
+		/**
+		 * Ignore the error.
+		 */
+		IGNORE;
+	}
+
+	/**
+	 * A git configuration variable for which versions of the Git protocol to prefer.
+	 * Used in protocol.version.
+	 */
+	enum ProtocolVersion {
+		V0("0"), //$NON-NLS-1$
+		V2("2"); //$NON-NLS-1$
+
+		final String name;
+
+		ProtocolVersion(String name) {
+			this.name = name;
+		}
+
+		static @Nullable ProtocolVersion parse(@Nullable String name) {
+			if (name == null) {
+				return null;
+			}
+			for (ProtocolVersion v : ProtocolVersion.values()) {
+				if (v.name.equals(name)) {
+					return v;
+				}
+			}
+			return null;
+		}
 	}
 
 	private final boolean fetchFsck;
@@ -89,32 +128,36 @@ public class TransferConfig {
 	private final boolean safeForMacOS;
 	private final boolean allowTipSha1InWant;
 	private final boolean allowReachableSha1InWant;
+	private final boolean allowFilter;
+	final @Nullable ProtocolVersion protocolVersion;
 	final String[] hideRefs;
 
-	TransferConfig(final Repository db) {
+	TransferConfig(Repository db) {
 		this(db.getConfig());
 	}
 
-	TransferConfig(final Config rc) {
-		boolean fsck = rc.getBoolean("transfer", "fsckobjects", false); //$NON-NLS-1$ //$NON-NLS-2$
-		fetchFsck = rc.getBoolean("fetch", "fsckobjects", fsck); //$NON-NLS-1$ //$NON-NLS-2$
-		receiveFsck = rc.getBoolean("receive", "fsckobjects", fsck); //$NON-NLS-1$ //$NON-NLS-2$
-		fsckSkipList = rc.getString(FSCK, null, "skipList"); //$NON-NLS-1$
-		allowInvalidPersonIdent = rc.getBoolean(FSCK, "allowInvalidPersonIdent", false); //$NON-NLS-1$
-		safeForWindows = rc.getBoolean(FSCK, "safeForWindows", //$NON-NLS-1$
+	@SuppressWarnings("nls")
+	TransferConfig(Config rc) {
+		boolean fsck = rc.getBoolean("transfer", "fsckobjects", false);
+		fetchFsck = rc.getBoolean("fetch", "fsckobjects", fsck);
+		receiveFsck = rc.getBoolean("receive", "fsckobjects", fsck);
+		fsckSkipList = rc.getString(FSCK, null, "skipList");
+		allowInvalidPersonIdent = rc.getBoolean(FSCK, "allowInvalidPersonIdent",
+				false);
+		safeForWindows = rc.getBoolean(FSCK, "safeForWindows",
 						SystemReader.getInstance().isWindows());
-		safeForMacOS = rc.getBoolean(FSCK, "safeForMacOS", //$NON-NLS-1$
+		safeForMacOS = rc.getBoolean(FSCK, "safeForMacOS",
 						SystemReader.getInstance().isMacOS());
 
 		ignore = EnumSet.noneOf(ObjectChecker.ErrorType.class);
 		EnumSet<ObjectChecker.ErrorType> set = EnumSet
 				.noneOf(ObjectChecker.ErrorType.class);
 		for (String key : rc.getNames(FSCK)) {
-			if (equalsIgnoreCase(key, "skipList") //$NON-NLS-1$
-					|| equalsIgnoreCase(key, "allowLeadingZeroFileMode") //$NON-NLS-1$
-					|| equalsIgnoreCase(key, "allowInvalidPersonIdent") //$NON-NLS-1$
-					|| equalsIgnoreCase(key, "safeForWindows") //$NON-NLS-1$
-					|| equalsIgnoreCase(key, "safeForMacOS")) { //$NON-NLS-1$
+			if (equalsIgnoreCase(key, "skipList")
+					|| equalsIgnoreCase(key, "allowLeadingZeroFileMode")
+					|| equalsIgnoreCase(key, "allowInvalidPersonIdent")
+					|| equalsIgnoreCase(key, "safeForWindows")
+					|| equalsIgnoreCase(key, "safeForMacOS")) {
 				continue;
 			}
 
@@ -133,18 +176,23 @@ public class TransferConfig {
 			}
 		}
 		if (!set.contains(ObjectChecker.ErrorType.ZERO_PADDED_FILEMODE)
-				&& rc.getBoolean(FSCK, "allowLeadingZeroFileMode", false)) { //$NON-NLS-1$
+				&& rc.getBoolean(FSCK, "allowLeadingZeroFileMode", false)) {
 			ignore.add(ObjectChecker.ErrorType.ZERO_PADDED_FILEMODE);
 		}
 
 		allowTipSha1InWant = rc.getBoolean(
-				"uploadpack", "allowtipsha1inwant", false); //$NON-NLS-1$ //$NON-NLS-2$
+				"uploadpack", "allowtipsha1inwant", false);
 		allowReachableSha1InWant = rc.getBoolean(
-				"uploadpack", "allowreachablesha1inwant", false); //$NON-NLS-1$ //$NON-NLS-2$
-		hideRefs = rc.getStringList("uploadpack", null, "hiderefs"); //$NON-NLS-1$ //$NON-NLS-2$
+				"uploadpack", "allowreachablesha1inwant", false);
+		allowFilter = rc.getBoolean(
+				"uploadpack", "allowfilter", false);
+		protocolVersion = ProtocolVersion.parse(rc.getString("protocol", null, "version"));
+		hideRefs = rc.getStringList("uploadpack", null, "hiderefs");
 	}
 
 	/**
+	 * Create checker to verify fetched objects
+	 *
 	 * @return checker to verify fetched objects, or null if checking is not
 	 *         enabled in the repository configuration.
 	 * @since 3.6
@@ -155,6 +203,8 @@ public class TransferConfig {
 	}
 
 	/**
+	 * Create checker to verify objects pushed into this repository
+	 *
 	 * @return checker to verify objects pushed into this repository, or null if
 	 *         checking is not enabled in the repository configuration.
 	 * @since 4.2
@@ -184,6 +234,8 @@ public class TransferConfig {
 	}
 
 	/**
+	 * Whether to allow clients to request non-advertised tip SHA-1s
+	 *
 	 * @return allow clients to request non-advertised tip SHA-1s?
 	 * @since 3.1
 	 */
@@ -192,6 +244,8 @@ public class TransferConfig {
 	}
 
 	/**
+	 * Whether to allow clients to request non-tip SHA-1s
+	 *
 	 * @return allow clients to request non-tip SHA-1s?
 	 * @since 4.1
 	 */
@@ -200,7 +254,19 @@ public class TransferConfig {
 	}
 
 	/**
-	 * @return {@link RefFilter} respecting configured hidden refs.
+	 * @return true if clients are allowed to specify a "filter" line
+	 * @since 5.0
+	 */
+	public boolean isAllowFilter() {
+		return allowFilter;
+	}
+
+	/**
+	 * Get {@link org.eclipse.jgit.transport.RefFilter} respecting configured
+	 * hidden refs.
+	 *
+	 * @return {@link org.eclipse.jgit.transport.RefFilter} respecting
+	 *         configured hidden refs.
 	 * @since 3.1
 	 */
 	public RefFilter getRefFilter() {

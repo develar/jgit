@@ -43,8 +43,6 @@
 
 package org.eclipse.jgit.pgm.debug;
 
-import static org.eclipse.jgit.lib.RefDatabase.ALL;
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -114,9 +112,10 @@ class RebuildCommitGraph extends TextBuiltin {
 
 	private Map<ObjectId, ObjectId> rewrites = new HashMap<>();
 
+	/** {@inheritDoc} */
 	@Override
 	protected void run() throws Exception {
-		if (!really && !db.getRefDatabase().getRefs(ALL).isEmpty()) {
+		if (!really && db.getRefDatabase().hasRefs()) {
 			File directory = db.getDirectory();
 			String absolutePath = directory == null ? "null" //$NON-NLS-1$
 					: directory.getAbsolutePath();
@@ -223,7 +222,7 @@ class RebuildCommitGraph extends TextBuiltin {
 
 		ObjectId newId;
 
-		ToRewrite(final ObjectId o, final long t, final ObjectId[] p) {
+		ToRewrite(ObjectId o, long t, ObjectId[] p) {
 			oldId = o;
 			commitTime = t;
 			oldParents = p;
@@ -246,8 +245,7 @@ class RebuildCommitGraph extends TextBuiltin {
 
 	private void deleteAllRefs() throws Exception {
 		final RevWalk rw = new RevWalk(db);
-		Map<String, Ref> refs = db.getRefDatabase().getRefs(ALL);
-		for (final Ref r : refs.values()) {
+		for (Ref r : db.getRefDatabase().getRefs()) {
 			if (Constants.HEAD.equals(r.getName()))
 				continue;
 			final RefUpdate u = db.updateRef(r.getName());
@@ -260,7 +258,7 @@ class RebuildCommitGraph extends TextBuiltin {
 		final Map<String, Ref> refs = computeNewRefs();
 		new RefWriter(refs.values()) {
 			@Override
-			protected void writeFile(final String name, final byte[] content)
+			protected void writeFile(String name, byte[] content)
 					throws IOException {
 				final File file = new File(db.getDirectory(), name);
 				final LockFile lck = new LockFile(file);

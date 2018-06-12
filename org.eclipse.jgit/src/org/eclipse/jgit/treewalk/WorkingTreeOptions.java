@@ -52,15 +52,13 @@ import org.eclipse.jgit.lib.CoreConfig.EOL;
 import org.eclipse.jgit.lib.CoreConfig.HideDotFiles;
 import org.eclipse.jgit.lib.CoreConfig.SymLinks;
 
-/** Options used by the {@link WorkingTreeIterator}. */
+/**
+ * Options used by the {@link org.eclipse.jgit.treewalk.WorkingTreeIterator}.
+ */
 public class WorkingTreeOptions {
 	/** Key for {@link Config#get(SectionParser)}. */
-	public static final Config.SectionParser<WorkingTreeOptions> KEY = new SectionParser<WorkingTreeOptions>() {
-		@Override
-		public WorkingTreeOptions parse(final Config cfg) {
-			return new WorkingTreeOptions(cfg);
-		}
-	};
+	public static final Config.SectionParser<WorkingTreeOptions> KEY =
+			WorkingTreeOptions::new;
 
 	private final boolean fileMode;
 
@@ -76,7 +74,7 @@ public class WorkingTreeOptions {
 
 	private final boolean dirNoGitLinks;
 
-	private WorkingTreeOptions(final Config rc) {
+	private WorkingTreeOptions(Config rc) {
 		fileMode = rc.getBoolean(ConfigConstants.CONFIG_CORE_SECTION,
 				ConfigConstants.CONFIG_KEY_FILEMODE, true);
 		autoCRLF = rc.getEnum(ConfigConstants.CONFIG_CORE_SECTION, null,
@@ -96,18 +94,29 @@ public class WorkingTreeOptions {
 	}
 
 	/** @return true if the execute bit on working files should be trusted. */
+	/**
+	 * Whether the execute bit on working files should be trusted.
+	 *
+	 * @return {@code true} if the execute bit on working files should be
+	 *         trusted.
+	 */
 	public boolean isFileMode() {
 		return fileMode;
 	}
 
-	/** @return how automatic CRLF conversion has been configured. */
+	/**
+	 * Get automatic CRLF conversion configuration.
+	 *
+	 * @return how automatic CRLF conversion has been configured.
+	 */
 	public AutoCRLF getAutoCRLF() {
 		return autoCRLF;
 	}
 
 	/**
-	 * @return how text line endings should be normalized.
+	 * Get how text line endings should be normalized.
 	 *
+	 * @return how text line endings should be normalized.
 	 * @since 4.3
 	 */
 	public EOL getEOL() {
@@ -115,7 +124,9 @@ public class WorkingTreeOptions {
 	}
 
 	/**
-	 * @return how stat data is compared
+	 * Get how stat data is compared.
+	 *
+	 * @return how stat data is compared.
 	 * @since 3.0
 	 */
 	public CheckStat getCheckStat() {
@@ -123,6 +134,8 @@ public class WorkingTreeOptions {
 	}
 
 	/**
+	 * Get how we handle symbolic links
+	 *
 	 * @return how we handle symbolic links
 	 * @since 3.3
 	 */
@@ -131,6 +144,8 @@ public class WorkingTreeOptions {
 	}
 
 	/**
+	 * Get how we create '.'-files (on Windows)
+	 *
 	 * @return how we create '.'-files (on Windows)
 	 * @since 3.5
 	 */
@@ -139,9 +154,10 @@ public class WorkingTreeOptions {
 	}
 
 	/**
-	 * @return whether or not we treat nested repos as directories.
-	 * 		   If true, folders containing .git entries will not be
-	 * 		   treated as gitlinks.
+	 * Whether or not we treat nested repos as directories.
+	 *
+	 * @return whether or not we treat nested repos as directories. If true,
+	 *         folders containing .git entries will not be treated as gitlinks.
 	 * @since 4.3
 	 */
 	public boolean isDirNoGitLinks() { return dirNoGitLinks; }
