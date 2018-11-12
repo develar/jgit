@@ -1,7 +1,7 @@
 target "jgit-4.7" with source configurePhase
 
-include "projects/jetty-9.4.8.tpd"
-include "orbit/R20180606145124-Photon.tpd"
+include "projects/jetty-9.4.11.tpd"
+include "orbit/I20181102163257-2018-12.tpd"
 
 location "http://download.eclipse.org/releases/oxygen/" {
 	org.eclipse.osgi lazy

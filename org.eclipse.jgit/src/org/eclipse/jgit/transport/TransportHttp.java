@@ -46,6 +46,7 @@
 
 package org.eclipse.jgit.transport;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.eclipse.jgit.lib.Constants.HEAD;
 import static org.eclipse.jgit.util.HttpSupport.ENCODING_GZIP;
 import static org.eclipse.jgit.util.HttpSupport.ENCODING_X_GZIP;
@@ -421,7 +422,7 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 	}
 
 	private BufferedReader toBufferedReader(InputStream in) {
-		return new BufferedReader(new InputStreamReader(in, Constants.CHARSET));
+		return new BufferedReader(new InputStreamReader(in, UTF_8));
 	}
 
 	/** {@inheritDoc} */
@@ -478,6 +479,18 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 		this.headers = headers;
 	}
 
+	private NoRemoteRepositoryException createNotFoundException(URIish u,
+			URL url, String msg) {
+		String text;
+		if (msg != null && !msg.isEmpty()) {
+			text = MessageFormat.format(JGitText.get().uriNotFoundWithMessage,
+					url, msg);
+		} else {
+			text = MessageFormat.format(JGitText.get().uriNotFound, url);
+		}
+		return new NoRemoteRepositoryException(u, text);
+	}
+
 	private HttpConnection connect(String service)
 			throws TransportException, NotSupportedException {
 		URL u = getServiceURL(service);
@@ -506,8 +519,8 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 					return conn;
 
 				case HttpConnection.HTTP_NOT_FOUND:
-					throw new NoRemoteRepositoryException(uri,
-							MessageFormat.format(JGitText.get().uriNotFound, u));
+					throw createNotFoundException(uri, u,
+							conn.getResponseMessage());
 
 				case HttpConnection.HTTP_UNAUTHORIZED:
 					authMethod = HttpAuthMethod.scanResponse(conn, ignoreTypes);
@@ -934,7 +947,7 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 			// Line oriented readable content is likely to compress well.
 			// Request gzip encoding.
 			InputStream is = open(path, AcceptEncoding.GZIP).in;
-			return new BufferedReader(new InputStreamReader(is, Constants.CHARSET));
+			return new BufferedReader(new InputStreamReader(is, UTF_8));
 		}
 
 		@Override
@@ -1174,9 +1187,8 @@ public class TransportHttp extends HttpTransport implements WalkTransport,
 						return;
 
 					case HttpConnection.HTTP_NOT_FOUND:
-						throw new NoRemoteRepositoryException(uri,
-								MessageFormat.format(JGitText.get().uriNotFound,
-										conn.getURL()));
+						throw createNotFoundException(uri, conn.getURL(),
+								conn.getResponseMessage());
 
 					case HttpConnection.HTTP_FORBIDDEN:
 						throw new TransportException(uri,

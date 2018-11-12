@@ -513,7 +513,7 @@ public class DirCacheCheckout {
 
 			if (!conflicts.isEmpty()) {
 				if (failOnConflict)
-					throw new CheckoutConflictException(conflicts.toArray(new String[conflicts.size()]));
+					throw new CheckoutConflictException(conflicts.toArray(new String[0]));
 				else
 					cleanUpConflicts();
 			}
@@ -522,7 +522,7 @@ public class DirCacheCheckout {
 			builder.finish();
 
 			// init progress reporting
-			int numTotal = removed.size() + updated.size();
+			int numTotal = removed.size() + updated.size() + conflicts.size();
 			monitor.beginTask(JGitText.get().checkingOutFiles, numTotal);
 
 			performingCheckout = true;
@@ -596,6 +596,33 @@ public class DirCacheCheckout {
 					toUpdate.remove();
 				}
 				throw ex;
+			}
+			for (String conflict : conflicts) {
+				// the conflicts are likely to have multiple entries in the
+				// dircache, we only want to check out the one for the "theirs"
+				// tree
+				int entryIdx = dc.findEntry(conflict);
+				if (entryIdx >= 0) {
+					while (entryIdx < dc.getEntryCount()) {
+						DirCacheEntry entry = dc.getEntry(entryIdx);
+						if (!entry.getPathString().equals(conflict)) {
+							break;
+						}
+						if (entry.getStage() == DirCacheEntry.STAGE_3) {
+							checkoutEntry(repo, entry, objectReader, false,
+									null);
+							break;
+						}
+						++entryIdx;
+					}
+				}
+
+				monitor.update(1);
+				if (monitor.isCancelled()) {
+					throw new CanceledException(MessageFormat.format(
+							JGitText.get().operationCanceled,
+							JGitText.get().checkingOutFiles));
+				}
 			}
 			monitor.endTask();
 
@@ -1366,7 +1393,11 @@ public class DirCacheCheckout {
 	 *            object reader to use for checkout
 	 * @throws java.io.IOException
 	 * @since 3.6
+	 * @deprecated since 5.1, use
+	 *             {@link #checkoutEntry(Repository, DirCacheEntry, ObjectReader, boolean, CheckoutMetadata)}
+	 *             instead
 	 */
+	@Deprecated
 	public static void checkoutEntry(Repository repo, DirCacheEntry entry,
 			ObjectReader or) throws IOException {
 		checkoutEntry(repo, entry, or, false, null);

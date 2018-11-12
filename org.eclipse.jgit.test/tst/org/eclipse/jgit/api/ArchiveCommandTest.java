@@ -42,6 +42,7 @@
  */
 package org.eclipse.jgit.api;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
@@ -190,7 +191,8 @@ public class ArchiveCommandTest extends RepositoryTestCase {
 		}
 	}
 
-	private class MockFormat implements ArchiveCommand.Format<MockOutputStream> {
+	private static class MockFormat
+			implements ArchiveCommand.Format<MockOutputStream> {
 
 		private Map<String, String> entries = new HashMap<>();
 
@@ -230,7 +232,9 @@ public class ArchiveCommandTest extends RepositoryTestCase {
 
 		@Override
 		public void putEntry(MockOutputStream out, ObjectId tree, String path, FileMode mode, ObjectLoader loader) {
-			String content = mode != FileMode.TREE ? new String(loader.getBytes()) : null;
+			String content = mode != FileMode.TREE
+					? new String(loader.getBytes(), UTF_8)
+					: null;
 			entries.put(path, content);
 		}
 
@@ -240,7 +244,7 @@ public class ArchiveCommandTest extends RepositoryTestCase {
 		}
 	}
 
-	public class MockOutputStream extends OutputStream {
+	public static class MockOutputStream extends OutputStream {
 
 		private int foo;
 

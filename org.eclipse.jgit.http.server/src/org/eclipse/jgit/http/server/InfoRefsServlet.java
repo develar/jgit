@@ -43,6 +43,7 @@
 
 package org.eclipse.jgit.http.server;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.eclipse.jgit.http.server.ServletUtils.getRepository;
 
 import java.io.IOException;
@@ -68,12 +69,12 @@ class InfoRefsServlet extends HttpServlet {
 		// Assume a dumb client and send back the dumb client
 		// version of the info/refs file.
 		rsp.setContentType(HttpSupport.TEXT_PLAIN);
-		rsp.setCharacterEncoding(Constants.CHARACTER_ENCODING);
+		rsp.setCharacterEncoding(UTF_8.name());
 
 		final Repository db = getRepository(req);
 		try (OutputStreamWriter out = new OutputStreamWriter(
 				new SmartOutputStream(req, rsp, true),
-				Constants.CHARSET)) {
+				UTF_8)) {
 			final RefAdvertiser adv = new RefAdvertiser() {
 				@Override
 				protected void writeOne(CharSequence line)

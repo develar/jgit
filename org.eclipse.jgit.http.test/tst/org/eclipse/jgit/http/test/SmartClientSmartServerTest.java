@@ -43,7 +43,7 @@
 
 package org.eclipse.jgit.http.test;
 
-import static org.eclipse.jgit.lib.Constants.CHARSET;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.eclipse.jgit.util.HttpSupport.HDR_CONTENT_ENCODING;
 import static org.eclipse.jgit.util.HttpSupport.HDR_CONTENT_LENGTH;
 import static org.eclipse.jgit.util.HttpSupport.HDR_CONTENT_TYPE;
@@ -266,7 +266,7 @@ public class SmartClientSmartServerTest extends HttpTestCase {
 					throws IOException, ServletException {
 				final HttpServletResponse r = (HttpServletResponse) response;
 				r.setContentType("text/plain");
-				r.setCharacterEncoding(Constants.CHARACTER_ENCODING);
+				r.setCharacterEncoding(UTF_8.name());
 				try (PrintWriter w = r.getWriter()) {
 					w.print("OK");
 				}
@@ -1081,7 +1081,7 @@ public class SmartClientSmartServerTest extends HttpTestCase {
 	public void testInvalidWant() throws Exception {
 		@SuppressWarnings("resource")
 		ObjectId id = new ObjectInserter.Formatter().idFor(Constants.OBJ_BLOB,
-				"testInvalidWant".getBytes(CHARSET));
+				"testInvalidWant".getBytes(UTF_8));
 
 		Repository dst = createBareRepository();
 		try (Transport t = Transport.open(dst, remoteURI);

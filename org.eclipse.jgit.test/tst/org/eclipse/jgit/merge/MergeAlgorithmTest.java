@@ -43,6 +43,7 @@
 
 package org.eclipse.jgit.merge;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.Assert.assertEquals;
 
 import java.io.ByteArrayOutputStream;
@@ -301,8 +302,8 @@ public class MergeAlgorithmTest {
 		MergeResult r = new MergeAlgorithm().merge(RawTextComparator.DEFAULT,
 				T(commonBase), T(ours), T(theirs));
 		ByteArrayOutputStream bo=new ByteArrayOutputStream(50);
-		fmt.formatMerge(bo, r, "B", "O", "T", Constants.CHARACTER_ENCODING);
-		return new String(bo.toByteArray(), Constants.CHARACTER_ENCODING);
+		fmt.formatMerge(bo, r, "B", "O", "T", UTF_8);
+		return new String(bo.toByteArray(), UTF_8);
 	}
 
 	public String t(String text) {

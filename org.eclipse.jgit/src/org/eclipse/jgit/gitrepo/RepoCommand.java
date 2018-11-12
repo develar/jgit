@@ -42,6 +42,7 @@
  */
 package org.eclipse.jgit.gitrepo;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.eclipse.jgit.lib.Constants.DEFAULT_REMOTE_NAME;
 import static org.eclipse.jgit.lib.Constants.R_REMOTES;
 
@@ -55,15 +56,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.StringJoiner;
+import java.util.TreeMap;
 
+import org.eclipse.jgit.annotations.NonNull;
 import org.eclipse.jgit.annotations.Nullable;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.GitCommand;
 import org.eclipse.jgit.api.SubmoduleAddCommand;
 import org.eclipse.jgit.api.errors.ConcurrentRefUpdateException;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.api.errors.InvalidRefNameException;
 import org.eclipse.jgit.api.errors.JGitInternalException;
 import org.eclipse.jgit.dircache.DirCache;
 import org.eclipse.jgit.dircache.DirCacheBuilder;
@@ -79,7 +82,6 @@ import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.FileMode;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectInserter;
-import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.ProgressMonitor;
 import org.eclipse.jgit.lib.Ref;
@@ -89,6 +91,7 @@ import org.eclipse.jgit.lib.RefUpdate.Result;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
+import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.util.FileUtils;
 
 /**
@@ -115,16 +118,15 @@ public class RepoCommand extends GitCommand<RevCommit> {
 	private String groupsParam;
 	private String branch;
 	private String targetBranch = Constants.HEAD;
-	private boolean recordRemoteBranch = false;
-	private boolean recordSubmoduleLabels = false;
-	private boolean recordShallowSubmodules = false;
+	private boolean recordRemoteBranch = true;
+	private boolean recordSubmoduleLabels = true;
+	private boolean recordShallowSubmodules = true;
 	private PersonIdent author;
 	private RemoteReader callback;
 	private InputStream inputStream;
 	private IncludedFileReader includedReader;
 	private boolean ignoreRemoteFailures = false;
 
-	private List<RepoProject> bareProjects;
 	private ProgressMonitor monitor;
 
 	/**
@@ -144,7 +146,9 @@ public class RepoCommand extends GitCommand<RevCommit> {
 		 * @param uri
 		 *            The URI of the remote repository
 		 * @param ref
-		 *            The ref (branch/tag/etc.) to read
+		 *            Name of the ref to lookup. May be a short-hand form, e.g.
+		 *            "master" which is is automatically expanded to
+		 *            "refs/heads/master" if "refs/heads/master" already exists.
 		 * @return the sha1 of the remote repository, or null if the ref does
 		 *         not exist.
 		 * @throws GitAPIException
@@ -165,13 +169,93 @@ public class RepoCommand extends GitCommand<RevCommit> {
 		 * @throws GitAPIException
 		 * @throws IOException
 		 * @since 3.5
+		 *
+		 * @deprecated Use {@link #readFileWithMode(String, String, String)}
+		 *             instead
 		 */
-		public byte[] readFile(String uri, String ref, String path)
+		@Deprecated
+		public default byte[] readFile(String uri, String ref, String path)
+				throws GitAPIException, IOException {
+			return readFileWithMode(uri, ref, path).getContents();
+		}
+
+		/**
+		 * Read contents and mode (i.e. permissions) of the file from a remote
+		 * repository.
+		 *
+		 * @param uri
+		 *            The URI of the remote repository
+		 * @param ref
+		 *            Name of the ref to lookup. May be a short-hand form, e.g.
+		 *            "master" which is is automatically expanded to
+		 *            "refs/heads/master" if "refs/heads/master" already exists.
+		 * @param path
+		 *            The relative path (inside the repo) to the file to read
+		 * @return The contents and file mode of the file in the given
+		 *         repository and branch. Never null.
+		 * @throws GitAPIException
+		 *             If the ref have an invalid or ambiguous name, or it does
+		 *             not exist in the repository,
+		 * @throws IOException
+		 *             If the object does not exist or is too large
+		 * @since 5.2
+		 */
+		@NonNull
+		public RemoteFile readFileWithMode(String uri, String ref, String path)
 				throws GitAPIException, IOException;
+	}
+
+	/**
+	 * Read-only view of contents and file mode (i.e. permissions) for a file in
+	 * a remote repository.
+	 *
+	 * @since 5.2
+	 */
+	public static final class RemoteFile {
+		@NonNull
+		private final byte[] contents;
+
+		@NonNull
+		private final FileMode fileMode;
+
+		/**
+		 * @param contents
+		 *            Raw contents of the file.
+		 * @param fileMode
+		 *            Git file mode for this file (e.g. executable or regular)
+		 */
+		public RemoteFile(@NonNull byte[] contents,
+				@NonNull FileMode fileMode) {
+			this.contents = Objects.requireNonNull(contents);
+			this.fileMode = Objects.requireNonNull(fileMode);
+		}
+
+		/**
+		 * Contents of the file.
+		 * <p>
+		 * Callers who receive this reference must not modify its contents (as
+		 * it can point to internal cached data).
+		 *
+		 * @return Raw contents of the file. Do not modify it.
+		 */
+		@NonNull
+		public byte[] getContents() {
+			return contents;
+		}
+
+		/**
+		 * @return Git file mode for this file (e.g. executable or regular)
+		 */
+		@NonNull
+		public FileMode getFileMode() {
+			return fileMode;
+		}
+
 	}
 
 	/** A default implementation of {@link RemoteReader} callback. */
 	public static class DefaultRemoteReader implements RemoteReader {
+
 		@Override
 		public ObjectId sha1(String uri, String ref) throws GitAPIException {
 			Map<String, Ref> map = Git
@@ -183,36 +267,28 @@ public class RepoCommand extends GitCommand<RevCommit> {
 		}
 
 		@Override
-		public byte[] readFile(String uri, String ref, String path)
+		public RemoteFile readFileWithMode(String uri, String ref, String path)
 				throws GitAPIException, IOException {
 			File dir = FileUtils.createTempDir("jgit_", ".git", null); //$NON-NLS-1$ //$NON-NLS-2$
 			try (Git git = Git.cloneRepository().setBare(true).setDirectory(dir)
 					.setURI(uri).call()) {
-				return readFileFromRepo(git.getRepository(), ref, path);
+				Repository repo = git.getRepository();
+				ObjectId refCommitId = sha1(uri, ref);
+				if (refCommitId == null) {
+					throw new InvalidRefNameException(MessageFormat
+							.format(JGitText.get().refNotResolved, ref));
+				}
+				RevCommit commit = repo.parseCommit(refCommitId);
+				TreeWalk tw = TreeWalk.forPath(repo, path, commit.getTree());
+
+				// TODO(ifrade): Cope better with big files (e.g. using
+				// InputStream instead of byte[])
+				return new RemoteFile(
+						tw.getObjectReader().open(tw.getObjectId(0))
+								.getCachedBytes(Integer.MAX_VALUE),
+						tw.getFileMode(0));
 			} finally {
 				FileUtils.delete(dir, FileUtils.RECURSIVE);
-			}
-		}
-
-		/**
-		 * Read a file from the repository
-		 *
-		 * @param repo
-		 *            The repository containing the file
-		 * @param ref
-		 *            The ref (branch/tag/etc.) to read
-		 * @param path
-		 *            The relative path (inside the repo) to the file to read
-		 * @return the file's content
-		 * @throws GitAPIException
-		 * @throws IOException
-		 * @since 3.5
-		 */
-		protected byte[] readFileFromRepo(Repository repo,
-				String ref, String path) throws GitAPIException, IOException {
-			try (ObjectReader reader = repo.newObjectReader()) {
-				ObjectId oid = repo.resolve(ref + ":" + path); //$NON-NLS-1$
-				return reader.open(oid).getBytes(Integer.MAX_VALUE);
 			}
 		}
 	}
@@ -519,37 +595,33 @@ public class RepoCommand extends GitCommand<RevCommit> {
 		}
 
 		if (repo.isBare()) {
-			bareProjects = new ArrayList<>();
 			if (author == null)
 				author = new PersonIdent(repo);
 			if (callback == null)
 				callback = new DefaultRemoteReader();
-			for (RepoProject proj : filteredProjects) {
-				addSubmoduleBare(proj.getUrl(), proj.getPath(),
-						proj.getRevision(), proj.getCopyFiles(),
-						proj.getLinkFiles(), proj.getGroups(),
-						proj.getRecommendShallow());
-			}
+			List<RepoProject> renamedProjects = renameProjects(filteredProjects);
+
 			DirCache index = DirCache.newInCore();
 			DirCacheBuilder builder = index.builder();
 			ObjectInserter inserter = repo.newObjectInserter();
 			try (RevWalk rw = new RevWalk(repo)) {
 				Config cfg = new Config();
 				StringBuilder attributes = new StringBuilder();
-				for (RepoProject proj : bareProjects) {
+				for (RepoProject proj : renamedProjects) {
+					String name = proj.getName();
 					String path = proj.getPath();
-					String nameUri = proj.getName();
+					String url = proj.getUrl();
 					ObjectId objectId;
 					if (ObjectId.isId(proj.getRevision())) {
 						objectId = ObjectId.fromString(proj.getRevision());
 					} else {
-						objectId = callback.sha1(nameUri, proj.getRevision());
+						objectId = callback.sha1(url, proj.getRevision());
 						if (objectId == null && !ignoreRemoteFailures) {
-							throw new RemoteUnavailableException(nameUri);
+							throw new RemoteUnavailableException(url);
 						}
 						if (recordRemoteBranch) {
 							// can be branch or tag
-							cfg.setString("submodule", path, "branch", //$NON-NLS-1$ //$NON-NLS-2$
+							cfg.setString("submodule", name, "branch", //$NON-NLS-1$ //$NON-NLS-2$
 									proj.getRevision());
 						}
 
@@ -559,7 +631,7 @@ public class RepoCommand extends GitCommand<RevCommit> {
 							// depth in the 'clone-depth' field, while
 							// git core only uses a binary 'shallow = true/false'
 							// hint, we'll map any depth to 'shallow = true'
-							cfg.setBoolean("submodule", path, "shallow", //$NON-NLS-1$ //$NON-NLS-2$
+							cfg.setBoolean("submodule", name, "shallow", //$NON-NLS-1$ //$NON-NLS-2$
 									true);
 						}
 					}
@@ -575,12 +647,13 @@ public class RepoCommand extends GitCommand<RevCommit> {
 						attributes.append(rec.toString());
 					}
 
-					URI submodUrl = URI.create(nameUri);
+					URI submodUrl = URI.create(url);
 					if (targetUri != null) {
 						submodUrl = relativize(targetUri, submodUrl);
 					}
-					cfg.setString("submodule", path, "path", path); //$NON-NLS-1$ //$NON-NLS-2$
-					cfg.setString("submodule", path, "url", submodUrl.toString()); //$NON-NLS-1$ //$NON-NLS-2$
+					cfg.setString("submodule", name, "path", path); //$NON-NLS-1$ //$NON-NLS-2$
+					cfg.setString("submodule", name, "url", //$NON-NLS-1$ //$NON-NLS-2$
+							submodUrl.toString());
 
 					// create gitlink
 					if (objectId != null) {
@@ -590,12 +663,13 @@ public class RepoCommand extends GitCommand<RevCommit> {
 						builder.add(dcEntry);
 
 						for (CopyFile copyfile : proj.getCopyFiles()) {
-							byte[] src = callback.readFile(
-								nameUri, proj.getRevision(), copyfile.src);
-							objectId = inserter.insert(Constants.OBJ_BLOB, src);
+							RemoteFile rf = callback.readFileWithMode(
+								url, proj.getRevision(), copyfile.src);
+							objectId = inserter.insert(Constants.OBJ_BLOB,
+									rf.getContents());
 							dcEntry = new DirCacheEntry(copyfile.dest);
 							dcEntry.setObjectId(objectId);
-							dcEntry.setFileMode(FileMode.REGULAR_FILE);
+							dcEntry.setFileMode(rf.getFileMode());
 							builder.add(dcEntry);
 						}
 						for (LinkFile linkfile : proj.getLinkFiles()) {
@@ -610,8 +684,7 @@ public class RepoCommand extends GitCommand<RevCommit> {
 							}
 
 							objectId = inserter.insert(Constants.OBJ_BLOB,
-								link.getBytes(
-									Constants.CHARACTER_ENCODING));
+									link.getBytes(UTF_8));
 							dcEntry = new DirCacheEntry(linkfile.dest);
 							dcEntry.setObjectId(objectId);
 							dcEntry.setFileMode(FileMode.SYMLINK);
@@ -624,7 +697,7 @@ public class RepoCommand extends GitCommand<RevCommit> {
 				// create a new DirCacheEntry for .gitmodules file.
 				final DirCacheEntry dcEntry = new DirCacheEntry(Constants.DOT_GIT_MODULES);
 				ObjectId objectId = inserter.insert(Constants.OBJ_BLOB,
-						content.getBytes(Constants.CHARACTER_ENCODING));
+						content.getBytes(UTF_8));
 				dcEntry.setObjectId(objectId);
 				dcEntry.setFileMode(FileMode.REGULAR_FILE);
 				builder.add(dcEntry);
@@ -633,7 +706,7 @@ public class RepoCommand extends GitCommand<RevCommit> {
 					// create a new DirCacheEntry for .gitattributes file.
 					final DirCacheEntry dcEntryAttr = new DirCacheEntry(Constants.DOT_GIT_ATTRIBUTES);
 					ObjectId attrId = inserter.insert(Constants.OBJ_BLOB,
-							attributes.toString().getBytes(Constants.CHARACTER_ENCODING));
+							attributes.toString().getBytes(UTF_8));
 					dcEntryAttr.setObjectId(attrId);
 					dcEntryAttr.setFileMode(FileMode.REGULAR_FILE);
 					builder.add(dcEntryAttr);
@@ -691,7 +764,7 @@ public class RepoCommand extends GitCommand<RevCommit> {
 		} else {
 			try (Git git = new Git(repo)) {
 				for (RepoProject proj : filteredProjects) {
-					addSubmodule(proj.getUrl(), proj.getPath(),
+					addSubmodule(proj.getName(), proj.getUrl(), proj.getPath(),
 							proj.getRevision(), proj.getCopyFiles(),
 							proj.getLinkFiles(), git);
 				}
@@ -703,9 +776,9 @@ public class RepoCommand extends GitCommand<RevCommit> {
 		}
 	}
 
-	private void addSubmodule(String url, String path, String revision,
-			List<CopyFile> copyfiles, List<LinkFile> linkfiles, Git git)
-			throws GitAPIException, IOException {
+	private void addSubmodule(String name, String url, String path,
+			String revision, List<CopyFile> copyfiles, List<LinkFile> linkfiles,
+			Git git) throws GitAPIException, IOException {
 		assert (!repo.isBare());
 		assert (git != null);
 		if (!linkfiles.isEmpty()) {
@@ -713,7 +786,8 @@ public class RepoCommand extends GitCommand<RevCommit> {
 					JGitText.get().nonBareLinkFilesNotSupported);
 		}
 
-		SubmoduleAddCommand add = git.submoduleAdd().setPath(path).setURI(url);
+		SubmoduleAddCommand add = git.submoduleAdd().setName(name).setPath(path)
+				.setURI(url);
 		if (monitor != null)
 			add.setProgressMonitor(monitor);
 
@@ -731,16 +805,42 @@ public class RepoCommand extends GitCommand<RevCommit> {
 		}
 	}
 
-	private void addSubmoduleBare(String url, String path, String revision,
-			List<CopyFile> copyfiles, List<LinkFile> linkfiles,
-			Set<String> groups, String recommendShallow) {
-		assert (repo.isBare());
-		assert (bareProjects != null);
-		RepoProject proj = new RepoProject(url, path, revision, null, groups,
-				recommendShallow);
-		proj.addCopyFiles(copyfiles);
-		proj.addLinkFiles(linkfiles);
-		bareProjects.add(proj);
+	/**
+	 * Rename the projects if there's a conflict when converted to submodules.
+	 *
+	 * @param projects
+	 *            parsed projects
+	 * @return projects that are renamed if necessary
+	 */
+	private List<RepoProject> renameProjects(List<RepoProject> projects) {
+		Map<String, List<RepoProject>> m = new TreeMap<>();
+		for (RepoProject proj : projects) {
+			List<RepoProject> l = m.get(proj.getName());
+			if (l == null) {
+				l = new ArrayList<>();
+				m.put(proj.getName(), l);
+			}
+			l.add(proj);
+		}
+
+		List<RepoProject> ret = new ArrayList<>();
+		for (List<RepoProject> ps : m.values()) {
+			boolean nameConflict = ps.size() != 1;
+			for (RepoProject proj : ps) {
+				String name = proj.getName();
+				if (nameConflict) {
+					name += SLASH + proj.getPath();
+				}
+				RepoProject p = new RepoProject(name,
+						proj.getPath(), proj.getRevision(), null,
+						proj.getGroups(), proj.getRecommendShallow());
+				p.setUrl(proj.getUrl());
+				p.addCopyFiles(proj.getCopyFiles());
+				p.addLinkFiles(proj.getLinkFiles());
+				ret.add(p);
+			}
+		}
+		return ret;
 	}
 
 	/*

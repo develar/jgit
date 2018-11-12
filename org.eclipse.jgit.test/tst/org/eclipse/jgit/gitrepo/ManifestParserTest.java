@@ -42,7 +42,8 @@
  */
 package org.eclipse.jgit.gitrepo;
 
-import static org.eclipse.jgit.lib.Constants.CHARSET;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -51,6 +52,8 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.junit.Test;
 import org.xml.sax.SAXException;
@@ -82,7 +85,7 @@ public class ManifestParserTest {
 
 		ManifestParser parser = new ManifestParser(
 				null, null, "master", baseUrl, null, null);
-		parser.read(new ByteArrayInputStream(xmlContent.toString().getBytes(CHARSET)));
+		parser.read(new ByteArrayInputStream(xmlContent.toString().getBytes(UTF_8)));
 		// Unfiltered projects should have them all.
 		results.clear();
 		results.add("foo");
@@ -136,13 +139,36 @@ public class ManifestParserTest {
 				baseUrl, null, null);
 		try {
 			parser.read(new ByteArrayInputStream(
-					xmlContent.toString().getBytes(CHARSET)));
+					xmlContent.toString().getBytes(UTF_8)));
 			fail("ManifestParser did not throw exception for missing fetch");
 		} catch (IOException e) {
 			assertTrue(e.getCause() instanceof SAXException);
 			assertTrue(e.getCause().getMessage()
 					.contains("is missing fetch attribute"));
 		}
+	}
+
+	@Test
+	public void testRemoveProject() throws Exception {
+		StringBuilder xmlContent = new StringBuilder();
+		xmlContent.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
+				.append("<manifest>")
+				.append("<remote name=\"remote1\" fetch=\".\" />")
+				.append("<default revision=\"master\" remote=\"remote1\" />")
+				.append("<project path=\"foo\" name=\"foo\" />")
+				.append("<project path=\"bar\" name=\"bar\" />")
+				.append("<remove-project name=\"foo\" />")
+				.append("<project path=\"foo\" name=\"baz\" />")
+				.append("</manifest>");
+
+		ManifestParser parser = new ManifestParser(null, null, "master",
+				"https://git.google.com/", null, null);
+		parser.read(new ByteArrayInputStream(
+				xmlContent.toString().getBytes(UTF_8)));
+
+		assertEquals(Stream.of("bar", "baz").collect(Collectors.toSet()),
+				parser.getProjects().stream().map(RepoProject::getName)
+						.collect(Collectors.toSet()));
 	}
 
 	void testNormalize(String in, String want) {

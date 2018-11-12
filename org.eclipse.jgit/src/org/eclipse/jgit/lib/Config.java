@@ -51,7 +51,7 @@
 
 package org.eclipse.jgit.lib;
 
-import static org.eclipse.jgit.lib.Constants.CHARSET;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 import java.text.MessageFormat;
 import java.util.ArrayList;
@@ -62,7 +62,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.eclipse.jgit.annotations.Nullable;
 import org.eclipse.jgit.errors.ConfigInvalidException;
 import org.eclipse.jgit.events.ConfigChangedEvent;
 import org.eclipse.jgit.events.ConfigChangedListener;
@@ -868,7 +867,7 @@ public class Config {
 
 		boolean lastWasMatch = false;
 		for (ConfigLine e : srcState.entryList) {
-			if (e.match(section, subsection)) {
+			if (e.includedFrom == null && e.match(section, subsection)) {
 				// Skip this record, it's for the section we are removing.
 				lastWasMatch = true;
 				continue;
@@ -923,7 +922,7 @@ public class Config {
 		//
 		while (entryIndex < entries.size() && valueIndex < values.size()) {
 			final ConfigLine e = entries.get(entryIndex);
-			if (e.match(section, subsection, name)) {
+			if (e.includedFrom == null && e.match(section, subsection, name)) {
 				entries.set(entryIndex, e.forValue(values.get(valueIndex++)));
 				insertPosition = entryIndex + 1;
 			}
@@ -935,7 +934,8 @@ public class Config {
 		if (valueIndex == values.size() && entryIndex < entries.size()) {
 			while (entryIndex < entries.size()) {
 				final ConfigLine e = entries.get(entryIndex++);
-				if (e.match(section, subsection, name))
+				if (e.includedFrom == null
+						&& e.match(section, subsection, name))
 					entries.remove(--entryIndex);
 			}
 		}
@@ -948,7 +948,8 @@ public class Config {
 				// is already a section available that matches. Insert
 				// after the last key of that section.
 				//
-				insertPosition = findSectionEnd(entries, section, subsection);
+				insertPosition = findSectionEnd(entries, section, subsection,
+						true);
 			}
 			if (insertPosition < 0) {
 				// We didn't find any matching section header for this key,
@@ -985,9 +986,14 @@ public class Config {
 	}
 
 	private static int findSectionEnd(final List<ConfigLine> entries,
-			final String section, final String subsection) {
+			final String section, final String subsection,
+			boolean skipIncludedLines) {
 		for (int i = 0; i < entries.size(); i++) {
 			ConfigLine e = entries.get(i);
+			if (e.includedFrom != null && skipIncludedLines) {
+				continue;
+			}
+
 			if (e.match(section, subsection, null)) {
 				i++;
 				while (i < entries.size()) {
@@ -1011,6 +1017,8 @@ public class Config {
 	public String toText() {
 		final StringBuilder out = new StringBuilder();
 		for (ConfigLine e : state.get().entryList) {
+			if (e.includedFrom != null)
+				continue;
 			if (e.prefix != null)
 				out.append(e.prefix);
 			if (e.section != null && e.name == null) {
@@ -1060,11 +1068,11 @@ public class Config {
 	 *             made to {@code this}.
 	 */
 	public void fromText(String text) throws ConfigInvalidException {
-		state.set(newState(fromTextRecurse(text, 1)));
+		state.set(newState(fromTextRecurse(text, 1, null)));
 	}
 
-	private List<ConfigLine> fromTextRecurse(String text, int depth)
-			throws ConfigInvalidException {
+	private List<ConfigLine> fromTextRecurse(String text, int depth,
+			String includedFrom) throws ConfigInvalidException {
 		if (depth > MAX_DEPTH) {
 			throw new ConfigInvalidException(
 					JGitText.get().tooManyIncludeRecursions);
@@ -1073,6 +1081,7 @@ public class Config {
 		final StringReader in = new StringReader(text);
 		ConfigLine last = null;
 		ConfigLine e = new ConfigLine();
+		e.includedFrom = includedFrom;
 		for (;;) {
 			int input = in.read();
 			if (-1 == input) {
@@ -1088,7 +1097,7 @@ public class Config {
 				if (e.section != null)
 					last = e;
 				e = new ConfigLine();
-
+				e.includedFrom = includedFrom;
 			} else if (e.suffix != null) {
 				// Everything up until the end-of-line is in the suffix.
 				e.suffix += c;
@@ -1148,7 +1157,6 @@ public class Config {
 	 *             if something went wrong while reading the config
 	 * @since 4.10
 	 */
-	@Nullable
 	protected byte[] readIncludedConfig(String relPath)
 			throws ConfigInvalidException {
 		return null;
@@ -1168,12 +1176,12 @@ public class Config {
 
 		String decoded;
 		if (isUtf8(bytes)) {
-			decoded = RawParseUtils.decode(CHARSET, bytes, 3, bytes.length);
+			decoded = RawParseUtils.decode(UTF_8, bytes, 3, bytes.length);
 		} else {
 			decoded = RawParseUtils.decode(bytes);
 		}
 		try {
-			newEntries.addAll(fromTextRecurse(decoded, depth + 1));
+			newEntries.addAll(fromTextRecurse(decoded, depth + 1, line.value));
 		} catch (ConfigInvalidException e) {
 			throw new ConfigInvalidException(MessageFormat
 					.format(JGitText.get().cannotReadFile, line.value), e);

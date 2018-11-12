@@ -42,7 +42,7 @@
  */
 package org.eclipse.jgit.merge;
 
-import static org.eclipse.jgit.lib.Constants.CHARSET;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.eclipse.jgit.lib.Constants.OBJ_BLOB;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -60,6 +60,7 @@ import java.util.Map;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.MergeResult;
 import org.eclipse.jgit.api.MergeResult.MergeStatus;
+import org.eclipse.jgit.api.RebaseResult;
 import org.eclipse.jgit.api.errors.CheckoutConflictException;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.JGitInternalException;
@@ -428,6 +429,44 @@ public class MergerTest extends RepositoryTestCase {
 				indexState(CONTENT));
 	}
 
+	@Theory
+	public void rebaseWithCrlfAutoCrlfTrue(MergeStrategy strategy)
+			throws IOException, GitAPIException {
+		Git git = Git.wrap(db);
+		db.getConfig().setString("core", null, "autocrlf", "true");
+		db.getConfig().save();
+		writeTrashFile("crlf.txt", "line 1\r\nline 2\r\nline 3\r\n");
+		git.add().addFilepattern("crlf.txt").call();
+		RevCommit first = git.commit().setMessage("base").call();
+
+		git.checkout().setCreateBranch(true).setStartPoint(first)
+				.setName("brancha").call();
+
+		File testFile = writeTrashFile("crlf.txt",
+				"line 1\r\nmodified line\r\nline 3\r\n");
+		git.add().addFilepattern("crlf.txt").call();
+		git.commit().setMessage("on brancha").call();
+
+		git.checkout().setName("master").call();
+		File otherFile = writeTrashFile("otherfile.txt", "a line\r\n");
+		git.add().addFilepattern("otherfile.txt").call();
+		git.commit().setMessage("on master").call();
+
+		git.checkout().setName("brancha").call();
+		checkFile(testFile, "line 1\r\nmodified line\r\nline 3\r\n");
+		assertFalse(otherFile.exists());
+
+		RebaseResult rebaseResult = git.rebase().setStrategy(strategy)
+				.setUpstream(db.resolve("master")).call();
+		assertEquals(RebaseResult.Status.OK, rebaseResult.getStatus());
+		checkFile(testFile, "line 1\r\nmodified line\r\nline 3\r\n");
+		checkFile(otherFile, "a line\r\n");
+		assertEquals(
+				"[crlf.txt, mode:100644, content:line 1\nmodified line\nline 3\n]"
+						+ "[otherfile.txt, mode:100644, content:a line\n]",
+				indexState(CONTENT));
+	}
+
 	/**
 	 * Merging two equal subtrees when the index does not contain any file in
 	 * that subtree should lead to a merged state.
@@ -754,7 +793,7 @@ public class MergerTest extends RepositoryTestCase {
 		}
 		binary[50] = '\0';
 
-		writeTrashFile("file", new String(binary, CHARSET));
+		writeTrashFile("file", new String(binary, UTF_8));
 		git.add().addFilepattern("file").call();
 		RevCommit first = git.commit().setMessage("added file").call();
 
@@ -762,7 +801,7 @@ public class MergerTest extends RepositoryTestCase {
 		int idx = LINELEN * 1200 + 1;
 		byte save = binary[idx];
 		binary[idx] = '@';
-		writeTrashFile("file", new String(binary, CHARSET));
+		writeTrashFile("file", new String(binary, UTF_8));
 
 		binary[idx] = save;
 		git.add().addFilepattern("file").call();
@@ -771,7 +810,7 @@ public class MergerTest extends RepositoryTestCase {
 
 		git.checkout().setCreateBranch(true).setStartPoint(first).setName("side").call();
 		binary[LINELEN * 1500 + 1] = '!';
-		writeTrashFile("file", new String(binary, CHARSET));
+		writeTrashFile("file", new String(binary, UTF_8));
 		git.add().addFilepattern("file").call();
 		RevCommit sideCommit = git.commit().setAll(true)
 			.setMessage("modified file l 1500").call();
@@ -800,7 +839,7 @@ public class MergerTest extends RepositoryTestCase {
 	/**
 	 * Throws an exception if reading beyond limit.
 	 */
-	class BigReadForbiddenStream extends ObjectStream.Filter {
+	static class BigReadForbiddenStream extends ObjectStream.Filter {
 		int limit;
 
 		BigReadForbiddenStream(ObjectStream orig, int limit) {
@@ -839,7 +878,7 @@ public class MergerTest extends RepositoryTestCase {
 		}
 	}
 
-	class BigReadForbiddenReader extends ObjectReader.Filter {
+	static class BigReadForbiddenReader extends ObjectReader.Filter {
 		ObjectReader delegate;
 		int limit;
 
@@ -933,7 +972,7 @@ public class MergerTest extends RepositoryTestCase {
 			merger.getMergeResults().get("file");
 			try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
 				fmt.formatMerge(out, merger.getMergeResults().get("file"),
-						"BASE", "OURS", "THEIRS", CHARSET.name());
+						"BASE", "OURS", "THEIRS", UTF_8);
 				String expected = "<<<<<<< OURS\n"
 						+ "1master\n"
 						+ "=======\n"
@@ -941,7 +980,7 @@ public class MergerTest extends RepositoryTestCase {
 						+ ">>>>>>> THEIRS\n"
 						+ "2\n"
 						+ "3";
-				assertEquals(expected, new String(out.toByteArray(), CHARSET));
+				assertEquals(expected, new String(out.toByteArray(), UTF_8));
 			}
 		}
 	}
@@ -1328,6 +1367,7 @@ public class MergerTest extends RepositoryTestCase {
 		if (obj == null) {
 			return null;
 		}
-		return new String(rw.getObjectReader().open(obj, OBJ_BLOB).getBytes(), CHARSET);
+		return new String(rw.getObjectReader().open(obj, OBJ_BLOB).getBytes(),
+				UTF_8);
 	}
 }

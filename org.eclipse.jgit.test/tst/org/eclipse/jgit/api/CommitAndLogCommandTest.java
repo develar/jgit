@@ -42,6 +42,7 @@
  */
 package org.eclipse.jgit.api;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -120,7 +121,7 @@ public class CommitAndLogCommandTest extends RepositoryTestCase {
 			// create first file
 			File file = new File(db.getWorkTree(), "a.txt");
 			FileUtils.createNewFile(file);
-			try (PrintWriter writer = new PrintWriter(file)) {
+			try (PrintWriter writer = new PrintWriter(file, UTF_8.name())) {
 				writer.print("content1");
 			}
 
@@ -131,7 +132,7 @@ public class CommitAndLogCommandTest extends RepositoryTestCase {
 			// create second file
 			file = new File(db.getWorkTree(), "b.txt");
 			FileUtils.createNewFile(file);
-			try (PrintWriter writer = new PrintWriter(file)) {
+			try (PrintWriter writer = new PrintWriter(file, UTF_8.name())) {
 				writer.print("content2");
 			}
 
@@ -231,7 +232,7 @@ public class CommitAndLogCommandTest extends RepositoryTestCase {
 			JGitInternalException, GitAPIException {
 		File file = new File(db.getWorkTree(), "a.txt");
 		FileUtils.createNewFile(file);
-		try (PrintWriter writer = new PrintWriter(file)) {
+		try (PrintWriter writer = new PrintWriter(file, UTF_8.name())) {
 			writer.print("content");
 		}
 
@@ -242,7 +243,7 @@ public class CommitAndLogCommandTest extends RepositoryTestCase {
 			assertEquals("6b584e8ece562ebffc15d38808cd6b98fc3d97ea",
 					tw.getObjectId(0).getName());
 
-			try (PrintWriter writer = new PrintWriter(file)) {
+			try (PrintWriter writer = new PrintWriter(file, UTF_8.name())) {
 				writer.print("content2");
 			}
 			commit = git.commit().setMessage("second commit").call();
@@ -265,7 +266,7 @@ public class CommitAndLogCommandTest extends RepositoryTestCase {
 			// create file
 			File file = new File(db.getWorkTree(), "a.txt");
 			FileUtils.createNewFile(file);
-			try (PrintWriter writer = new PrintWriter(file)) {
+			try (PrintWriter writer = new PrintWriter(file, UTF_8.name())) {
 				writer.print("content1");
 			}
 
@@ -358,7 +359,7 @@ public class CommitAndLogCommandTest extends RepositoryTestCase {
 					messageHeader + messageFooter)
 					.setInsertChangeId(true).call();
 			// we should find a real change id (at the end of the file)
-			byte[] chars = commit.getFullMessage().getBytes();
+			byte[] chars = commit.getFullMessage().getBytes(UTF_8);
 			int lastLineBegin = RawParseUtils.prevLF(chars, chars.length - 2);
 			String lastLine = RawParseUtils.decode(chars, lastLineBegin + 1,
 					chars.length);
@@ -371,7 +372,7 @@ public class CommitAndLogCommandTest extends RepositoryTestCase {
 					.setInsertChangeId(true).call();
 			// we should find a real change id (in the line as dictated by the
 			// template)
-			chars = commit.getFullMessage().getBytes();
+			chars = commit.getFullMessage().getBytes(UTF_8);
 			int lineStart = 0;
 			int lineEnd = 0;
 			for (int i = 0; i < 4; i++) {
@@ -389,7 +390,7 @@ public class CommitAndLogCommandTest extends RepositoryTestCase {
 					messageHeader + changeIdTemplate + messageFooter)
 					.setInsertChangeId(false).call();
 			// we should find the untouched template
-			chars = commit.getFullMessage().getBytes();
+			chars = commit.getFullMessage().getBytes(UTF_8);
 			lineStart = 0;
 			lineEnd = 0;
 			for (int i = 0; i < 4; i++) {

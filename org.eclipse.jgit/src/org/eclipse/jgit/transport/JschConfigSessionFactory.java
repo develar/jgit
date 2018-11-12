@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2018, Sasa Zivkov <sasa.zivkov@sap.com>
  * Copyright (C) 2016, Mark Ingram <markdingram@gmail.com>
  * Copyright (C) 2009, Constantine Plotnikov <constantine.plotnikov@gmail.com>
  * Copyright (C) 2008-2009, Google Inc.
@@ -49,6 +50,9 @@
 
 package org.eclipse.jgit.transport;
 
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toList;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -59,9 +63,11 @@ import java.net.ConnectException;
 import java.net.UnknownHostException;
 import java.text.MessageFormat;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import org.eclipse.jgit.errors.TransportException;
 import org.eclipse.jgit.internal.JGitText;
@@ -71,6 +77,8 @@ import org.slf4j.LoggerFactory;
 
 import com.jcraft.jsch.ConfigRepository;
 import com.jcraft.jsch.ConfigRepository.Config;
+import com.jcraft.jsch.HostKey;
+import com.jcraft.jsch.HostKeyRepository;
 import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.JSchException;
 import com.jcraft.jsch.Session;
@@ -221,6 +229,9 @@ public abstract class JschConfigSessionFactory extends SshSessionFactory {
 					credentialsProvider));
 		}
 		safeConfig(session, hc.getConfig());
+		if (hc.getConfig().getValue("HostKeyAlgorithms") == null) { //$NON-NLS-1$
+			setPreferredKeyTypesOrder(session);
+		}
 		configure(hc, session);
 		return session;
 	}
@@ -234,6 +245,37 @@ public abstract class JschConfigSessionFactory extends SshSessionFactory {
 		copyConfigValueToSession(session, cfg, "KexAlgorithms", "CheckKexes"); //$NON-NLS-1$ //$NON-NLS-2$
 		copyConfigValueToSession(session, cfg, "HostKeyAlgorithms", //$NON-NLS-1$
 				"CheckSignatures"); //$NON-NLS-1$
+	}
+
+	private static void setPreferredKeyTypesOrder(Session session) {
+		HostKeyRepository hkr = session.getHostKeyRepository();
+		List<String> known = Stream.of(hkr.getHostKey(hostName(session), null))
+				.map(HostKey::getType)
+				.collect(toList());
+
+		if (!known.isEmpty()) {
+			String serverHostKey = "server_host_key"; //$NON-NLS-1$
+			String current = session.getConfig(serverHostKey);
+			if (current == null) {
+				session.setConfig(serverHostKey, String.join(",", known)); //$NON-NLS-1$
+				return;
+			}
+
+			String knownFirst = Stream.concat(
+							known.stream(),
+							Stream.of(current.split(",")) //$NON-NLS-1$
+									.filter(s -> !known.contains(s)))
+					.collect(joining(",")); //$NON-NLS-1$
+			session.setConfig(serverHostKey, knownFirst);
+		}
+	}
+
+	private static String hostName(Session s) {
+		if (s.getPort() == SshConstants.SSH_DEFAULT_PORT) {
+			return s.getHost();
+		}
+		return String.format("[%s]:%d", s.getHost(), //$NON-NLS-1$
+				Integer.valueOf(s.getPort()));
 	}
 
 	private void copyConfigValueToSession(Session session, Config cfg,
@@ -369,6 +411,8 @@ public abstract class JschConfigSessionFactory extends SshSessionFactory {
 	 */
 	protected JSch createDefaultJSch(FS fs) throws JSchException {
 		final JSch jsch = new JSch();
+		JSch.setConfig("ssh-rsa", JSch.getConfig("signature.rsa")); //$NON-NLS-1$ //$NON-NLS-2$
+		JSch.setConfig("ssh-dss", JSch.getConfig("signature.dss")); //$NON-NLS-1$ //$NON-NLS-2$
 		configureJSch(jsch);
 		knownHosts(jsch, fs);
 		identities(jsch, fs);

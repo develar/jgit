@@ -42,7 +42,7 @@
  */
 package org.eclipse.jgit.pgm;
 
-import static org.eclipse.jgit.lib.Constants.CHARSET;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -544,7 +544,7 @@ public class ArchiveTest extends CLIRepositoryTestCase {
 
 		byte[] result = CLIGitCommand.executeRaw(
 				"git archive --format=zip HEAD", db).outBytes();
-		assertArrayEquals(l.toArray(new String[l.size()]),
+		assertArrayEquals(l.toArray(new String[0]),
 				listZipEntries(result));
 	}
 
@@ -564,7 +564,7 @@ public class ArchiveTest extends CLIRepositoryTestCase {
 
 		byte[] result = CLIGitCommand.executeRaw(
 				"git archive --format=tar HEAD", db).outBytes();
-		assertArrayEquals(l.toArray(new String[l.size()]),
+		assertArrayEquals(l.toArray(new String[0]),
 				listTarEntries(result));
 	}
 
@@ -612,7 +612,7 @@ public class ArchiveTest extends CLIRepositoryTestCase {
 
 	private BufferedReader readFromProcess(Process proc) throws Exception {
 		return new BufferedReader(
-				new InputStreamReader(proc.getInputStream(), CHARSET));
+				new InputStreamReader(proc.getInputStream(), UTF_8));
 	}
 
 	private void grepForEntry(String name, String mode, String... cmdline)
@@ -697,7 +697,7 @@ public class ArchiveTest extends CLIRepositoryTestCase {
 			while ((e = in.getNextEntry()) != null)
 				l.add(e.getName());
 		}
-		return l.toArray(new String[l.size()]);
+		return l.toArray(new String[0]);
 	}
 
 	private static Future<Object> writeAsync(OutputStream stream, byte[] data) {
@@ -730,7 +730,7 @@ public class ArchiveTest extends CLIRepositoryTestCase {
 				while ((line = reader.readLine()) != null)
 					l.add(line);
 
-				return l.toArray(new String[l.size()]);
+				return l.toArray(new String[0]);
 			} finally {
 				writing.get();
 				proc.destroy();
@@ -750,11 +750,11 @@ public class ArchiveTest extends CLIRepositoryTestCase {
 			// found!
 			List<String> l = new ArrayList<>();
 			BufferedReader reader = new BufferedReader(
-					new InputStreamReader(in, CHARSET));
+					new InputStreamReader(in, UTF_8));
 			String line;
 			while ((line = reader.readLine()) != null)
 				l.add(line);
-			return l.toArray(new String[l.size()]);
+			return l.toArray(new String[0]);
 		}
 
 		// not found
@@ -774,7 +774,7 @@ public class ArchiveTest extends CLIRepositoryTestCase {
 				while ((line = reader.readLine()) != null)
 					l.add(line);
 
-				return l.toArray(new String[l.size()]);
+				return l.toArray(new String[0]);
 			} finally {
 				writing.get();
 				proc.destroy();

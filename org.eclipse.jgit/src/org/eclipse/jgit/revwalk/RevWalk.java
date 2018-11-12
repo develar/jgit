@@ -54,6 +54,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import org.eclipse.jgit.annotations.NonNull;
+import org.eclipse.jgit.annotations.Nullable;
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.errors.LargeObjectException;
@@ -1336,6 +1337,22 @@ public class RevWalk implements Iterable<RevCommit>, AutoCloseable {
 	}
 
 	/**
+	 * Like {@link #next()}, but if a checked exception is thrown during the
+	 * walk it is rethrown as a {@link RevWalkException}.
+	 *
+	 * @throws RevWalkException if an {@link IOException} was thrown.
+	 * @return next most recent commit; null if traversal is over.
+	 */
+	@Nullable
+	private RevCommit nextForIterator() {
+		try {
+			return next();
+		} catch (IOException e) {
+			throw new RevWalkException(e);
+		}
+	}
+
+	/**
 	 * {@inheritDoc}
 	 * <p>
 	 * Returns an Iterator over the commits of this walker.
@@ -1353,16 +1370,7 @@ public class RevWalk implements Iterable<RevCommit>, AutoCloseable {
 	 */
 	@Override
 	public Iterator<RevCommit> iterator() {
-		final RevCommit first;
-		try {
-			first = RevWalk.this.next();
-		} catch (MissingObjectException e) {
-			throw new RevWalkException(e);
-		} catch (IncorrectObjectTypeException e) {
-			throw new RevWalkException(e);
-		} catch (IOException e) {
-			throw new RevWalkException(e);
-		}
+		RevCommit first = nextForIterator();
 
 		return new Iterator<RevCommit>() {
 			RevCommit next = first;
@@ -1374,17 +1382,9 @@ public class RevWalk implements Iterable<RevCommit>, AutoCloseable {
 
 			@Override
 			public RevCommit next() {
-				try {
-					final RevCommit r = next;
-					next = RevWalk.this.next();
-					return r;
-				} catch (MissingObjectException e) {
-					throw new RevWalkException(e);
-				} catch (IncorrectObjectTypeException e) {
-					throw new RevWalkException(e);
-				} catch (IOException e) {
-					throw new RevWalkException(e);
-				}
+				RevCommit r = next;
+				next = nextForIterator();
+				return r;
 			}
 
 			@Override
@@ -1460,17 +1460,44 @@ public class RevWalk implements Iterable<RevCommit>, AutoCloseable {
 			lookupCommit(id).parents = RevCommit.NO_PARENTS;
 	}
 
-	void initializeShallowCommits() throws IOException {
-		if (shallowCommitsInitialized)
+	/**
+	 * Reads the "shallow" file and applies it by setting the parents of shallow
+	 * commits to an empty array.
+	 * <p>
+	 * There is a sequencing problem if the first commit being parsed is a
+	 * shallow commit, since {@link RevCommit#parseCanonical(RevWalk, byte[])}
+	 * calls this method before its callers add the new commit to the
+	 * {@link RevWalk#objects} map. That means a call from this method to
+	 * {@link #lookupCommit(AnyObjectId)} fails to find that commit and creates
+	 * a new one, which is promptly discarded.
+	 * <p>
+	 * To avoid that, {@link RevCommit#parseCanonical(RevWalk, byte[])} passes
+	 * its commit to this method, so that this method can apply the shallow
+	 * state to it directly and avoid creating the duplicate commit object.
+	 *
+	 * @param rc
+	 *            the initial commit being parsed
+	 * @throws IOException
+	 *             if the shallow commits file can't be read
+	 */
+	void initializeShallowCommits(RevCommit rc) throws IOException {
+		if (shallowCommitsInitialized) {
 			throw new IllegalStateException(
 					JGitText.get().shallowCommitsAlreadyInitialized);
+		}
 
 		shallowCommitsInitialized = true;
 
-		if (reader == null)
+		if (reader == null) {
 			return;
+		}
 
-		for (ObjectId id : reader.getShallowCommits())
-			lookupCommit(id).parents = RevCommit.NO_PARENTS;
+		for (ObjectId id : reader.getShallowCommits()) {
+			if (id.equals(rc.getId())) {
+				rc.parents = RevCommit.NO_PARENTS;
+			} else {
+				lookupCommit(id).parents = RevCommit.NO_PARENTS;
+			}
+		}
 	}
 }

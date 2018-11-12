@@ -45,6 +45,7 @@
 
 package org.eclipse.jgit.lib;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.eclipse.jgit.junit.Assert.assertEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -261,7 +262,7 @@ public class RefTest extends SampleDataRepositoryTestCase {
 		assertEquals(Storage.PACKED, ref.getStorage());
 		try (FileOutputStream os = new FileOutputStream(
 				new File(db.getDirectory(), "refs/heads/master"))) {
-			os.write(ref.getObjectId().name().getBytes());
+			os.write(ref.getObjectId().name().getBytes(UTF_8));
 			os.write('\n');
 		}
 
@@ -332,5 +333,18 @@ public class RefTest extends SampleDataRepositoryTestCase {
 		refs = db.getRefDatabase().getRefsByPrefix("refs/heads/prefix/");
 		assertEquals(1, refs.size());
 		checkContainsRef(refs, db.exactRef("refs/heads/prefix/a"));
+	}
+
+	@Test
+	public void testGetRefsByPrefixes() throws IOException {
+		List<Ref> refs = db.getRefDatabase().getRefsByPrefix();
+		assertEquals(0, refs.size());
+
+		refs = db.getRefDatabase().getRefsByPrefix("refs/heads/p",
+				"refs/tags/A");
+		assertEquals(3, refs.size());
+		checkContainsRef(refs, db.exactRef("refs/heads/pa"));
+		checkContainsRef(refs, db.exactRef("refs/heads/prefix/a"));
+		checkContainsRef(refs, db.exactRef("refs/tags/A"));
 	}
 }

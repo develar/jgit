@@ -42,7 +42,7 @@
  */
 package org.eclipse.jgit.api;
 
-import static org.eclipse.jgit.lib.Constants.CHARSET;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -57,9 +57,12 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 import org.eclipse.jgit.api.MergeResult.MergeStatus;
 import org.eclipse.jgit.api.RebaseCommand.InteractiveHandler;
@@ -75,6 +78,7 @@ import org.eclipse.jgit.errors.AmbiguousObjectException;
 import org.eclipse.jgit.errors.IllegalTodoFileModification;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.errors.MissingObjectException;
+import org.eclipse.jgit.events.ListenerHandle;
 import org.eclipse.jgit.junit.RepositoryTestCase;
 import org.eclipse.jgit.lib.AbbreviatedObjectId;
 import org.eclipse.jgit.lib.ConfigConstants;
@@ -1464,7 +1468,7 @@ public class RebaseCommandTest extends RepositoryTestCase {
 		assertEquals("GIT_AUTHOR_DATE='@123456789 -0100'", lines[2]);
 
 		PersonIdent parsedIdent = git.rebase().parseAuthor(
-				convertedAuthor.getBytes(CHARSET));
+				convertedAuthor.getBytes(UTF_8));
 		assertEquals(ident.getName(), parsedIdent.getName());
 		assertEquals(ident.getEmailAddress(), parsedIdent.getEmailAddress());
 		// this is rounded to the last second
@@ -1481,7 +1485,7 @@ public class RebaseCommandTest extends RepositoryTestCase {
 		assertEquals("GIT_AUTHOR_DATE='@123456789 +0930'", lines[2]);
 
 		parsedIdent = git.rebase().parseAuthor(
-				convertedAuthor.getBytes(CHARSET));
+				convertedAuthor.getBytes(UTF_8));
 		assertEquals(ident.getName(), parsedIdent.getName());
 		assertEquals(ident.getEmailAddress(), parsedIdent.getEmailAddress());
 		assertEquals(123456789000L, parsedIdent.getWhen().getTime());
@@ -1981,6 +1985,62 @@ public class RebaseCommandTest extends RepositoryTestCase {
 	}
 
 	@Test
+	public void testRebaseWithAutoStashAndSubdirs() throws Exception {
+		// create file0, add and commit
+		db.getConfig().setBoolean(ConfigConstants.CONFIG_REBASE_SECTION, null,
+				ConfigConstants.CONFIG_KEY_AUTOSTASH, true);
+		writeTrashFile("sub/file0", "file0");
+		git.add().addFilepattern("sub/file0").call();
+		git.commit().setMessage("commit0").call();
+		// create file1, add and commit
+		writeTrashFile(FILE1, "file1");
+		git.add().addFilepattern(FILE1).call();
+		RevCommit commit = git.commit().setMessage("commit1").call();
+
+		// create topic branch and checkout / create file2, add and commit
+		createBranch(commit, "refs/heads/topic");
+		checkoutBranch("refs/heads/topic");
+		writeTrashFile("file2", "file2");
+		git.add().addFilepattern("file2").call();
+		git.commit().setMessage("commit2").call();
+
+		// checkout master branch / modify file1, add and commit
+		checkoutBranch("refs/heads/master");
+		writeTrashFile(FILE1, "modified file1");
+		git.add().addFilepattern(FILE1).call();
+		git.commit().setMessage("commit3").call();
+
+		// checkout topic branch / modify file0
+		checkoutBranch("refs/heads/topic");
+		writeTrashFile("sub/file0", "unstaged modified file0");
+
+		Set<String> modifiedFiles = new HashSet<>();
+		ListenerHandle handle = db.getListenerList()
+				.addWorkingTreeModifiedListener(
+						event -> modifiedFiles.addAll(event.getModified()));
+		try {
+			// rebase
+			assertEquals(Status.OK, git.rebase()
+					.setUpstream("refs/heads/master").call().getStatus());
+		} finally {
+			handle.remove();
+		}
+		checkFile(new File(new File(db.getWorkTree(), "sub"), "file0"),
+				"unstaged modified file0");
+		checkFile(new File(db.getWorkTree(), FILE1), "modified file1");
+		checkFile(new File(db.getWorkTree(), "file2"), "file2");
+		assertEquals(
+				"[file1, mode:100644, content:modified file1]"
+						+ "[file2, mode:100644, content:file2]"
+						+ "[sub/file0, mode:100644, content:file0]",
+				indexState(CONTENT));
+		assertEquals(RepositoryState.SAFE, db.getRepositoryState());
+		List<String> modified = new ArrayList<>(modifiedFiles);
+		Collections.sort(modified);
+		assertEquals("[file1, sub/file0]", modified.toString());
+	}
+
+	@Test
 	public void testRebaseWithAutoStashConflictOnApply() throws Exception {
 		// create file0, add and commit
 		db.getConfig().setBoolean(ConfigConstants.CONFIG_REBASE_SECTION, null,
@@ -2104,7 +2164,7 @@ public class RebaseCommandTest extends RepositoryTestCase {
 		int count = 0;
 		File todoFile = getTodoFile();
 		try (BufferedReader br = new BufferedReader(new InputStreamReader(
-				new FileInputStream(todoFile), CHARSET))) {
+				new FileInputStream(todoFile), UTF_8))) {
 			String line = br.readLine();
 			while (line != null) {
 				int firstBlank = line.indexOf(' ');

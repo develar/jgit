@@ -43,14 +43,13 @@
 
 package org.eclipse.jgit.transport;
 
-import static org.eclipse.jgit.lib.Constants.CHARSET;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
@@ -67,6 +66,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.jcraft.jsch.ConfigRepository;
+import com.jcraft.jsch.ConfigRepository.Config;
 
 public class OpenSshConfigTest extends RepositoryTestCase {
 	private File home;
@@ -94,7 +94,7 @@ public class OpenSshConfigTest extends RepositoryTestCase {
 		long lastMtime = configFile.lastModified();
 		do {
 			try (final OutputStreamWriter fw = new OutputStreamWriter(
-					new FileOutputStream(configFile), CHARSET)) {
+					new FileOutputStream(configFile), UTF_8)) {
 				fw.write(data);
 			}
 		} while (lastMtime == configFile.lastModified());
@@ -161,6 +161,20 @@ public class OpenSshConfigTest extends RepositoryTestCase {
 		assertEquals(2222, osc.lookup("hosts").getPort());
 		assertEquals(" spaced\ttld ", osc.lookup("spaced").getHostName());
 		assertEquals("bad.tld\"", osc.lookup("bad").getHostName());
+	}
+
+	@Test
+	public void testCaseInsensitiveKeyLookup() throws Exception {
+		config("Host orcz\n" + "Port 29418\n"
+				+ "\tHostName repo.or.cz\nStrictHostKeyChecking yes\n");
+		final Host h = osc.lookup("orcz");
+		Config c = h.getConfig();
+		String exactCase = c.getValue("StrictHostKeyChecking");
+		assertEquals("yes", exactCase);
+		assertEquals(exactCase, c.getValue("stricthostkeychecking"));
+		assertEquals(exactCase, c.getValue("STRICTHOSTKEYCHECKING"));
+		assertEquals(exactCase, c.getValue("sTrIcThostKEYcheckING"));
+		assertNull(c.getValue("sTrIcThostKEYcheckIN"));
 	}
 
 	@Test
@@ -331,21 +345,6 @@ public class OpenSshConfigTest extends RepositoryTestCase {
 		assertArrayEquals(new Object[] { new File(home, "foo/ba z").getPath(),
 				"/foo/bar" },
 				c.getValues("UserKnownHostsFile"));
-	}
-
-	@Test
-	public void testRepeatedLookups() throws Exception {
-		config("Host orcz\n" + "\tConnectionAttempts 5\n");
-		final Host h1 = osc.lookup("orcz");
-		final Host h2 = osc.lookup("orcz");
-		assertNotNull(h1);
-		assertSame(h1, h2);
-		assertEquals(5, h1.getConnectionAttempts());
-		assertEquals(h1.getConnectionAttempts(), h2.getConnectionAttempts());
-		final ConfigRepository.Config c = osc.getConfig("orcz");
-		assertNotNull(c);
-		assertSame(c, h1.getConfig());
-		assertSame(c, h2.getConfig());
 	}
 
 	@Test

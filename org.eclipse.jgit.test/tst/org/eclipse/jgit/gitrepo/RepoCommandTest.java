@@ -42,7 +42,7 @@
  */
 package org.eclipse.jgit.gitrepo;
 
-import static org.eclipse.jgit.lib.Constants.CHARSET;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -52,16 +52,20 @@ import static org.junit.Assert.fail;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.text.MessageFormat;
 import java.util.HashMap;
 import java.util.Map;
 
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.api.errors.InvalidRefNameException;
 import org.eclipse.jgit.api.errors.InvalidRemoteException;
-import org.eclipse.jgit.api.errors.RefNotFoundException;
+import org.eclipse.jgit.gitrepo.RepoCommand.RemoteFile;
+import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.junit.JGitTestUtil;
 import org.eclipse.jgit.junit.RepositoryTestCase;
 import org.eclipse.jgit.lib.BlobBasedConfig;
@@ -73,6 +77,7 @@ import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.storage.file.FileBasedConfig;
+import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.util.FS;
 import org.junit.Test;
 
@@ -139,8 +144,9 @@ public class RepoCommandTest extends RepositoryTestCase {
 		resolveRelativeUris();
 	}
 
-	class IndexedRepos implements RepoCommand.RemoteReader {
+	static class IndexedRepos implements RepoCommand.RemoteReader {
 		Map<String, Repository> uriRepoMap;
+
 		IndexedRepos() {
 			uriRepoMap = new HashMap<>();
 		}
@@ -169,19 +175,21 @@ public class RepoCommandTest extends RepositoryTestCase {
 		}
 
 		@Override
-		public byte[] readFile(String uri, String refName, String path)
-			throws GitAPIException, IOException {
+		public RemoteFile readFileWithMode(String uri, String ref, String path)
+				throws GitAPIException, IOException {
 			Repository repo = uriRepoMap.get(uri);
+			ObjectId refCommitId = sha1(uri, ref);
+			if (refCommitId == null) {
+				throw new InvalidRefNameException(MessageFormat
+						.format(JGitText.get().refNotResolved, ref));
+			}
+			RevCommit commit = repo.parseCommit(refCommitId);
+			TreeWalk tw = TreeWalk.forPath(repo, path, commit.getTree());
 
-			String idStr = refName + ":" + path;
-			ObjectId id = repo.resolve(idStr);
-			if (id == null) {
-				throw new RefNotFoundException(
-					String.format("repo %s does not have %s", repo.toString(), idStr));
-			}
-			try (ObjectReader reader = repo.newObjectReader()) {
-				return reader.open(id).getCachedBytes(Integer.MAX_VALUE);
-			}
+			// TODO(ifrade): Cope better with big files (e.g. using InputStream
+			// instead of byte[])
+			return new RemoteFile(tw.getObjectReader().open(tw.getObjectId(0))
+					.getCachedBytes(Integer.MAX_VALUE), tw.getFileMode(0));
 		}
 	}
 
@@ -197,6 +205,15 @@ public class RepoCommandTest extends RepositoryTestCase {
 			assertFalse(r.isBare());
 		}
 		return r;
+	}
+
+	private static void assertContents(Path path, String expected)
+			throws IOException {
+		try (BufferedReader reader = Files.newBufferedReader(path, UTF_8)) {
+			String content = reader.readLine();
+			assertEquals("Unexpected content in " + path.getFileName(),
+					expected, content);
+		}
 	}
 
 	@Test
@@ -217,7 +234,7 @@ public class RepoCommandTest extends RepositoryTestCase {
 
 			RevCommit commit = cmd
 					.setInputStream(new ByteArrayInputStream(
-							xmlContent.toString().getBytes(CHARSET)))
+							xmlContent.toString().getBytes(UTF_8)))
 					.setRemoteReader(repos).setURI("platform/")
 					.setTargetURI("platform/superproject")
 					.setRecordRemoteBranch(true).setRecordSubmoduleLabels(true)
@@ -226,7 +243,7 @@ public class RepoCommandTest extends RepositoryTestCase {
 			String firstIdStr = commit.getId().name() + ":" + ".gitmodules";
 			commit = new RepoCommand(dest)
 					.setInputStream(new ByteArrayInputStream(
-							xmlContent.toString().getBytes(CHARSET)))
+							xmlContent.toString().getBytes(UTF_8)))
 					.setRemoteReader(repos).setURI("platform/")
 					.setTargetURI("platform/superproject")
 					.setRecordRemoteBranch(true).setRecordSubmoduleLabels(true)
@@ -254,7 +271,7 @@ public class RepoCommandTest extends RepositoryTestCase {
 
 			RevCommit commit = cmd
 					.setInputStream(new ByteArrayInputStream(
-							xmlContent.toString().getBytes(CHARSET)))
+							xmlContent.toString().getBytes(UTF_8)))
 					.setRemoteReader(repos).setURI("platform/")
 					.setTargetURI("platform/superproject")
 					.setRecordRemoteBranch(true).setRecordSubmoduleLabels(true)
@@ -268,7 +285,8 @@ public class RepoCommandTest extends RepositoryTestCase {
 						.getCachedBytes(Integer.MAX_VALUE);
 				Config base = new Config();
 				BlobBasedConfig cfg = new BlobBasedConfig(base, bytes);
-				String subUrl = cfg.getString("submodule", "base", "url");
+				String subUrl = cfg.getString("submodule", "platform/base",
+						"url");
 				assertEquals(subUrl, "../base");
 			}
 		}
@@ -287,7 +305,7 @@ public class RepoCommandTest extends RepositoryTestCase {
 		try (Repository dest = cloneRepository(db, true)) {
 			RevCommit commit = new RepoCommand(dest)
 					.setInputStream(new ByteArrayInputStream(
-							xmlContent.toString().getBytes(CHARSET)))
+							xmlContent.toString().getBytes(UTF_8)))
 					.setRemoteReader(new IndexedRepos()).setURI("platform/")
 					.setTargetURI("platform/superproject")
 					.setRecordRemoteBranch(true).setIgnoreRemoteFailures(true)
@@ -301,7 +319,8 @@ public class RepoCommandTest extends RepositoryTestCase {
 						.getCachedBytes(Integer.MAX_VALUE);
 				Config base = new Config();
 				BlobBasedConfig cfg = new BlobBasedConfig(base, bytes);
-				String subUrl = cfg.getString("submodule", "base", "url");
+				String subUrl = cfg.getString("submodule", "platform/base",
+						"url");
 				assertEquals(subUrl, "https://host.com/platform/base");
 			}
 		}
@@ -325,7 +344,7 @@ public class RepoCommandTest extends RepositoryTestCase {
 
 			RevCommit commit = cmd
 					.setInputStream(new ByteArrayInputStream(
-							xmlContent.toString().getBytes(CHARSET)))
+							xmlContent.toString().getBytes(UTF_8)))
 					.setRemoteReader(repos).setURI("").setTargetURI("gerrit")
 					.setRecordRemoteBranch(true).setRecordSubmoduleLabels(true)
 					.call();
@@ -374,7 +393,7 @@ public class RepoCommandTest extends RepositoryTestCase {
 
 					RevCommit commit = cmd
 							.setInputStream(new ByteArrayInputStream(
-									xmlContent.toString().getBytes(CHARSET)))
+									xmlContent.toString().getBytes(UTF_8)))
 							.setRemoteReader(repos).setURI(baseUrl)
 							.setTargetURI("gerrit").setRecordRemoteBranch(true)
 							.setRecordSubmoduleLabels(true).call();
@@ -387,8 +406,8 @@ public class RepoCommandTest extends RepositoryTestCase {
 								.getCachedBytes(Integer.MAX_VALUE);
 						Config base = new Config();
 						BlobBasedConfig cfg = new BlobBasedConfig(base, bytes);
-						String subUrl = cfg.getString("submodule", "src",
-								"url");
+						String subUrl = cfg.getString("submodule",
+								"chromium/src", "url");
 						assertEquals(
 								"https://chromium.googlesource.com/chromium/src",
 								subUrl);
@@ -429,7 +448,7 @@ public class RepoCommandTest extends RepositoryTestCase {
 
 					RevCommit commit = cmd
 							.setInputStream(new ByteArrayInputStream(
-									xmlContent.toString().getBytes(CHARSET)))
+									xmlContent.toString().getBytes(UTF_8)))
 							.setRemoteReader(repos).setURI(baseUrl)
 							.setTargetURI(abs + "/superproject")
 							.setRecordRemoteBranch(true)
@@ -443,8 +462,8 @@ public class RepoCommandTest extends RepositoryTestCase {
 								.getCachedBytes(Integer.MAX_VALUE);
 						Config base = new Config();
 						BlobBasedConfig cfg = new BlobBasedConfig(base, bytes);
-						String subUrl = cfg.getString("submodule", "src",
-								"url");
+						String subUrl = cfg.getString("submodule",
+								"chromium/src", "url");
 						assertEquals("../chromium/src", subUrl);
 					}
 					fetchSlash = !fetchSlash;
@@ -472,12 +491,7 @@ public class RepoCommandTest extends RepositoryTestCase {
 			.call();
 		File hello = new File(db.getWorkTree(), "foo/hello.txt");
 		assertTrue("submodule should be checked out", hello.exists());
-		try (BufferedReader reader = new BufferedReader(
-				new FileReader(hello))) {
-			String content = reader.readLine();
-			assertEquals("submodule content should be as expected",
-					"master world", content);
-		}
+		assertContents(hello.toPath(), "master world");
 	}
 
 	@Test
@@ -563,20 +577,66 @@ public class RepoCommandTest extends RepositoryTestCase {
 		// The original file should exist
 		File hello = new File(localDb.getWorkTree(), "foo/hello.txt");
 		assertTrue("The original file should exist", hello.exists());
-		try (BufferedReader reader = new BufferedReader(
-				new FileReader(hello))) {
-			String content = reader.readLine();
-			assertEquals("The original file should have expected content",
-					"master world", content);
-		}
+		assertFalse("The original file should not be executable",
+				hello.canExecute());
+		assertContents(hello.toPath(), "master world");
 		// The dest file should also exist
 		hello = new File(localDb.getWorkTree(), "Hello");
 		assertTrue("The destination file should exist", hello.exists());
-		try (BufferedReader reader = new BufferedReader(
-				new FileReader(hello))) {
+		assertFalse("The destination file should not be executable",
+				hello.canExecute());
+		assertContents(hello.toPath(), "master world");
+	}
+
+	@Test
+	public void testRepoManifestCopyFile_executable() throws Exception {
+		try (Git git = new Git(defaultDb)) {
+			git.checkout().setName("master").call();
+			File f = JGitTestUtil.writeTrashFile(defaultDb, "hello.sh",
+					"content of the executable file");
+			f.setExecutable(true);
+			git.add().addFilepattern("hello.sh").call();
+			git.commit().setMessage("Add binary file").call();
+		}
+
+		Repository localDb = createWorkRepository();
+		StringBuilder xmlContent = new StringBuilder();
+		xmlContent.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
+				.append("<manifest>")
+				.append("<remote name=\"remote1\" fetch=\".\" />")
+				.append("<default revision=\"master\" remote=\"remote1\" />")
+				.append("<project path=\"foo\" name=\"").append(defaultUri)
+				.append("\">")
+				.append("<copyfile src=\"hello.sh\" dest=\"copy-hello.sh\" />")
+				.append("</project>").append("</manifest>");
+		JGitTestUtil.writeTrashFile(localDb, "manifest.xml",
+				xmlContent.toString());
+		RepoCommand command = new RepoCommand(localDb);
+		command.setPath(
+				localDb.getWorkTree().getAbsolutePath() + "/manifest.xml")
+				.setURI(rootUri).call();
+
+		// The original file should exist and be an executable
+		File hello = new File(localDb.getWorkTree(), "foo/hello.sh");
+		assertTrue("The original file should exist", hello.exists());
+		assertTrue("The original file must be executable", hello.canExecute());
+		try (BufferedReader reader = Files.newBufferedReader(hello.toPath(),
+				UTF_8)) {
+			String content = reader.readLine();
+			assertEquals("The original file should have expected content",
+					"content of the executable file", content);
+		}
+
+		// The destination file should also exist and be an executable
+		hello = new File(localDb.getWorkTree(), "copy-hello.sh");
+		assertTrue("The destination file should exist", hello.exists());
+		assertTrue("The destination file must be executable",
+				hello.canExecute());
+		try (BufferedReader reader = Files.newBufferedReader(hello.toPath(),
+				UTF_8)) {
 			String content = reader.readLine();
 			assertEquals("The destination file should have expected content",
-					"master world", content);
+					"content of the executable file", content);
 		}
 	}
 
@@ -608,12 +668,12 @@ public class RepoCommandTest extends RepositoryTestCase {
 			assertTrue("The .gitmodules file should exist",
 					gitmodules.exists());
 			// The first line of .gitmodules file should be expected
-			try (BufferedReader reader = new BufferedReader(
-					new FileReader(gitmodules))) {
+			try (BufferedReader reader = Files
+					.newBufferedReader(gitmodules.toPath(), UTF_8)) {
 				String content = reader.readLine();
 				assertEquals(
 						"The first line of .gitmodules file should be as expected",
-						"[submodule \"foo\"]", content);
+						"[submodule \"" + defaultUri + "\"]", content);
 			}
 			// The gitlink should be the same as remote head sha1
 			String gitlink = localDb.resolve(Constants.HEAD + ":foo").name();
@@ -642,8 +702,8 @@ public class RepoCommandTest extends RepositoryTestCase {
 			.setURI(rootUri)
 			.call();
 		File hello = new File(db.getWorkTree(), "foo/hello.txt");
-		try (BufferedReader reader = new BufferedReader(
-				new FileReader(hello))) {
+		try (BufferedReader reader = Files.newBufferedReader(hello.toPath(),
+				UTF_8)) {
 			String content = reader.readLine();
 			assertEquals("submodule content should be as expected",
 					"branch world", content);
@@ -669,12 +729,7 @@ public class RepoCommandTest extends RepositoryTestCase {
 			.setURI(rootUri)
 			.call();
 		File hello = new File(db.getWorkTree(), "foo/hello.txt");
-		try (BufferedReader reader = new BufferedReader(
-				new FileReader(hello))) {
-			String content = reader.readLine();
-			assertEquals("submodule content should be as expected",
-					"branch world", content);
-		}
+		assertContents(hello.toPath(), "branch world");
 	}
 
 	@Test
@@ -696,12 +751,7 @@ public class RepoCommandTest extends RepositoryTestCase {
 			.setURI(rootUri)
 			.call();
 		File hello = new File(db.getWorkTree(), "foo/hello.txt");
-		try (BufferedReader reader = new BufferedReader(
-				new FileReader(hello))) {
-			String content = reader.readLine();
-			assertEquals("submodule content should be as expected",
-					"branch world", content);
-		}
+		assertContents(hello.toPath(), "branch world");
 	}
 
 	@Test
@@ -769,12 +819,69 @@ public class RepoCommandTest extends RepositoryTestCase {
 			assertFalse("The foo/Hello file should be skipped",
 					foohello.exists());
 			// The content of Hello file should be expected
-			try (BufferedReader reader = new BufferedReader(
-					new FileReader(hello))) {
+			assertContents(hello.toPath(), "branch world");
+		}
+	}
+
+	@Test
+	public void testCopyFileBare_executable() throws Exception {
+		try (Git git = new Git(defaultDb)) {
+			git.checkout().setName(BRANCH).call();
+			File f = JGitTestUtil.writeTrashFile(defaultDb, "hello.sh",
+					"content of the executable file");
+			f.setExecutable(true);
+			git.add().addFilepattern("hello.sh").call();
+			git.commit().setMessage("Add binary file").call();
+		}
+
+		Repository remoteDb = createBareRepository();
+		Repository tempDb = createWorkRepository();
+
+		StringBuilder xmlContent = new StringBuilder();
+		xmlContent.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
+				.append("<manifest>")
+				.append("<remote name=\"remote1\" fetch=\".\" />")
+				.append("<default revision=\"master\" remote=\"remote1\" />")
+				.append("<project path=\"foo\" name=\"").append(defaultUri)
+				.append("\" revision=\"").append(BRANCH)
+				.append("\" >")
+				.append("<copyfile src=\"hello.txt\" dest=\"Hello\" />")
+				.append("<copyfile src=\"hello.txt\" dest=\"foo/Hello\" />")
+				.append("<copyfile src=\"hello.sh\" dest=\"copy-hello.sh\" />")
+				.append("</project>").append("</manifest>");
+		JGitTestUtil.writeTrashFile(tempDb, "manifest.xml",
+				xmlContent.toString());
+		RepoCommand command = new RepoCommand(remoteDb);
+		command.setPath(
+				tempDb.getWorkTree().getAbsolutePath() + "/manifest.xml")
+				.setURI(rootUri).call();
+		// Clone it
+		File directory = createTempDirectory("testCopyFileBare");
+		try (Repository localDb = Git.cloneRepository().setDirectory(directory)
+				.setURI(remoteDb.getDirectory().toURI().toString()).call()
+				.getRepository()) {
+			// The Hello file should exist
+			File hello = new File(localDb.getWorkTree(), "Hello");
+			assertTrue("The Hello file should exist", hello.exists());
+			// The foo/Hello file should be skipped.
+			File foohello = new File(localDb.getWorkTree(), "foo/Hello");
+			assertFalse("The foo/Hello file should be skipped",
+					foohello.exists());
+			// The content of Hello file should be expected
+			try (BufferedReader reader = Files.newBufferedReader(hello.toPath(),
+					UTF_8)) {
 				String content = reader.readLine();
 				assertEquals("The Hello file should have expected content",
 						"branch world", content);
 			}
+
+			// The executable file must be there and preserve the executable bit
+			File helloSh = new File(localDb.getWorkTree(), "copy-hello.sh");
+			assertTrue("Destination file should exist", helloSh.exists());
+			assertContents(helloSh.toPath(), "content of the executable file");
+			assertTrue("Destination file should be executable",
+					helloSh.canExecute());
+
 		}
 	}
 
@@ -801,9 +908,9 @@ public class RepoCommandTest extends RepositoryTestCase {
 				.append("<manifest>")
 				.append("<remote name=\"remote1\" fetch=\".\" />")
 				.append("<default revision=\"master\" remote=\"remote1\" />")
-				.append("<project path=\"bar\" name=\"").append(defaultUri)
-				.append("\" revision=\"").append(BRANCH).append("\" >")
-				.append("<copyfile src=\"hello.txt\" dest=\"Hello.txt\" />")
+				.append("<project path=\"bar\" name=\"").append(notDefaultUri)
+				.append("\" >")
+				.append("<copyfile src=\"world.txt\" dest=\"World.txt\" />")
 				.append("</project>").append("</manifest>");
 		JGitTestUtil.writeTrashFile(tempDb, "new.xml", xmlContent.toString());
 		command = new RepoCommand(remoteDb);
@@ -819,25 +926,25 @@ public class RepoCommandTest extends RepositoryTestCase {
 			File hello = new File(localDb.getWorkTree(), "Hello");
 			assertFalse("The Hello file shouldn't exist", hello.exists());
 			// The Hello.txt file should exist
-			File hellotxt = new File(localDb.getWorkTree(), "Hello.txt");
-			assertTrue("The Hello.txt file should exist", hellotxt.exists());
+			File hellotxt = new File(localDb.getWorkTree(), "World.txt");
+			assertTrue("The World.txt file should exist", hellotxt.exists());
 			dotmodules = new File(localDb.getWorkTree(),
 					Constants.DOT_GIT_MODULES);
 		}
 		// The .gitmodules file should have 'submodule "bar"' and shouldn't
 		// have
 		// 'submodule "foo"' lines.
-		try (BufferedReader reader = new BufferedReader(
-				new FileReader(dotmodules))) {
+		try (BufferedReader reader = Files
+				.newBufferedReader(dotmodules.toPath(), UTF_8)) {
 			boolean foo = false;
 			boolean bar = false;
 			while (true) {
 				String line = reader.readLine();
 				if (line == null)
 					break;
-				if (line.contains("submodule \"foo\""))
+				if (line.contains("submodule \"" + defaultUri + "\""))
 					foo = true;
-				if (line.contains("submodule \"bar\""))
+				if (line.contains("submodule \"" + notDefaultUri + "\""))
 					bar = true;
 			}
 			assertTrue("The bar submodule should exist", bar);
@@ -876,11 +983,9 @@ public class RepoCommandTest extends RepositoryTestCase {
 				Constants.DOT_GIT_MODULES);
 		}
 
-		// The .gitmodules file should have 'submodule "foo"' and shouldn't
-		// have
-		// 'submodule "foo/bar"' lines.
-		try (BufferedReader reader = new BufferedReader(
-				new FileReader(dotmodules))) {
+		// Check .gitmodules file
+		try (BufferedReader reader = Files
+				.newBufferedReader(dotmodules.toPath(), UTF_8)) {
 			boolean foo = false;
 			boolean foobar = false;
 			boolean a = false;
@@ -888,16 +993,17 @@ public class RepoCommandTest extends RepositoryTestCase {
 				String line = reader.readLine();
 				if (line == null)
 					break;
-				if (line.contains("submodule \"foo\""))
+				if (line.contains("submodule \"" + defaultUri + "\""))
 					foo = true;
-				if (line.contains("submodule \"foo/bar\""))
+				if (line.contains("submodule \"" + groupBUri + "\""))
 					foobar = true;
-				if (line.contains("submodule \"a\""))
+				if (line.contains("submodule \"" + groupAUri + "\""))
 					a = true;
 			}
-			assertTrue("The foo submodule should exist", foo);
-			assertFalse("The foo/bar submodule shouldn't exist", foobar);
-			assertTrue("The a submodule should exist", a);
+			assertTrue("The " + defaultUri + " submodule should exist", foo);
+			assertFalse("The " + groupBUri + " submodule shouldn't exist",
+					foobar);
+			assertTrue("The " + groupAUri + " submodule should exist", a);
 		}
 	}
 
@@ -934,8 +1040,8 @@ public class RepoCommandTest extends RepositoryTestCase {
 			.call();
 		File hello = new File(localDb.getWorkTree(), "foo/hello.txt");
 		assertTrue("submodule should be checked out", hello.exists());
-		try (BufferedReader reader = new BufferedReader(
-				new FileReader(hello))) {
+		try (BufferedReader reader = Files.newBufferedReader(hello.toPath(),
+				UTF_8)) {
 			String content = reader.readLine();
 			assertEquals("submodule content should be as expected",
 					"master world", content);
@@ -1033,11 +1139,11 @@ public class RepoCommandTest extends RepositoryTestCase {
 			assertEquals(
 					"Recording remote branches should work for short branch descriptions",
 					"master",
-					c.getString("submodule", "with-branch", "branch"));
+					c.getString("submodule", notDefaultUri, "branch"));
 			assertEquals(
 					"Recording remote branches should work for full ref specs",
 					"refs/heads/master",
-					c.getString("submodule", "with-long-branch", "branch"));
+					c.getString("submodule", defaultUri, "branch"));
 		}
 	}
 
@@ -1073,8 +1179,9 @@ public class RepoCommandTest extends RepositoryTestCase {
 					".gitattributes");
 			assertTrue("The .gitattributes file should exist",
 					gitattributes.exists());
-			try (BufferedReader reader = new BufferedReader(
-					new FileReader(gitattributes));) {
+			try (BufferedReader reader = Files
+					.newBufferedReader(gitattributes.toPath(),
+					UTF_8)) {
 				String content = reader.readLine();
 				assertEquals(".gitattributes content should be as expected",
 						"/test a1 a2", content);
@@ -1095,7 +1202,7 @@ public class RepoCommandTest extends RepositoryTestCase {
 				.append("<project path=\"shallow-please\" ").append("name=\"")
 				.append(defaultUri).append("\" ").append("clone-depth=\"1\" />")
 				.append("<project path=\"non-shallow\" ").append("name=\"")
-				.append(defaultUri).append("\" />").append("</manifest>");
+				.append(notDefaultUri).append("\" />").append("</manifest>");
 		JGitTestUtil.writeTrashFile(tempDb, "manifest.xml",
 				xmlContent.toString());
 
@@ -1115,9 +1222,9 @@ public class RepoCommandTest extends RepositoryTestCase {
 			FileBasedConfig c = new FileBasedConfig(gitmodules, FS.DETECTED);
 			c.load();
 			assertEquals("Recording shallow configuration should work", "true",
-					c.getString("submodule", "shallow-please", "shallow"));
+					c.getString("submodule", defaultUri, "shallow"));
 			assertNull("Recording non shallow configuration should work",
-					c.getString("submodule", "non-shallow", "shallow"));
+					c.getString("submodule", notDefaultUri, "shallow"));
 		}
 	}
 
@@ -1141,12 +1248,7 @@ public class RepoCommandTest extends RepositoryTestCase {
 			.setURI(rootUri)
 			.call();
 		File hello = new File(db.getWorkTree(), "foo/hello.txt");
-		try (BufferedReader reader = new BufferedReader(
-				new FileReader(hello))) {
-			String content = reader.readLine();
-			assertEquals("submodule content should be as expected",
-					"branch world", content);
-		}
+		assertContents(hello.toPath(), "branch world");
 	}
 
 	@Test
@@ -1168,11 +1270,48 @@ public class RepoCommandTest extends RepositoryTestCase {
 			.setURI(rootUri)
 			.call();
 		File hello = new File(db.getWorkTree(), "foo/hello.txt");
-		try (BufferedReader reader = new BufferedReader(
-				new FileReader(hello))) {
+		try (BufferedReader reader = Files.newBufferedReader(hello.toPath(),
+				UTF_8)) {
 			String content = reader.readLine();
 			assertEquals("submodule content should be as expected",
 					"branch world", content);
+		}
+	}
+
+	@Test
+	public void testTwoPathUseTheSameName() throws Exception {
+		Repository remoteDb = createBareRepository();
+		Repository tempDb = createWorkRepository();
+
+		StringBuilder xmlContent = new StringBuilder();
+		xmlContent.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
+				.append("<manifest>")
+				.append("<remote name=\"remote1\" fetch=\".\" />")
+				.append("<default revision=\"master\" remote=\"remote1\" />")
+				.append("<project path=\"path1\" ").append("name=\"")
+				.append(defaultUri).append("\" />")
+				.append("<project path=\"path2\" ").append("name=\"")
+				.append(defaultUri).append("\" />").append("</manifest>");
+		JGitTestUtil.writeTrashFile(tempDb, "manifest.xml",
+				xmlContent.toString());
+
+		RepoCommand command = new RepoCommand(remoteDb);
+		command.setPath(
+				tempDb.getWorkTree().getAbsolutePath() + "/manifest.xml")
+				.setURI(rootUri).setRecommendShallow(true).call();
+		File directory = createTempDirectory("testBareRepo");
+		try (Repository localDb = Git.cloneRepository().setDirectory(directory)
+				.setURI(remoteDb.getDirectory().toURI().toString()).call()
+				.getRepository();) {
+			File gitmodules = new File(localDb.getWorkTree(), ".gitmodules");
+			assertTrue("The .gitmodules file should exist",
+					gitmodules.exists());
+			FileBasedConfig c = new FileBasedConfig(gitmodules, FS.DETECTED);
+			c.load();
+			assertEquals("A module should exist for path1", "path1",
+					c.getString("submodule", defaultUri + "/path1", "path"));
+			assertEquals("A module should exist for path2", "path2",
+					c.getString("submodule", defaultUri + "/path2", "path"));
 		}
 	}
 

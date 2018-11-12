@@ -80,7 +80,7 @@ public class ObjectDownloadListener implements WriteListener {
 
 	private final WritableByteChannel outChannel;
 
-	private final ByteBuffer buffer = ByteBuffer.allocateDirect(8192);
+	private ByteBuffer buffer = ByteBuffer.allocateDirect(8192);
 
 	/**
 	 * <p>Constructor for ObjectDownloadListener.</p>
@@ -117,19 +117,35 @@ public class ObjectDownloadListener implements WriteListener {
 	@Override
 	public void onWritePossible() throws IOException {
 		while (out.isReady()) {
-			if (in.read(buffer) != -1) {
-				buffer.flip();
-				outChannel.write(buffer);
-				buffer.compact();
-			} else {
-				in.close();
-				buffer.flip();
-				while (out.isReady()) {
-					if (buffer.hasRemaining()) {
-						outChannel.write(buffer);
-					} else {
+			try {
+				buffer.clear();
+				if (in.read(buffer) < 0) {
+					buffer = null;
+				} else {
+					buffer.flip();
+				}
+			} catch (Throwable t) {
+				LOG.log(Level.SEVERE, t.getMessage(), t);
+				buffer = null;
+			} finally {
+				if (buffer != null) {
+					outChannel.write(buffer);
+				} else {
+					try {
+						in.close();
+					} catch (IOException e) {
+						LOG.log(Level.SEVERE, e.getMessage(), e);
+					}
+					try {
+						out.close();
+					} finally {
 						context.complete();
 					}
+					// This is need to avoid endless loop in recent Jetty versions.
+					// That's because out.isReady() is returning true for already
+					// closed streams and because out.close() doesn't throw any
+					// exception any more when trying to close already closed stream.
+					return;
 				}
 			}
 		}

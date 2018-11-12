@@ -175,7 +175,9 @@ public class HttpClientTests extends HttpTestCase {
 			} catch (NoRemoteRepositoryException err) {
 				String exp = uri + ": " + uri
 						+ "/info/refs?service=git-upload-pack not found";
-				assertEquals(exp, err.getMessage());
+				assertNotNull(err.getMessage());
+				assertTrue("Unexpected error message",
+						err.getMessage().startsWith(exp));
 			}
 		}
 	}
@@ -191,7 +193,9 @@ public class HttpClientTests extends HttpTestCase {
 			} catch (NoRemoteRepositoryException err) {
 				String exp = uri + ": " + uri
 						+ "/info/refs?service=git-upload-pack not found";
-				assertEquals(exp, err.getMessage());
+				assertNotNull(err.getMessage());
+				assertTrue("Unexpected error message",
+						err.getMessage().startsWith(exp));
 			}
 		}
 	}
@@ -363,7 +367,7 @@ public class HttpClientTests extends HttpTestCase {
 		c.setRequestMethod("GET");
 		c.setRequestProperty("Git-Protocol", "version=2");
 		c.connect();
-		assertThat(c.getResponseCode(), is(200));
+		assertEquals(200, c.getResponseCode());
 
 		PacketLineIn pckIn = new PacketLineIn(c.getInputStream());
 
@@ -384,7 +388,7 @@ public class HttpClientTests extends HttpTestCase {
 		c.setRequestMethod("GET");
 		c.setRequestProperty("Git-Protocol", "version=2");
 		c.connect();
-		assertThat(c.getResponseCode(), is(200));
+		assertEquals(200, c.getResponseCode());
 
 		PacketLineIn pckIn = new PacketLineIn(c.getInputStream());
 		assertThat(pckIn.readString(), is("version 2"));
@@ -415,12 +419,12 @@ public class HttpClientTests extends HttpTestCase {
 		// properly. Tests for other commands go in
 		// UploadPackTest.java.
 
-		OutputStream os = c.getOutputStream();
-		PacketLineOut pckOut = new PacketLineOut(os);
-		pckOut.writeString("command=ls-refs");
-		pckOut.writeDelim();
-		pckOut.end();
-		os.close();
+		try (OutputStream os = c.getOutputStream()) {
+			PacketLineOut pckOut = new PacketLineOut(os);
+			pckOut.writeString("command=ls-refs");
+			pckOut.writeDelim();
+			pckOut.end();
+		}
 
 		PacketLineIn pckIn = new PacketLineIn(c.getInputStream());
 
@@ -430,6 +434,6 @@ public class HttpClientTests extends HttpTestCase {
 			assertTrue(s.matches("[0-9a-f]{40} [A-Za-z/]*"));
 		}
 
-		assertThat(c.getResponseCode(), is(200));
+		assertEquals(200, c.getResponseCode());
 	}
 }

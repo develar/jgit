@@ -43,6 +43,7 @@
 
 package org.eclipse.jgit.internal.storage.file;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.eclipse.jgit.internal.storage.pack.PackExt.INDEX;
 import static org.eclipse.jgit.internal.storage.pack.PackExt.PACK;
 
@@ -50,7 +51,6 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.FileReader;
 import java.io.IOException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
@@ -938,7 +938,7 @@ public class ObjectDirectory extends FileObjectDatabase {
 		if (list.isEmpty())
 			return new PackList(snapshot, NO_PACKS.packs);
 
-		final PackFile[] r = list.toArray(new PackFile[list.size()]);
+		final PackFile[] r = list.toArray(new PackFile[0]);
 		Arrays.sort(r, PackFile.SORT);
 		return new PackList(snapshot, r);
 	}
@@ -1030,12 +1030,12 @@ public class ObjectDirectory extends FileObjectDatabase {
 				l.add(openAlternate(line));
 			}
 		}
-		return l.toArray(new AlternateHandle[l.size()]);
+		return l.toArray(new AlternateHandle[0]);
 	}
 
 	private static BufferedReader open(File f)
-			throws FileNotFoundException {
-		return new BufferedReader(new FileReader(f));
+			throws IOException, FileNotFoundException {
+		return Files.newBufferedReader(f.toPath(), UTF_8);
 	}
 
 	private AlternateHandle openAlternate(String location)

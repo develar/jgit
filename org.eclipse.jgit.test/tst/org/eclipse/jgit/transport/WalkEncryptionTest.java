@@ -43,7 +43,7 @@
 
 package org.eclipse.jgit.transport;
 
-import static org.eclipse.jgit.lib.Constants.CHARSET;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.eclipse.jgit.transport.WalkEncryptionTest.Util.cryptoCipherListPBE;
 import static org.eclipse.jgit.transport.WalkEncryptionTest.Util.cryptoCipherListTrans;
 import static org.eclipse.jgit.transport.WalkEncryptionTest.Util.folderDelete;
@@ -360,7 +360,7 @@ public class WalkEncryptionTest {
 		 * @throws Exception
 		 */
 		static String textRead(File file) throws Exception {
-			return new String(Files.readAllBytes(file.toPath()), CHARSET);
+			return new String(Files.readAllBytes(file.toPath()), UTF_8);
 		}
 
 		/**
@@ -371,7 +371,7 @@ public class WalkEncryptionTest {
 		 * @throws Exception
 		 */
 		static void textWrite(File file, String text) throws Exception {
-			Files.write(file.toPath(), text.getBytes(CHARSET));
+			Files.write(file.toPath(), text.getBytes(UTF_8));
 		}
 
 		static void verifyFileContent(File fileOne, File fileTwo)
@@ -420,7 +420,7 @@ public class WalkEncryptionTest {
 				c.setConnectTimeout(500);
 				c.setReadTimeout(500);
 				try (BufferedReader reader = new BufferedReader(
-						new InputStreamReader(c.getInputStream()))) {
+						new InputStreamReader(c.getInputStream(), UTF_8))) {
 					return reader.readLine();
 				}
 			} catch (UnknownHostException | SocketTimeoutException e) {
@@ -651,7 +651,8 @@ public class WalkEncryptionTest {
 			Properties props = Props.discover();
 			props.put(AmazonS3.Keys.PASSWORD, JGIT_PASS);
 			props.put(AmazonS3.Keys.CRYPTO_ALG, algorithm);
-			try (PrintWriter writer = new PrintWriter(JGIT_CONF_FILE)) {
+			try (PrintWriter writer = new PrintWriter(JGIT_CONF_FILE,
+					UTF_8.name())) {
 				props.store(writer, "JGIT S3 connection configuration file.");
 			}
 		}
@@ -665,7 +666,8 @@ public class WalkEncryptionTest {
 		static void configCreate(Properties source) throws Exception {
 			Properties target = Props.discover();
 			target.putAll(source);
-			try (PrintWriter writer = new PrintWriter(JGIT_CONF_FILE)) {
+			try (PrintWriter writer = new PrintWriter(JGIT_CONF_FILE,
+					UTF_8.name())) {
 				target.store(writer, "JGIT S3 connection configuration file.");
 			}
 		}
@@ -738,7 +740,7 @@ public class WalkEncryptionTest {
 			AmazonS3 s3 = new AmazonS3(props);
 			String file = JGIT_USER + "-" + UUID.randomUUID().toString();
 			String path = JGIT_REMOTE_DIR + "/" + file;
-			s3.put(bucket, path, file.getBytes(CHARSET));
+			s3.put(bucket, path, file.getBytes(UTF_8));
 			s3.delete(bucket, path);
 		}
 

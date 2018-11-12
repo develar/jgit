@@ -43,6 +43,7 @@
 
 package org.eclipse.jgit.treewalk;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -331,7 +332,7 @@ public class FileTreeIteratorTest extends RepositoryTestCase {
 		DirCacheEntry dce = db.readDirCache().getEntry("symlink");
 		dce.setFileMode(FileMode.SYMLINK);
 		try (ObjectReader objectReader = db.newObjectReader()) {
-			DirCacheCheckout.checkoutEntry(db, dce, objectReader);
+			DirCacheCheckout.checkoutEntry(db, dce, objectReader, false, null);
 
 			FileTreeIterator fti = new FileTreeIterator(trash, db.getFS(),
 					db.getConfig().get(WorkingTreeOptions.KEY));
@@ -822,6 +823,6 @@ public class FileTreeIteratorTest extends RepositoryTestCase {
 	}
 
 	private static String nameOf(AbstractTreeIterator i) {
-		return RawParseUtils.decode(Constants.CHARSET, i.path, 0, i.pathLen);
+		return RawParseUtils.decode(UTF_8, i.path, 0, i.pathLen);
 	}
 }

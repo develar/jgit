@@ -43,7 +43,7 @@
 
 package org.eclipse.jgit.internal.storage.reftable;
 
-import static org.eclipse.jgit.lib.Constants.CHARSET;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.eclipse.jgit.internal.storage.reftable.BlockReader.decodeBlockLen;
 import static org.eclipse.jgit.internal.storage.reftable.ReftableConstants.FILE_BLOCK_TYPE;
 import static org.eclipse.jgit.internal.storage.reftable.ReftableConstants.FILE_FOOTER_LEN;
@@ -182,10 +182,19 @@ public class ReftableReader extends Reftable {
 	public RefCursor seekRef(String refName) throws IOException {
 		initRefIndex();
 
-		byte[] key = refName.getBytes(CHARSET);
-		boolean prefix = key[key.length - 1] == '/';
+		byte[] key = refName.getBytes(UTF_8);
+		RefCursorImpl i = new RefCursorImpl(refEnd, key, false);
+		i.block = seek(REF_BLOCK_TYPE, key, refIndex, 0, refEnd);
+		return i;
+	}
 
-		RefCursorImpl i = new RefCursorImpl(refEnd, key, prefix);
+	/** {@inheritDoc} */
+	@Override
+	public RefCursor seekRefsWithPrefix(String prefix) throws IOException {
+		initRefIndex();
+
+		byte[] key = prefix.getBytes(UTF_8);
+		RefCursorImpl i = new RefCursorImpl(refEnd, key, true);
 		i.block = seek(REF_BLOCK_TYPE, key, refIndex, 0, refEnd);
 		return i;
 	}
@@ -223,7 +232,7 @@ public class ReftableReader extends Reftable {
 		initLogIndex();
 		if (logPosition > 0) {
 			byte[] key = LogEntry.key(refName, updateIndex);
-			byte[] match = refName.getBytes(CHARSET);
+			byte[] match = refName.getBytes(UTF_8);
 			LogCursorImpl i = new LogCursorImpl(logEnd, match);
 			i.block = seek(LOG_BLOCK_TYPE, key, logIndex, logPosition, logEnd);
 			return i;

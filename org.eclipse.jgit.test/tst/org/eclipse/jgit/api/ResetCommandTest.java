@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2013, Chris Aniszczyk <caniszczyk@gmail.com>
+ * Copyright (C) 2011-2018, Chris Aniszczyk <caniszczyk@gmail.com>
  * and other copyright owners as documented in the project's IP log.
  *
  * This program and the accompanying materials are made available
@@ -52,7 +52,6 @@ import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.PrintWriter;
 
 import org.eclipse.jgit.api.ResetCommand.ResetType;
 import org.eclipse.jgit.api.errors.GitAPIException;
@@ -83,6 +82,8 @@ public class ResetCommandTest extends RepositoryTestCase {
 
 	private File indexFile;
 
+	private File indexNestedFile;
+
 	private File untrackedFile;
 
 	private DirCacheEntry prestage;
@@ -94,45 +95,25 @@ public class ResetCommandTest extends RepositoryTestCase {
 		git = new Git(db);
 		initialCommit = git.commit().setMessage("initial commit").call();
 
+		// create file
+		indexFile = writeTrashFile("a.txt", "content");
+
 		// create nested file
-		File dir = new File(db.getWorkTree(), "dir");
-		FileUtils.mkdir(dir);
-		File nestedFile = new File(dir, "b.txt");
-		FileUtils.createNewFile(nestedFile);
+		indexNestedFile = writeTrashFile("dir/b.txt", "content");
 
-		try (PrintWriter nestedFileWriter = new PrintWriter(nestedFile)) {
-			nestedFileWriter.print("content");
-			nestedFileWriter.flush();
+		// add files and commit them
+		git.add().addFilepattern("a.txt").addFilepattern("dir/b.txt").call();
+		secondCommit = git.commit().setMessage("adding a.txt and dir/b.txt").call();
 
-			// create file
-			indexFile = new File(db.getWorkTree(), "a.txt");
-			FileUtils.createNewFile(indexFile);
-			try (PrintWriter writer = new PrintWriter(indexFile)) {
-				writer.print("content");
-				writer.flush();
+		prestage = DirCache.read(db.getIndexFile(), db.getFS()).getEntry(indexFile.getName());
 
-				// add file and commit it
-				git.add().addFilepattern("dir").addFilepattern("a.txt").call();
-				secondCommit = git.commit()
-						.setMessage("adding a.txt and dir/b.txt").call();
-
-				prestage = DirCache.read(db.getIndexFile(), db.getFS())
-						.getEntry(indexFile.getName());
-
-				// modify file and add to index
-				writer.print("new content");
-			}
-			nestedFileWriter.print("new content");
-		}
-		git.add().addFilepattern("a.txt").addFilepattern("dir").call();
+		// modify files and add to index
+		writeTrashFile("a.txt", "new content");
+		writeTrashFile("dir/b.txt", "new content");
+		git.add().addFilepattern("a.txt").addFilepattern("dir/b.txt").call();
 
 		// create a file not added to the index
-		untrackedFile = new File(db.getWorkTree(),
-				"notAddedToIndex.txt");
-		FileUtils.createNewFile(untrackedFile);
-		try (PrintWriter writer2 = new PrintWriter(untrackedFile)) {
-			writer2.print("content");
-		}
+		untrackedFile = writeTrashFile("notAddedToIndex.txt", "content");
 	}
 
 	@Test
@@ -140,13 +121,16 @@ public class ResetCommandTest extends RepositoryTestCase {
 			AmbiguousObjectException, IOException, GitAPIException {
 		setupRepository();
 		ObjectId prevHead = db.resolve(Constants.HEAD);
-		assertSameAsHead(git.reset().setMode(ResetType.HARD)
+		ResetCommand reset = git.reset();
+		assertSameAsHead(reset.setMode(ResetType.HARD)
 				.setRef(initialCommit.getName()).call());
+		assertFalse("reflog should be enabled", reset.isReflogDisabled());
 		// check if HEAD points to initial commit now
 		ObjectId head = db.resolve(Constants.HEAD);
 		assertEquals(initialCommit, head);
 		// check if files were removed
 		assertFalse(indexFile.exists());
+		assertFalse(indexNestedFile.exists());
 		assertTrue(untrackedFile.exists());
 		// fileInIndex must no longer be in HEAD and in the index
 		String fileInIndexPath = indexFile.getAbsolutePath();
@@ -169,6 +153,7 @@ public class ResetCommandTest extends RepositoryTestCase {
 		assertEquals(initialCommit, head);
 		// check if files were removed
 		assertFalse(indexFile.exists());
+		assertFalse(indexNestedFile.exists());
 		assertTrue(untrackedFile.exists());
 		// fileInIndex must no longer be in HEAD and in the index
 		String fileInIndexPath = indexFile.getAbsolutePath();
@@ -179,31 +164,29 @@ public class ResetCommandTest extends RepositoryTestCase {
 	}
 
 	@Test
-	public void testHardResetWithConflicts_DoOverWriteUntrackedFile()
-			throws JGitInternalException,
-			AmbiguousObjectException, IOException, GitAPIException {
+	public void testHardResetWithConflicts_OverwriteUntrackedFile() throws Exception {
 		setupRepository();
+
 		git.rm().setCached(true).addFilepattern("a.txt").call();
 		assertTrue(new File(db.getWorkTree(), "a.txt").exists());
-		git.reset().setMode(ResetType.HARD).setRef(Constants.HEAD)
-				.call();
+
+		git.reset().setMode(ResetType.HARD).setRef(Constants.HEAD).call();
 		assertTrue(new File(db.getWorkTree(), "a.txt").exists());
 		assertEquals("content", read(new File(db.getWorkTree(), "a.txt")));
 	}
 
 	@Test
-	public void testHardResetWithConflicts_DoDeleteFileFolderConflicts()
-			throws JGitInternalException,
-			AmbiguousObjectException, IOException, GitAPIException {
+	public void testHardResetWithConflicts_DeleteFileFolderConflict() throws Exception {
 		setupRepository();
-		writeTrashFile("d/c.txt", "x");
-		git.add().addFilepattern("d/c.txt").call();
-		FileUtils.delete(new File(db.getWorkTree(), "d"), FileUtils.RECURSIVE);
-		writeTrashFile("d", "y");
 
-		git.reset().setMode(ResetType.HARD).setRef(Constants.HEAD)
-				.call();
-		assertFalse(new File(db.getWorkTree(), "d").exists());
+		writeTrashFile("dir-or-file/c.txt", "content");
+		git.add().addFilepattern("dir-or-file/c.txt").call();
+
+		FileUtils.delete(new File(db.getWorkTree(), "dir-or-file"), FileUtils.RECURSIVE);
+		writeTrashFile("dir-or-file", "content");
+
+		git.reset().setMode(ResetType.HARD).setRef(Constants.HEAD).call();
+		assertFalse(new File(db.getWorkTree(), "dir-or-file").exists());
 	}
 
 	@Test

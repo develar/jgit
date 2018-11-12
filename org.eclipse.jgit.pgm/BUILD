@@ -7,6 +7,7 @@ java_library(
     deps = [
         ":services",
         "//lib:args4j",
+        "//lib:commons-logging",
         "//lib:httpclient",
         "//lib:httpcore",
         "//lib:jetty-http",
@@ -27,8 +28,8 @@ java_library(
 
 java_binary(
     name = "jgit",
-    runtime_deps = [":pgm"],
     main_class = "org.eclipse.jgit.pgm.Main",
+    runtime_deps = [":pgm"],
 )
 
 java_import(

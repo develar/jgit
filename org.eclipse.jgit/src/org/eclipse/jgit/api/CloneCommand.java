@@ -283,12 +283,11 @@ public class CloneCommand extends TransportCommand<CloneCommand, Git> {
 		config.addURI(u);
 
 		final String dst = (bare ? Constants.R_HEADS : Constants.R_REMOTES
-				+ config.getName() + "/") + "*"; //$NON-NLS-1$//$NON-NLS-2$
-		RefSpec refSpec = new RefSpec();
-		refSpec = refSpec.setForceUpdate(true);
-		refSpec = refSpec.setSourceDestination(Constants.R_HEADS + "*", dst); //$NON-NLS-1$
+				+ config.getName() + '/') + '*';
+		boolean fetchAll = cloneAllBranches || branchesToClone == null
+				|| branchesToClone.isEmpty();
 
-		config.addFetchRefSpec(refSpec);
+		config.setFetchRefSpecs(calculateRefSpecs(fetchAll, dst));
 		config.update(clonedRepo.getConfig());
 
 		clonedRepo.getConfig().save();
@@ -297,27 +296,25 @@ public class CloneCommand extends TransportCommand<CloneCommand, Git> {
 		FetchCommand command = new FetchCommand(clonedRepo);
 		command.setRemote(remote);
 		command.setProgressMonitor(monitor);
-		command.setTagOpt(TagOpt.FETCH_TAGS);
+		command.setTagOpt(fetchAll ? TagOpt.FETCH_TAGS : TagOpt.AUTO_FOLLOW);
 		configure(command);
-
-		List<RefSpec> specs = calculateRefSpecs(dst);
-		command.setRefSpecs(specs);
 
 		return command.call();
 	}
 
-	private List<RefSpec> calculateRefSpecs(String dst) {
+	private List<RefSpec> calculateRefSpecs(boolean fetchAll, String dst) {
 		RefSpec wcrs = new RefSpec();
 		wcrs = wcrs.setForceUpdate(true);
-		wcrs = wcrs.setSourceDestination(Constants.R_HEADS + "*", dst); //$NON-NLS-1$
+		wcrs = wcrs.setSourceDestination(Constants.R_HEADS + '*', dst);
 		List<RefSpec> specs = new ArrayList<>();
-		if (cloneAllBranches)
-			specs.add(wcrs);
-		else if (branchesToClone != null
-				&& branchesToClone.size() > 0) {
-			for (String selectedRef : branchesToClone)
-				if (wcrs.matchSource(selectedRef))
+		if (!fetchAll) {
+			for (String selectedRef : branchesToClone) {
+				if (wcrs.matchSource(selectedRef)) {
 					specs.add(wcrs.expandFromSource(selectedRef));
+				}
+			}
+		} else {
+			specs.add(wcrs);
 		}
 		return specs;
 	}

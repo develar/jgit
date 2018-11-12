@@ -42,11 +42,13 @@
  */
 package org.eclipse.jgit.pgm;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.Assert.assertNull;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
@@ -153,7 +155,8 @@ public class CLIGitCommand extends Main {
 
 	@Override
 	PrintWriter createErrorWriter() {
-		return new PrintWriter(result.err);
+		return new PrintWriter(new OutputStreamWriter(
+				result.err, UTF_8));
 	}
 
 	@Override
@@ -230,7 +233,7 @@ public class CLIGitCommand extends Main {
 		}
 		if (r.length() > 0)
 			list.add(r.toString());
-		return list.toArray(new String[list.size()]);
+		return list.toArray(new String[0]);
 	}
 
 	public static class Result {
@@ -249,19 +252,19 @@ public class CLIGitCommand extends Main {
 		}
 
 		public String outString() {
-			return out.toString();
+			return new String(out.toByteArray(), UTF_8);
 		}
 
 		public List<String> outLines() {
-			return IO.readLines(out.toString());
+			return IO.readLines(outString());
 		}
 
 		public String errString() {
-			return err.toString();
+			return new String(err.toByteArray(), UTF_8);
 		}
 
 		public List<String> errLines() {
-			return IO.readLines(err.toString());
+			return IO.readLines(errString());
 		}
 	}
 

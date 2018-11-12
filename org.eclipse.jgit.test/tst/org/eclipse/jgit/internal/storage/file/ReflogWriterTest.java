@@ -42,6 +42,7 @@
  *******************************************************************************/
 package org.eclipse.jgit.internal.storage.file;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.Assert.assertEquals;
 
 import java.io.File;
@@ -73,9 +74,9 @@ public class ReflogWriterTest extends SampleDataRepositoryTestCase {
 		writer.log("refs/heads/master", oldId, newId, ident,
 				"stash: Add\nmessage\r\nwith line feeds");
 
-		byte[] buffer = new byte[oneLine.getBytes().length];
+		byte[] buffer = new byte[oneLine.getBytes(UTF_8).length];
 		readReflog(buffer);
-		assertEquals(oneLine, new String(buffer));
+		assertEquals(oneLine, new String(buffer, UTF_8));
 	}
 
 	private void readReflog(byte[] buffer)

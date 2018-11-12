@@ -152,7 +152,8 @@ public class LfsFactory {
 	 * @param outputStream
 	 * @return a {@link PrePushHook} implementation or <code>null</code>
 	 */
-	public @Nullable PrePushHook getPrePushHook(Repository repo,
+	@Nullable
+	public PrePushHook getPrePushHook(Repository repo,
 			PrintStream outputStream) {
 		return null;
 	}
@@ -163,7 +164,8 @@ public class LfsFactory {
 	 *
 	 * @return a command to install LFS support.
 	 */
-	public @Nullable LfsInstallCommand getInstallCommand() {
+	@Nullable
+	public LfsInstallCommand getInstallCommand() {
 		return null;
 	}
 
@@ -292,6 +294,11 @@ public class LfsFactory {
 		@Override
 		public int read() throws IOException {
 			return stream.read();
+		}
+
+		@Override
+		public int read(byte b[], int off, int len) throws IOException {
+			return stream.read(b, off, len);
 		}
 
 		/**

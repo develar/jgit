@@ -44,6 +44,9 @@
 
 package org.eclipse.jgit.pgm;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.eclipse.jgit.lib.ConfigConstants.CONFIG_SECTION_I18N;
+import static org.eclipse.jgit.lib.ConfigConstants.CONFIG_KEY_LOG_OUTPUT_ENCODING;
 import static org.eclipse.jgit.lib.Constants.R_HEADS;
 import static org.eclipse.jgit.lib.Constants.R_REMOTES;
 import static org.eclipse.jgit.lib.Constants.R_TAGS;
@@ -56,6 +59,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.nio.charset.Charset;
 import java.text.MessageFormat;
 import java.util.ResourceBundle;
 
@@ -168,6 +172,30 @@ public abstract class TextBuiltin {
 	}
 
 	/**
+	 * Get the log output encoding specified in the repository's
+	 * {@code i18n.logOutputEncoding} configuration.
+	 *
+	 * @param repository
+	 *            the repository.
+	 * @return Charset corresponding to {@code i18n.logOutputEncoding}, or
+	 *         {@code UTF_8}.
+	 */
+	private Charset getLogOutputEncodingCharset(Repository repository) {
+		if (repository != null) {
+			String logOutputEncoding = repository.getConfig().getString(
+					CONFIG_SECTION_I18N, null, CONFIG_KEY_LOG_OUTPUT_ENCODING);
+			if (logOutputEncoding != null) {
+				try {
+					return Charset.forName(logOutputEncoding);
+				} catch (IllegalArgumentException e) {
+					throw die(CLIText.get().cannotCreateOutputStream);
+				}
+			}
+		}
+		return UTF_8;
+	}
+
+	/**
 	 * Initialize the command to work with a repository.
 	 *
 	 * @param repository
@@ -177,32 +205,18 @@ public abstract class TextBuiltin {
 	 *            {@code repository} is null.
 	 */
 	protected void init(Repository repository, String gitDir) {
-		try {
-			final String outputEncoding = repository != null ? repository
-					.getConfig().getString("i18n", null, "logOutputEncoding") : null; //$NON-NLS-1$ //$NON-NLS-2$
-			if (ins == null)
-				ins = new FileInputStream(FileDescriptor.in);
-			if (outs == null)
-				outs = new FileOutputStream(FileDescriptor.out);
-			if (errs == null)
-				errs = new FileOutputStream(FileDescriptor.err);
-			BufferedWriter outbufw;
-			if (outputEncoding != null)
-				outbufw = new BufferedWriter(new OutputStreamWriter(outs,
-						outputEncoding));
-			else
-				outbufw = new BufferedWriter(new OutputStreamWriter(outs));
-			outw = new ThrowingPrintWriter(outbufw);
-			BufferedWriter errbufw;
-			if (outputEncoding != null)
-				errbufw = new BufferedWriter(new OutputStreamWriter(errs,
-						outputEncoding));
-			else
-				errbufw = new BufferedWriter(new OutputStreamWriter(errs));
-			errw = new ThrowingPrintWriter(errbufw);
-		} catch (IOException e) {
-			throw die(CLIText.get().cannotCreateOutputStream);
-		}
+		Charset charset = getLogOutputEncodingCharset(repository);
+
+		if (ins == null)
+			ins = new FileInputStream(FileDescriptor.in);
+		if (outs == null)
+			outs = new FileOutputStream(FileDescriptor.out);
+		if (errs == null)
+			errs = new FileOutputStream(FileDescriptor.err);
+		outw = new ThrowingPrintWriter(new BufferedWriter(
+				new OutputStreamWriter(outs, charset)));
+		errw = new ThrowingPrintWriter(new BufferedWriter(
+				new OutputStreamWriter(errs, charset)));
 
 		if (repository != null && repository.getDirectory() != null) {
 			db = repository;

@@ -44,6 +44,7 @@
 
 package org.eclipse.jgit.transport;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.eclipse.jgit.transport.ReceiveCommand.Result.NOT_ATTEMPTED;
 import static org.eclipse.jgit.transport.ReceiveCommand.Result.OK;
 import static org.eclipse.jgit.transport.ReceiveCommand.Result.REJECTED_NONFASTFORWARD;
@@ -203,12 +204,10 @@ class FetchProcess {
 				((BatchingProgressMonitor) monitor).setDelayStart(
 						250, TimeUnit.MILLISECONDS);
 			}
-			if (transport.isRemoveDeletedRefs())
+			if (transport.isRemoveDeletedRefs()) {
 				deleteStaleTrackingRefs(result, batch);
-			for (TrackingRefUpdate u : localUpdates) {
-				result.add(u);
-				batch.addCommand(u.asReceiveCommand());
 			}
+			addUpdateBatchCommands(result, batch);
 			for (ReceiveCommand cmd : batch.getCommands()) {
 				cmd.updateType(walk);
 				if (cmd.getType() == UPDATE_NONFASTFORWARD
@@ -221,8 +220,11 @@ class FetchProcess {
 					if (cmd.getResult() == NOT_ATTEMPTED)
 						cmd.setResult(OK);
 				}
-			} else
+			} else {
 				batch.execute(walk, monitor);
+			}
+		} catch (TransportException e) {
+			throw e;
 		} catch (IOException err) {
 			throw new TransportException(MessageFormat.format(
 					JGitText.get().failureUpdatingTrackingRef,
@@ -235,6 +237,23 @@ class FetchProcess {
 			} catch (IOException err) {
 				throw new TransportException(MessageFormat.format(
 						JGitText.get().failureUpdatingFETCH_HEAD, err.getMessage()), err);
+			}
+		}
+	}
+
+	private void addUpdateBatchCommands(FetchResult result,
+			BatchRefUpdate batch) throws TransportException {
+		Map<String, ObjectId> refs = new HashMap<>();
+		for (TrackingRefUpdate u : localUpdates) {
+			// Try to skip duplicates if they'd update to the same object ID
+			ObjectId existing = refs.get(u.getLocalName());
+			if (existing == null) {
+				refs.put(u.getLocalName(), u.getNewObjectId());
+				result.add(u);
+				batch.addCommand(u.asReceiveCommand());
+			} else if (!existing.equals(u.getNewObjectId())) {
+				throw new TransportException(MessageFormat
+						.format(JGitText.get().duplicateRef, u.getLocalName()));
 			}
 		}
 	}
@@ -319,7 +338,7 @@ class FetchProcess {
 		try {
 			if (lock.lock()) {
 				try (Writer w = new OutputStreamWriter(
-						lock.getOutputStream())) {
+						lock.getOutputStream(), UTF_8)) {
 					for (FetchHeadRecord h : fetchHeadUpdates) {
 						h.write(w);
 						result.add(h);
@@ -479,15 +498,17 @@ class FetchProcess {
 
 	private void deleteStaleTrackingRefs(FetchResult result,
 			BatchRefUpdate batch) throws IOException {
+		Set<Ref> processed = new HashSet<>();
 		for (Ref ref : localRefs().values()) {
 			if (ref.isSymbolic()) {
 				continue;
 			}
-			final String refname = ref.getName();
+			String refname = ref.getName();
 			for (RefSpec spec : toFetch) {
 				if (spec.matchDestination(refname)) {
-					final RefSpec s = spec.expandFromDestination(refname);
-					if (result.getAdvertisedRef(s.getSource()) == null) {
+					RefSpec s = spec.expandFromDestination(refname);
+					if (result.getAdvertisedRef(s.getSource()) == null
+							&& processed.add(ref)) {
 						deleteTrackingRef(result, batch, s, ref);
 					}
 				}

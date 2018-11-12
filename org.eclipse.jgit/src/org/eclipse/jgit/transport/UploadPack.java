@@ -45,8 +45,10 @@ package org.eclipse.jgit.transport;
 
 import static org.eclipse.jgit.lib.Constants.R_TAGS;
 import static org.eclipse.jgit.lib.RefDatabase.ALL;
+import static org.eclipse.jgit.transport.GitProtocolConstants.CAPABILITY_REF_IN_WANT;
 import static org.eclipse.jgit.transport.GitProtocolConstants.COMMAND_FETCH;
 import static org.eclipse.jgit.transport.GitProtocolConstants.COMMAND_LS_REFS;
+import static org.eclipse.jgit.transport.GitProtocolConstants.CAPABILITY_SERVER_OPTION;
 import static org.eclipse.jgit.transport.GitProtocolConstants.OPTION_AGENT;
 import static org.eclipse.jgit.transport.GitProtocolConstants.OPTION_ALLOW_REACHABLE_SHA1_IN_WANT;
 import static org.eclipse.jgit.transport.GitProtocolConstants.OPTION_ALLOW_TIP_SHA1_IN_WANT;
@@ -68,6 +70,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -85,6 +88,7 @@ import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.errors.PackProtocolException;
 import org.eclipse.jgit.internal.JGitText;
 import org.eclipse.jgit.internal.storage.pack.PackWriter;
+import org.eclipse.jgit.internal.transport.parser.FirstWant;
 import org.eclipse.jgit.lib.BitmapIndex;
 import org.eclipse.jgit.lib.BitmapIndex.BitmapBuilder;
 import org.eclipse.jgit.lib.Constants;
@@ -176,42 +180,51 @@ public class UploadPack {
 				throws PackProtocolException, IOException;
 	}
 
-	/** Data in the first line of a request, the line itself plus options. */
+	/**
+	 * Data in the first line of a want-list, the line itself plus options.
+	 *
+	 * @deprecated Use {@link FirstWant} instead
+	 */
+	@Deprecated
 	public static class FirstLine {
-		private final String line;
-		private final Set<String> options;
+
+		private final FirstWant firstWant;
 
 		/**
-		 * Parse the first line of a receive-pack request.
-		 *
 		 * @param line
 		 *            line from the client.
 		 */
 		public FirstLine(String line) {
-			if (line.length() > 45) {
-				final HashSet<String> opts = new HashSet<>();
-				String opt = line.substring(45);
-				if (opt.startsWith(" ")) //$NON-NLS-1$
-					opt = opt.substring(1);
-				for (String c : opt.split(" ")) //$NON-NLS-1$
-					opts.add(c);
-				this.line = line.substring(0, 45);
-				this.options = Collections.unmodifiableSet(opts);
-			} else {
-				this.line = line;
-				this.options = Collections.emptySet();
+			try {
+				firstWant = FirstWant.fromLine(line);
+			} catch (PackProtocolException e) {
+				throw new UncheckedIOException(e);
 			}
 		}
 
 		/** @return non-capabilities part of the line. */
 		public String getLine() {
-			return line;
+			return firstWant.getLine();
 		}
 
-		/** @return options parsed from the line. */
+		/** @return capabilities parsed from the line. */
 		public Set<String> getOptions() {
-			return options;
+			if (firstWant.getAgent() != null) {
+				Set<String> caps = new HashSet<>(firstWant.getCapabilities());
+				caps.add(OPTION_AGENT + '=' + firstWant.getAgent());
+				return caps;
+			}
+			return firstWant.getCapabilities();
 		}
+	}
+
+	/*
+	 * {@link java.util.function.Consumer} doesn't allow throwing checked
+	 * exceptions. Define our own to propagate IOExceptions.
+	 */
+	@FunctionalInterface
+	private static interface IOConsumer<R> {
+		void accept(R t) throws IOException;
 	}
 
 	/** Database we read the objects from. */
@@ -264,6 +277,9 @@ public class UploadPack {
 	/** The refs we advertised as existing at the start of the connection. */
 	private Map<String, Ref> refs;
 
+	/** Hook used while processing Git protocol v2 requests. */
+	private ProtocolV2Hook protocolV2Hook = ProtocolV2Hook.DEFAULT;
+
 	/** Hook used while advertising the refs to the client. */
 	private AdvertiseRefsHook advertiseRefsHook = AdvertiseRefsHook.DEFAULT;
 
@@ -276,37 +292,17 @@ public class UploadPack {
 	/** Hook for taking post upload actions. */
 	private PostUploadHook postUploadHook = PostUploadHook.NULL;
 
-	/** Capabilities requested by the client. */
-	private Set<String> options;
+	/** Caller user agent */
 	String userAgent;
 
 	/** Raw ObjectIds the client has asked for, before validating them. */
-	private final Set<ObjectId> wantIds = new HashSet<>();
+	private Set<ObjectId> wantIds = new HashSet<>();
 
 	/** Objects the client wants to obtain. */
 	private final Set<RevObject> wantAll = new HashSet<>();
 
 	/** Objects on both sides, these don't have to be sent. */
 	private final Set<RevObject> commonBase = new HashSet<>();
-
-	/** Shallow commits the client already has. */
-	private final Set<ObjectId> clientShallowCommits = new HashSet<>();
-
-	/** Desired depth from the client on a shallow request. */
-	private int depth;
-
-	/**
-	 * Commit time of the newest objects the client has asked us using
-	 * --shallow-since not to send. Cannot be nonzero if depth is nonzero.
-	 */
-	private int shallowSince;
-
-	/**
-	 * (Possibly short) ref names, ancestors of which the client has asked us
-	 * not to send using --shallow-exclude. Cannot be non-null if depth is
-	 * nonzero.
-	 */
-	private @Nullable List<String> shallowExcludeRefs;
 
 	/** Commit time of the oldest common commit, in seconds. */
 	private int oldestTime;
@@ -341,7 +337,14 @@ public class UploadPack {
 
 	private PackStatistics statistics;
 
-	private long filterBlobLimit = -1;
+	/**
+	 * Request this instance is handling.
+	 *
+	 * We need to keep a reference to it for {@link PreUploadHook pre upload
+	 * hooks}. They receive a reference this instance and invoke methods like
+	 * getDepth() to get information about the request.
+	 */
+	private FetchRequest currentRequest;
 
 	/**
 	 * Create a new pack upload for an open repository.
@@ -576,6 +579,16 @@ public class UploadPack {
 	}
 
 	/**
+	 * Set the protocol V2 hook.
+	 *
+	 * @param hook
+	 * @since 5.1
+	 */
+	public void setProtocolV2Hook(ProtocolV2Hook hook) {
+		this.protocolV2Hook = hook;
+	}
+
+	/**
 	 * Set the filter used while advertising the refs to the client.
 	 * <p>
 	 * Only refs allowed by this filter will be sent to the client. The filter
@@ -673,10 +686,12 @@ public class UploadPack {
 	 *             read.
 	 */
 	public boolean isSideBand() throws RequestNotYetReadException {
-		if (options == null)
+		if (currentRequest == null) {
 			throw new RequestNotYetReadException();
-		return (options.contains(OPTION_SIDE_BAND)
-				|| options.contains(OPTION_SIDE_BAND_64K));
+		}
+		Set<String> caps = currentRequest.getClientCapabilities();
+		return caps.contains(OPTION_SIDE_BAND)
+				|| caps.contains(OPTION_SIDE_BAND_64K);
 	}
 
 	/**
@@ -790,6 +805,7 @@ public class UploadPack {
 		// writing a response. Buffer the response until then.
 		PackStatistics.Accumulator accumulator = new PackStatistics.Accumulator();
 		List<ObjectId> unshallowCommits = new ArrayList<>();
+		FetchRequest req;
 		try {
 			if (biDirectionalPipe)
 				sendAdvertisedRefs(new PacketLineOutRefAdvertiser(pckOut));
@@ -800,29 +816,46 @@ public class UploadPack {
 
 			long negotiateStart = System.currentTimeMillis();
 			accumulator.advertised = advertised.size();
-			recvWants();
-			if (wantIds.isEmpty()) {
-				preUploadHook.onBeginNegotiateRound(this, wantIds, 0);
-				preUploadHook.onEndNegotiateRound(this, wantIds, 0, 0, false);
+
+			ProtocolV0Parser parser = new ProtocolV0Parser(transferConfig);
+			req = parser.recvWants(pckIn);
+			currentRequest = req;
+
+			wantIds = req.getWantIds();
+
+			if (req.getWantIds().isEmpty()) {
+				preUploadHook.onBeginNegotiateRound(this, req.getWantIds(), 0);
+				preUploadHook.onEndNegotiateRound(this, req.getWantIds(), 0, 0,
+						false);
 				return;
 			}
-			accumulator.wants = wantIds.size();
+			accumulator.wants = req.getWantIds().size();
 
-			if (options.contains(OPTION_MULTI_ACK_DETAILED)) {
+			if (req.getClientCapabilities().contains(OPTION_MULTI_ACK_DETAILED)) {
 				multiAck = MultiAck.DETAILED;
-				noDone = options.contains(OPTION_NO_DONE);
-			} else if (options.contains(OPTION_MULTI_ACK))
+				noDone = req.getClientCapabilities().contains(OPTION_NO_DONE);
+			} else if (req.getClientCapabilities().contains(OPTION_MULTI_ACK))
 				multiAck = MultiAck.CONTINUE;
 			else
 				multiAck = MultiAck.OFF;
 
-			if (!clientShallowCommits.isEmpty())
-				verifyClientShallow();
-			if (depth != 0)
-				processShallow(null, unshallowCommits, true);
-			if (!clientShallowCommits.isEmpty())
-				walk.assumeShallow(clientShallowCommits);
-			sendPack = negotiate(accumulator);
+			if (!req.getClientShallowCommits().isEmpty()) {
+				verifyClientShallow(req.getClientShallowCommits());
+			}
+
+			if (req.getDepth() != 0 || req.getDeepenSince() != 0) {
+				computeShallowsAndUnshallows(req, shallow -> {
+					pckOut.writeString("shallow " + shallow.name() + '\n'); //$NON-NLS-1$
+				}, unshallow -> {
+					pckOut.writeString("unshallow " + unshallow.name() + '\n'); //$NON-NLS-1$
+					unshallowCommits.add(unshallow);
+				}, Collections.emptyList());
+				pckOut.end();
+			}
+
+			if (!req.getClientShallowCommits().isEmpty())
+				walk.assumeShallow(req.getClientShallowCommits());
+			sendPack = negotiate(req, accumulator);
 			accumulator.timeNegotiating += System.currentTimeMillis()
 					- negotiateStart;
 
@@ -872,54 +905,33 @@ public class UploadPack {
 		}
 
 		if (sendPack) {
-			sendPack(accumulator, refs == null ? null : refs.values(), unshallowCommits);
+			sendPack(accumulator, req, refs == null ? null : refs.values(),
+					unshallowCommits, Collections.emptyList());
 		}
 	}
 
 	private void lsRefsV2() throws IOException {
-		PacketLineOutRefAdvertiser adv = new PacketLineOutRefAdvertiser(pckOut);
-		String line;
-		ArrayList<String> refPrefixes = new ArrayList<>();
-		boolean needToFindSymrefs = false;
+		ProtocolV2Parser parser = new ProtocolV2Parser(transferConfig);
+		LsRefsV2Request req = parser.parseLsRefsRequest(pckIn);
+		protocolV2Hook.onLsRefs(req);
 
-		adv.setUseProtocolV2(true);
-
-		line = pckIn.readString();
-
-		// Currently, we do not support any capabilities, so the next
-		// line is DELIM if there are arguments or END if not.
-		if (line == PacketLineIn.DELIM) {
-			while ((line = pckIn.readString()) != PacketLineIn.END) {
-				if (line.equals("peel")) { //$NON-NLS-1$
-					adv.setDerefTags(true);
-				} else if (line.equals("symrefs")) { //$NON-NLS-1$
-					needToFindSymrefs = true;
-				} else if (line.startsWith("ref-prefix ")) { //$NON-NLS-1$
-					refPrefixes.add(line.substring("ref-prefix ".length())); //$NON-NLS-1$
-				} else {
-					throw new PackProtocolException(MessageFormat
-							.format(JGitText.get().unexpectedPacketLine, line));
-				}
-			}
-		} else if (line != PacketLineIn.END) {
-			throw new PackProtocolException(MessageFormat
-					.format(JGitText.get().unexpectedPacketLine, line));
-		}
 		rawOut.stopBuffering();
-
+		PacketLineOutRefAdvertiser adv = new PacketLineOutRefAdvertiser(pckOut);
+		adv.setUseProtocolV2(true);
+		if (req.getPeel()) {
+			adv.setDerefTags(true);
+		}
 		Map<String, Ref> refsToSend;
-		if (refPrefixes.isEmpty()) {
+		if (req.getRefPrefixes().isEmpty()) {
 			refsToSend = getAdvertisedOrDefaultRefs();
 		} else {
 			refsToSend = new HashMap<>();
-			for (String refPrefix : refPrefixes) {
-				for (Ref ref : db.getRefDatabase().getRefsByPrefix(refPrefix)) {
-					refsToSend.put(ref.getName(), ref);
-				}
+			String[] prefixes = req.getRefPrefixes().toArray(new String[0]);
+			for (Ref ref : db.getRefDatabase().getRefsByPrefix(prefixes)) {
+				refsToSend.put(ref.getName(), ref);
 			}
 		}
-
-		if (needToFindSymrefs) {
+		if (req.getSymrefs()) {
 			findSymrefs(adv, refsToSend);
 		}
 
@@ -928,12 +940,6 @@ public class UploadPack {
 	}
 
 	private void fetchV2() throws IOException {
-		options = new HashSet<>();
-
-		// Packs are always sent multiplexed and using full 64K
-		// lengths.
-		options.add(OPTION_SIDE_BAND_64K);
-
 		// Depending on the requestValidator, #processHaveLines may
 		// require that advertised be set. Set it only in the required
 		// circumstances (to avoid a full ref lookup in the case that
@@ -946,113 +952,59 @@ public class UploadPack {
 			advertised = refIdSet(getAdvertisedOrDefaultRefs().values());
 		}
 
-		String line;
-		List<ObjectId> peerHas = new ArrayList<>();
-		boolean doneReceived = false;
-
-		// Currently, we do not support any capabilities, so the next
-		// line is DELIM.
-		if ((line = pckIn.readString()) != PacketLineIn.DELIM) {
-			throw new PackProtocolException(MessageFormat
-					.format(JGitText.get().unexpectedPacketLine, line));
-		}
-
-		boolean includeTag = false;
-		boolean filterReceived = false;
-		while ((line = pckIn.readString()) != PacketLineIn.END) {
-			if (line.startsWith("want ")) { //$NON-NLS-1$
-				wantIds.add(ObjectId.fromString(line.substring(5)));
-			} else if (line.startsWith("have ")) { //$NON-NLS-1$
-				peerHas.add(ObjectId.fromString(line.substring(5)));
-			} else if (line.equals("done")) { //$NON-NLS-1$
-				doneReceived = true;
-			} else if (line.equals(OPTION_THIN_PACK)) {
-				options.add(OPTION_THIN_PACK);
-			} else if (line.equals(OPTION_NO_PROGRESS)) {
-				options.add(OPTION_NO_PROGRESS);
-			} else if (line.equals(OPTION_INCLUDE_TAG)) {
-				options.add(OPTION_INCLUDE_TAG);
-				includeTag = true;
-			} else if (line.equals(OPTION_OFS_DELTA)) {
-				options.add(OPTION_OFS_DELTA);
-			} else if (line.startsWith("shallow ")) { //$NON-NLS-1$
-				clientShallowCommits.add(ObjectId.fromString(line.substring(8)));
-			} else if (line.startsWith("deepen ")) { //$NON-NLS-1$
-				depth = Integer.parseInt(line.substring(7));
-				if (depth <= 0) {
-					throw new PackProtocolException(
-							MessageFormat.format(JGitText.get().invalidDepth,
-									Integer.valueOf(depth)));
-				}
-				if (shallowSince != 0) {
-					throw new PackProtocolException(
-							JGitText.get().deepenSinceWithDeepen);
-				}
-				if (shallowExcludeRefs != null) {
-					throw new PackProtocolException(
-							JGitText.get().deepenNotWithDeepen);
-				}
-			} else if (line.startsWith("deepen-not ")) { //$NON-NLS-1$
-				List<String> exclude = shallowExcludeRefs;
-				if (exclude == null) {
-					exclude = shallowExcludeRefs = new ArrayList<>();
-				}
-				exclude.add(line.substring(11));
-				if (depth != 0) {
-					throw new PackProtocolException(
-							JGitText.get().deepenNotWithDeepen);
-				}
-			} else if (line.equals(OPTION_DEEPEN_RELATIVE)) {
-				options.add(OPTION_DEEPEN_RELATIVE);
-			} else if (line.startsWith("deepen-since ")) { //$NON-NLS-1$
-				shallowSince = Integer.parseInt(line.substring(13));
-				if (shallowSince <= 0) {
-					throw new PackProtocolException(
-							MessageFormat.format(
-									JGitText.get().invalidTimestamp, line));
-				}
-				if (depth !=  0) {
-					throw new PackProtocolException(
-							JGitText.get().deepenSinceWithDeepen);
-				}
-			} else if (transferConfig.isAllowFilter()
-					&& line.startsWith(OPTION_FILTER + ' ')) {
-				if (filterReceived) {
-					throw new PackProtocolException(JGitText.get().tooManyFilters);
-				}
-				filterReceived = true;
-				parseFilter(line.substring(OPTION_FILTER.length() + 1));
-			} else {
-				throw new PackProtocolException(MessageFormat
-						.format(JGitText.get().unexpectedPacketLine, line));
-			}
-		}
+		ProtocolV2Parser parser = new ProtocolV2Parser(transferConfig);
+		FetchV2Request req = parser.parseFetchRequest(pckIn,
+				db.getRefDatabase());
+		currentRequest = req;
 		rawOut.stopBuffering();
 
+		protocolV2Hook.onFetch(req);
+
+		// TODO(ifrade): Refactor to pass around the Request object, instead of
+		// copying data back to class fields
+		wantIds = req.getWantIds();
+
+		List<ObjectId> deepenNots = new ArrayList<>();
+		for (String s : req.getDeepenNotRefs()) {
+			Ref ref = db.getRefDatabase().getRef(s);
+			if (ref == null) {
+				throw new PackProtocolException(MessageFormat
+						.format(JGitText.get().invalidRefName, s));
+			}
+			deepenNots.add(ref.getObjectId());
+		}
+
 		boolean sectionSent = false;
-		@Nullable List<ObjectId> shallowCommits = null;
+		boolean mayHaveShallow = req.getDepth() != 0
+				|| req.getDeepenSince() != 0
+				|| !req.getDeepenNotRefs().isEmpty();
+		List<ObjectId> shallowCommits = new ArrayList<>();
 		List<ObjectId> unshallowCommits = new ArrayList<>();
 
-		if (!clientShallowCommits.isEmpty()) {
-			verifyClientShallow();
+		if (!req.getClientShallowCommits().isEmpty()) {
+			verifyClientShallow(req.getClientShallowCommits());
 		}
-		if (depth != 0 || shallowSince != 0 || shallowExcludeRefs != null) {
-			shallowCommits = new ArrayList<ObjectId>();
-			processShallow(shallowCommits, unshallowCommits, false);
+		if (mayHaveShallow) {
+			computeShallowsAndUnshallows(req,
+					shallowCommit -> shallowCommits.add(shallowCommit),
+					unshallowCommit -> unshallowCommits.add(unshallowCommit),
+					deepenNots);
 		}
-		if (!clientShallowCommits.isEmpty())
-			walk.assumeShallow(clientShallowCommits);
+		if (!req.getClientShallowCommits().isEmpty())
+			walk.assumeShallow(req.getClientShallowCommits());
 
-		if (doneReceived) {
-			processHaveLines(peerHas, ObjectId.zeroId(), new PacketLineOut(NullOutputStream.INSTANCE));
+		if (req.wasDoneReceived()) {
+			processHaveLines(req.getPeerHas(), ObjectId.zeroId(),
+					new PacketLineOut(NullOutputStream.INSTANCE));
 		} else {
 			pckOut.writeString("acknowledgments\n"); //$NON-NLS-1$
-			for (ObjectId id : peerHas) {
+			for (ObjectId id : req.getPeerHas()) {
 				if (walk.getObjectReader().has(id)) {
 					pckOut.writeString("ACK " + id.getName() + "\n"); //$NON-NLS-1$ //$NON-NLS-2$
 				}
 			}
-			processHaveLines(peerHas, ObjectId.zeroId(), new PacketLineOut(NullOutputStream.INSTANCE));
+			processHaveLines(req.getPeerHas(), ObjectId.zeroId(),
+					new PacketLineOut(NullOutputStream.INSTANCE));
 			if (okToGiveUp()) {
 				pckOut.writeString("ready\n"); //$NON-NLS-1$
 			} else if (commonBase.isEmpty()) {
@@ -1061,8 +1013,8 @@ public class UploadPack {
 			sectionSent = true;
 		}
 
-		if (doneReceived || okToGiveUp()) {
-			if (shallowCommits != null) {
+		if (req.wasDoneReceived() || okToGiveUp()) {
+			if (mayHaveShallow) {
 				if (sectionSent)
 					pckOut.writeDelim();
 				pckOut.writeString("shallow-info\n"); //$NON-NLS-1$
@@ -1075,16 +1027,34 @@ public class UploadPack {
 				sectionSent = true;
 			}
 
+			if (!req.getWantedRefs().isEmpty()) {
+				if (sectionSent) {
+					pckOut.writeDelim();
+				}
+				pckOut.writeString("wanted-refs\n"); //$NON-NLS-1$
+				for (Map.Entry<String, ObjectId> entry : req.getWantedRefs()
+						.entrySet()) {
+					pckOut.writeString(entry.getValue().getName() + ' ' +
+							entry.getKey() + '\n');
+				}
+				sectionSent = true;
+			}
+
 			if (sectionSent)
 				pckOut.writeDelim();
 			pckOut.writeString("packfile\n"); //$NON-NLS-1$
 			sendPack(new PackStatistics.Accumulator(),
-					includeTag
+					req,
+					req.getClientCapabilities().contains(OPTION_INCLUDE_TAG)
 						? db.getRefDatabase().getRefsByPrefix(R_TAGS)
 						: null,
-					new ArrayList<ObjectId>());
+					unshallowCommits, deepenNots);
+			// sendPack invokes pckOut.end() for us, so we do not
+			// need to invoke it here.
+		} else {
+			// Invoke pckOut.end() by ourselves.
+			pckOut.end();
 		}
-		pckOut.end();
 	}
 
 	/*
@@ -1121,10 +1091,15 @@ public class UploadPack {
 		ArrayList<String> caps = new ArrayList<>();
 		caps.add("version 2"); //$NON-NLS-1$
 		caps.add(COMMAND_LS_REFS);
+		boolean advertiseRefInWant = transferConfig.isAllowRefInWant() &&
+				db.getConfig().getBoolean("uploadpack", null, //$NON-NLS-1$
+						"advertiserefinwant", true); //$NON-NLS-1$
 		caps.add(
 				COMMAND_FETCH + '=' +
 				(transferConfig.isAllowFilter() ? OPTION_FILTER + ' ' : "") + //$NON-NLS-1$
+				(advertiseRefInWant ? CAPABILITY_REF_IN_WANT + ' ' : "") + //$NON-NLS-1$
 				OPTION_SHALLOW);
+		caps.add(CAPABILITY_SERVER_OPTION);
 		return caps;
 	}
 
@@ -1134,6 +1109,8 @@ public class UploadPack {
 			// is sent only if this is a bidirectional pipe. (If
 			// not, the client is expected to call
 			// sendAdvertisedRefs() on its own.)
+			protocolV2Hook
+					.onCapabilities(CapabilitiesV2Request.builder().build());
 			for (String s : getV2CapabilityAdvertisement()) {
 				pckOut.writeString(s + "\n"); //$NON-NLS-1$
 			}
@@ -1171,28 +1148,28 @@ public class UploadPack {
 	}
 
 	/*
-	 * Determines what "shallow" and "unshallow" lines to send to the user.
-	 * The information is written to shallowCommits (if not null) and
-	 * unshallowCommits, and also written to #pckOut (if writeToPckOut is
-	 * true).
+	 * Determines what object ids must be marked as shallow or unshallow for the
+	 * client.
 	 */
-	private void processShallow(@Nullable List<ObjectId> shallowCommits,
-			List<ObjectId> unshallowCommits,
-			boolean writeToPckOut) throws IOException {
-		if (options.contains(OPTION_DEEPEN_RELATIVE) ||
-				shallowSince != 0 ||
-				shallowExcludeRefs != null) {
-			// TODO(jonathantanmy): Implement deepen-relative, deepen-since,
-			// and deepen-not.
+	private void computeShallowsAndUnshallows(FetchRequest req,
+			IOConsumer<ObjectId> shallowFunc,
+			IOConsumer<ObjectId> unshallowFunc,
+			List<ObjectId> deepenNots)
+			throws IOException {
+		if (req.getClientCapabilities().contains(OPTION_DEEPEN_RELATIVE)) {
+			// TODO(jonathantanmy): Implement deepen-relative
 			throw new UnsupportedOperationException();
 		}
 
-		int walkDepth = depth - 1;
+		int walkDepth = req.getDepth() == 0 ? Integer.MAX_VALUE
+				: req.getDepth() - 1;
 		try (DepthWalk.RevWalk depthWalk = new DepthWalk.RevWalk(
 				walk.getObjectReader(), walkDepth)) {
 
+			depthWalk.setDeepenSince(req.getDeepenSince());
+
 			// Find all the commits which will be shallow
-			for (ObjectId o : wantIds) {
+			for (ObjectId o : req.getWantIds()) {
 				try {
 					depthWalk.markRoot(depthWalk.parseCommit(o));
 				} catch (IncorrectObjectTypeException notCommit) {
@@ -1200,41 +1177,43 @@ public class UploadPack {
 				}
 			}
 
+			depthWalk.setDeepenNots(deepenNots);
+
 			RevCommit o;
+			boolean atLeastOne = false;
 			while ((o = depthWalk.next()) != null) {
 				DepthWalk.Commit c = (DepthWalk.Commit) o;
+				atLeastOne = true;
+
+				boolean isBoundary = (c.getDepth() == walkDepth) || c.isBoundary();
 
 				// Commits at the boundary which aren't already shallow in
 				// the client need to be marked as such
-				if (c.getDepth() == walkDepth
-						&& !clientShallowCommits.contains(c)) {
-					if (shallowCommits != null) {
-						shallowCommits.add(c.copy());
-					}
-					if (writeToPckOut) {
-						pckOut.writeString("shallow " + o.name()); //$NON-NLS-1$
-					}
+				if (isBoundary && !req.getClientShallowCommits().contains(c)) {
+					shallowFunc.accept(c.copy());
 				}
 
 				// Commits not on the boundary which are shallow in the client
 				// need to become unshallowed
-				if (c.getDepth() < walkDepth
-						&& clientShallowCommits.remove(c)) {
-					unshallowCommits.add(c.copy());
-					if (writeToPckOut) {
-						pckOut.writeString("unshallow " + c.name()); //$NON-NLS-1$
-					}
+				if (!isBoundary && req.getClientShallowCommits().remove(c)) {
+					unshallowFunc.accept(c.copy());
 				}
 			}
-		}
-		if (writeToPckOut) {
-			pckOut.end();
+			if (!atLeastOne) {
+				throw new PackProtocolException(
+					JGitText.get().noCommitsSelectedForShallow);
+			}
 		}
 	}
 
-	private void verifyClientShallow()
+	/*
+	 * Verify all shallow lines refer to commits
+	 *
+	 * It can mutate the input set (removing missing object ids from it)
+	 */
+	private void verifyClientShallow(Set<ObjectId> shallowCommits)
 			throws IOException, PackProtocolException {
-		AsyncRevObjectQueue q = walk.parseAny(clientShallowCommits, true);
+		AsyncRevObjectQueue q = walk.parseAny(shallowCommits, true);
 		try {
 			for (;;) {
 				try {
@@ -1252,7 +1231,7 @@ public class UploadPack {
 				} catch (MissingObjectException notCommit) {
 					// shallow objects not known at the server are ignored
 					// by git-core upload-pack, match that behavior.
-					clientShallowCommits.remove(notCommit.getObjectId());
+					shallowCommits.remove(notCommit.getObjectId());
 					continue;
 				}
 			}
@@ -1298,6 +1277,8 @@ public class UploadPack {
 		if (useProtocolV2()) {
 			// The equivalent in v2 is only the capabilities
 			// advertisement.
+			protocolV2Hook
+					.onCapabilities(CapabilitiesV2Request.builder().build());
 			for (String s : getV2CapabilityAdvertisement()) {
 				adv.writeOne(s);
 			}
@@ -1382,94 +1363,6 @@ public class UploadPack {
 		return msgOut;
 	}
 
-	private void parseFilter(String arg) throws PackProtocolException {
-		if (arg.equals("blob:none")) { //$NON-NLS-1$
-			filterBlobLimit = 0;
-		} else if (arg.startsWith("blob:limit=")) { //$NON-NLS-1$
-			try {
-				filterBlobLimit = Long.parseLong(
-						arg.substring("blob:limit=".length())); //$NON-NLS-1$
-			} catch (NumberFormatException e) {
-				throw new PackProtocolException(
-						MessageFormat.format(JGitText.get().invalidFilter,
-								arg));
-			}
-		}
-		/*
-		 * We must have (1) either "blob:none" or
-		 * "blob:limit=" set (because we only support
-		 * blob size limits for now), and (2) if the
-		 * latter, then it must be nonnegative. Throw
-		 * if (1) or (2) is not met.
-		 */
-		if (filterBlobLimit < 0) {
-			throw new PackProtocolException(
-					MessageFormat.format(JGitText.get().invalidFilter,
-							arg));
-		}
-	}
-
-	private void recvWants() throws IOException {
-		boolean isFirst = true;
-		boolean filterReceived = false;
-		for (;;) {
-			String line;
-			try {
-				line = pckIn.readString();
-			} catch (EOFException eof) {
-				if (isFirst)
-					break;
-				throw eof;
-			}
-
-			if (line == PacketLineIn.END)
-				break;
-
-			if (line.startsWith("deepen ")) { //$NON-NLS-1$
-				depth = Integer.parseInt(line.substring(7));
-				if (depth <= 0) {
-					throw new PackProtocolException(
-							MessageFormat.format(JGitText.get().invalidDepth,
-									Integer.valueOf(depth)));
-				}
-				continue;
-			}
-
-			if (line.startsWith("shallow ")) { //$NON-NLS-1$
-				clientShallowCommits.add(ObjectId.fromString(line.substring(8)));
-				continue;
-			}
-
-			if (transferConfig.isAllowFilter()
-					&& line.startsWith(OPTION_FILTER + " ")) { //$NON-NLS-1$
-				String arg = line.substring(OPTION_FILTER.length() + 1);
-
-				if (filterReceived) {
-					throw new PackProtocolException(JGitText.get().tooManyFilters);
-				}
-				filterReceived = true;
-
-				parseFilter(arg);
-				continue;
-			}
-
-			if (!line.startsWith("want ") || line.length() < 45) //$NON-NLS-1$
-				throw new PackProtocolException(MessageFormat.format(JGitText.get().expectedGot, "want", line)); //$NON-NLS-1$
-
-			if (isFirst) {
-				if (line.length() > 45) {
-					FirstLine firstLine = new FirstLine(line);
-					options = firstLine.getOptions();
-					line = firstLine.getLine();
-				} else
-					options = Collections.emptySet();
-			}
-
-			wantIds.add(ObjectId.fromString(line.substring(5)));
-			isFirst = false;
-		}
-	}
-
 	/**
 	 * Returns the clone/fetch depth. Valid only after calling recvWants(). A
 	 * depth of 1 means return only the wants.
@@ -1478,9 +1371,9 @@ public class UploadPack {
 	 * @since 4.0
 	 */
 	public int getDepth() {
-		if (options == null)
+		if (currentRequest == null)
 			throw new RequestNotYetReadException();
-		return depth;
+		return currentRequest.getDepth();
 	}
 
 	/**
@@ -1499,10 +1392,15 @@ public class UploadPack {
 	 * @since 4.0
 	 */
 	public String getPeerUserAgent() {
-		return UserAgent.getAgent(options, userAgent);
+		if (currentRequest != null && currentRequest.getAgent() != null) {
+			return currentRequest.getAgent();
+		}
+
+		return userAgent;
 	}
 
-	private boolean negotiate(PackStatistics.Accumulator accumulator)
+	private boolean negotiate(FetchRequest req,
+			PackStatistics.Accumulator accumulator)
 			throws IOException {
 		okToGiveUp = Boolean.FALSE;
 
@@ -1518,7 +1416,7 @@ public class UploadPack {
 				// disconnected, and will try another request with actual want/have.
 				// Don't report the EOF here, its a bug in the protocol that the client
 				// just disconnects without sending an END.
-				if (!biDirectionalPipe && depth > 0)
+				if (!biDirectionalPipe && req.getDepth() > 0)
 					return false;
 				throw eof;
 			}
@@ -1899,25 +1797,31 @@ public class UploadPack {
 	 * Send the requested objects to the client.
 	 *
 	 * @param accumulator
-	 *                where to write statistics about the content of the pack.
+	 *            where to write statistics about the content of the pack.
+	 * @param req
+	 *            request in process
 	 * @param allTags
-	 *                refs to search for annotated tags to include in the pack
-	 *                if the {@link #OPTION_INCLUDE_TAG} capability was
-	 *                requested.
+	 *            refs to search for annotated tags to include in the pack if
+	 *            the {@link #OPTION_INCLUDE_TAG} capability was requested.
 	 * @param unshallowCommits
-	 *                shallow commits on the client that are now becoming
-	 *                unshallow
+	 *            shallow commits on the client that are now becoming unshallow
+	 * @param deepenNots
+	 *            objects that the client specified using --shallow-exclude
 	 * @throws IOException
-	 *                if an error occured while generating or writing the pack.
+	 *             if an error occurred while generating or writing the pack.
 	 */
 	private void sendPack(PackStatistics.Accumulator accumulator,
+			FetchRequest req,
 			@Nullable Collection<Ref> allTags,
-			List<ObjectId> unshallowCommits) throws IOException {
-		final boolean sideband = options.contains(OPTION_SIDE_BAND)
-				|| options.contains(OPTION_SIDE_BAND_64K);
+			List<ObjectId> unshallowCommits,
+			List<ObjectId> deepenNots) throws IOException {
+		Set<String> caps = req.getClientCapabilities();
+		boolean sideband = caps.contains(OPTION_SIDE_BAND)
+				|| caps.contains(OPTION_SIDE_BAND_64K);
 		if (sideband) {
 			try {
-				sendPack(true, accumulator, allTags, unshallowCommits);
+				sendPack(true, req, accumulator, allTags, unshallowCommits,
+						deepenNots);
 			} catch (ServiceMayNotContinueException noPack) {
 				// This was already reported on (below).
 				throw noPack;
@@ -1938,7 +1842,7 @@ public class UploadPack {
 					throw err;
 			}
 		} else {
-			sendPack(false, accumulator, allTags, unshallowCommits);
+			sendPack(false, req, accumulator, allTags, unshallowCommits, deepenNots);
 		}
 	}
 
@@ -1962,35 +1866,39 @@ public class UploadPack {
 	 * Send the requested objects to the client.
 	 *
 	 * @param sideband
-	 *                whether to wrap the pack in side-band pkt-lines,
-	 *                interleaved with progress messages and errors.
+	 *            whether to wrap the pack in side-band pkt-lines, interleaved
+	 *            with progress messages and errors.
+	 * @param req
+	 *            request being processed
 	 * @param accumulator
-	 *                where to write statistics about the content of the pack.
+	 *            where to write statistics about the content of the pack.
 	 * @param allTags
-	 *                refs to search for annotated tags to include in the pack
-	 *                if the {@link #OPTION_INCLUDE_TAG} capability was
-	 *                requested.
+	 *            refs to search for annotated tags to include in the pack if
+	 *            the {@link #OPTION_INCLUDE_TAG} capability was requested.
 	 * @param unshallowCommits
-	 *                shallow commits on the client that are now becoming
-	 *                unshallow
+	 *            shallow commits on the client that are now becoming unshallow
+	 * @param deepenNots
+	 *            objects that the client specified using --shallow-exclude
 	 * @throws IOException
-	 *                if an error occured while generating or writing the pack.
+	 *             if an error occurred while generating or writing the pack.
 	 */
 	private void sendPack(final boolean sideband,
+			FetchRequest req,
 			PackStatistics.Accumulator accumulator,
 			@Nullable Collection<Ref> allTags,
-			List<ObjectId> unshallowCommits) throws IOException {
+			List<ObjectId> unshallowCommits,
+			List<ObjectId> deepenNots) throws IOException {
 		ProgressMonitor pm = NullProgressMonitor.INSTANCE;
 		OutputStream packOut = rawOut;
 
 		if (sideband) {
 			int bufsz = SideBandOutputStream.SMALL_BUF;
-			if (options.contains(OPTION_SIDE_BAND_64K))
+			if (req.getClientCapabilities().contains(OPTION_SIDE_BAND_64K))
 				bufsz = SideBandOutputStream.MAX_BUF;
 
 			packOut = new SideBandOutputStream(SideBandOutputStream.CH_DATA,
 					bufsz, rawOut);
-			if (!options.contains(OPTION_NO_PROGRESS)) {
+			if (!req.getClientCapabilities().contains(OPTION_NO_PROGRESS)) {
 				msgOut = new SideBandOutputStream(
 						SideBandOutputStream.CH_PROGRESS, bufsz, rawOut);
 				pm = new SideBandProgressMonitor(msgOut);
@@ -2026,17 +1934,20 @@ public class UploadPack {
 				accumulator);
 		try {
 			pw.setIndexDisabled(true);
-			if (filterBlobLimit >= 0) {
-				pw.setFilterBlobLimit(filterBlobLimit);
+			if (req.getFilterBlobLimit() >= 0) {
+				pw.setFilterBlobLimit(req.getFilterBlobLimit());
 				pw.setUseCachedPacks(false);
 			} else {
 				pw.setUseCachedPacks(true);
 			}
-			pw.setUseBitmaps(depth == 0 && clientShallowCommits.isEmpty());
-			pw.setClientShallowCommits(clientShallowCommits);
+			pw.setUseBitmaps(
+					req.getDepth() == 0
+							&& req.getClientShallowCommits().isEmpty());
+			pw.setClientShallowCommits(req.getClientShallowCommits());
 			pw.setReuseDeltaCommits(true);
-			pw.setDeltaBaseAsOffset(options.contains(OPTION_OFS_DELTA));
-			pw.setThin(options.contains(OPTION_THIN_PACK));
+			pw.setDeltaBaseAsOffset(
+					req.getClientCapabilities().contains(OPTION_OFS_DELTA));
+			pw.setThin(req.getClientCapabilities().contains(OPTION_THIN_PACK));
 			pw.setReuseValidatingObjects(false);
 
 			// Objects named directly by references go at the beginning
@@ -2055,14 +1966,22 @@ public class UploadPack {
 			}
 
 			RevWalk rw = walk;
-			if (depth > 0) {
-				pw.setShallowPack(depth, unshallowCommits);
-				rw = new DepthWalk.RevWalk(walk.getObjectReader(), depth - 1);
-				rw.assumeShallow(clientShallowCommits);
+			if (req.getDepth() > 0 || req.getDeepenSince() != 0 || !deepenNots.isEmpty()) {
+				int walkDepth = req.getDepth() == 0 ? Integer.MAX_VALUE
+						: req.getDepth() - 1;
+				pw.setShallowPack(req.getDepth(), unshallowCommits);
+
+				DepthWalk.RevWalk dw = new DepthWalk.RevWalk(
+						walk.getObjectReader(), walkDepth);
+				dw.setDeepenSince(req.getDeepenSince());
+				dw.setDeepenNots(deepenNots);
+				dw.assumeShallow(req.getClientShallowCommits());
+				rw = dw;
 			}
 
 			if (wantAll.isEmpty()) {
-				pw.preparePack(pm, wantIds, commonBase, clientShallowCommits);
+				pw.preparePack(pm, wantIds, commonBase,
+						req.getClientShallowCommits());
 			} else {
 				walk.reset();
 
@@ -2071,7 +1990,8 @@ public class UploadPack {
 				rw = ow;
 			}
 
-			if (options.contains(OPTION_INCLUDE_TAG) && allTags != null) {
+			if (req.getClientCapabilities().contains(OPTION_INCLUDE_TAG)
+					&& allTags != null) {
 				for (Ref ref : allTags) {
 					ObjectId objectId = ref.getObjectId();
 					if (objectId == null) {

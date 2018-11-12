@@ -106,7 +106,8 @@ public class TransferConfig {
 			this.name = name;
 		}
 
-		static @Nullable ProtocolVersion parse(@Nullable String name) {
+		@Nullable
+		static ProtocolVersion parse(@Nullable String name) {
 			if (name == null) {
 				return null;
 			}
@@ -126,6 +127,7 @@ public class TransferConfig {
 	private final boolean allowInvalidPersonIdent;
 	private final boolean safeForWindows;
 	private final boolean safeForMacOS;
+	private final boolean allowRefInWant;
 	private final boolean allowTipSha1InWant;
 	private final boolean allowReachableSha1InWant;
 	private final boolean allowFilter;
@@ -180,6 +182,7 @@ public class TransferConfig {
 			ignore.add(ObjectChecker.ErrorType.ZERO_PADDED_FILEMODE);
 		}
 
+		allowRefInWant = rc.getBoolean("uploadpack", "allowrefinwant", false);
 		allowTipSha1InWant = rc.getBoolean(
 				"uploadpack", "allowtipsha1inwant", false);
 		allowReachableSha1InWant = rc.getBoolean(
@@ -259,6 +262,14 @@ public class TransferConfig {
 	 */
 	public boolean isAllowFilter() {
 		return allowFilter;
+	}
+
+	/**
+	 * @return true if clients are allowed to specify a "want-ref" line
+	 * @since 5.1
+	 */
+	public boolean isAllowRefInWant() {
+		return allowRefInWant;
 	}
 
 	/**

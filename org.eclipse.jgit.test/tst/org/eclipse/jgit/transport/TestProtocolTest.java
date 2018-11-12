@@ -46,6 +46,7 @@ package org.eclipse.jgit.transport;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -77,6 +78,7 @@ public class TestProtocolTest {
 			"+refs/heads/master:refs/heads/master");
 
 	private static final int HAVES_PER_ROUND = 32;
+	private static final int MAX_HAVES = 256;
 
 	private static class User {
 		private final String name;
@@ -187,7 +189,7 @@ public class TestProtocolTest {
 	}
 
 	@Test
-	public void testMinimalNegotiation() throws Exception {
+	public void testMaxHaves() throws Exception {
 		TestProtocol<User> proto = registerDefault();
 		URIish uri = proto.register(new User("user"), remote.getRepository());
 
@@ -200,28 +202,13 @@ public class TestProtocolTest {
 		RevCommit master = remote.branch("master").commit()
 				.add("readme.txt", "unique commit").create();
 
-		TestProtocol.setFetchConfig(new FetchConfig(true, true));
+		TestProtocol.setFetchConfig(new FetchConfig(true, MAX_HAVES));
 		try (Git git = new Git(local.getRepository())) {
 			assertNull(local.getRepository().exactRef("refs/heads/master"));
 			git.fetch().setRemote(uri.toString()).setRefSpecs(MASTER).call();
 			assertEquals(master, local.getRepository()
 					.exactRef("refs/heads/master").getObjectId());
-			assertTrue(havesCount <= 2 * HAVES_PER_ROUND);
-
-			// Update the remote master and add local branches for 5 more rounds
-			// of negotiation, where the local branch commits have newer
-			// timestamps. Negotiation should send 5 rounds for those newer
-			// branches before getting to the round that sends its stale version
-			// of master.
-			master = remote.branch("master").commit().parent(master).create();
-			local.tick(2 * HAVES_PER_ROUND);
-			for (int i = 0; i < 5 * HAVES_PER_ROUND; i++) {
-				local.branch("local-" + i).commit().create();
-			}
-			git.fetch().setRemote(uri.toString()).setRefSpecs(MASTER).call();
-			assertEquals(master, local.getRepository()
-					.exactRef("refs/heads/master").getObjectId());
-			assertEquals(6 * HAVES_PER_ROUND, havesCount);
+			assertTrue(havesCount <= MAX_HAVES);
 		}
 	}
 
@@ -252,6 +239,7 @@ public class TestProtocolTest {
 						.setRemote(user1Uri.toString())
 						.setRefSpecs(MASTER)
 						.call();
+				fail("accepted not permitted fetch");
 			} catch (InvalidRemoteException expected) {
 				// Expected.
 			}
@@ -296,6 +284,7 @@ public class TestProtocolTest {
 						.setRemote(user1Uri.toString())
 						.setRefSpecs(HEADS)
 						.call();
+				fail("accepted not permitted push");
 			} catch (TransportException expected) {
 				assertTrue(expected.getMessage().contains(
 						JGitText.get().pushNotPermitted));

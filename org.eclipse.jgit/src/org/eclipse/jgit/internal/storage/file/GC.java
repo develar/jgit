@@ -54,6 +54,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
+import java.nio.file.DirectoryNotEmptyException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -77,15 +78,12 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.eclipse.jgit.annotations.NonNull;
-import org.eclipse.jgit.api.errors.JGitInternalException;
 import org.eclipse.jgit.dircache.DirCacheIterator;
 import org.eclipse.jgit.errors.CancelledException;
 import org.eclipse.jgit.errors.CorruptObjectException;
@@ -247,9 +245,13 @@ public class GC {
 	 *             parsed
 	 */
 	// TODO(ms): in 5.0 change signature and return Future<Collection<PackFile>>
+	@SuppressWarnings("FutureReturnValueIgnored")
 	public Collection<PackFile> gc() throws IOException, ParseException {
-		final GcLog gcLog = background ? new GcLog(repo) : null;
-		if (gcLog != null && !gcLog.lock(background)) {
+		if (!background) {
+			return doGc();
+		}
+		final GcLog gcLog = new GcLog(repo);
+		if (!gcLog.lock()) {
 			// there is already a background gc running
 			return Collections.emptyList();
 		}
@@ -257,48 +259,31 @@ public class GC {
 		Callable<Collection<PackFile>> gcTask = () -> {
 			try {
 				Collection<PackFile> newPacks = doGc();
-				if (automatic && tooManyLooseObjects() && gcLog != null) {
+				if (automatic && tooManyLooseObjects()) {
 					String message = JGitText.get().gcTooManyUnpruned;
 					gcLog.write(message);
 					gcLog.commit();
 				}
 				return newPacks;
 			} catch (IOException | ParseException e) {
-				if (background) {
-					if (gcLog == null) {
-						// Lacking a log, there's no way to report this.
-						return Collections.emptyList();
-					}
-					try {
-						gcLog.write(e.getMessage());
-						StringWriter sw = new StringWriter();
-						e.printStackTrace(new PrintWriter(sw));
-						gcLog.write(sw.toString());
-						gcLog.commit();
-					} catch (IOException e2) {
-						e2.addSuppressed(e);
-						LOG.error(e2.getMessage(), e2);
-					}
-				} else {
-					throw new JGitInternalException(e.getMessage(), e);
+				try {
+					gcLog.write(e.getMessage());
+					StringWriter sw = new StringWriter();
+					e.printStackTrace(new PrintWriter(sw));
+					gcLog.write(sw.toString());
+					gcLog.commit();
+				} catch (IOException e2) {
+					e2.addSuppressed(e);
+					LOG.error(e2.getMessage(), e2);
 				}
 			} finally {
-				if (gcLog != null) {
-					gcLog.unlock();
-				}
+				gcLog.unlock();
 			}
 			return Collections.emptyList();
 		};
-		Future<Collection<PackFile>> result = executor().submit(gcTask);
-		if (background) {
-			// TODO(ms): in 5.0 change signature and return the Future
-			return Collections.emptyList();
-		}
-		try {
-			return result.get();
-		} catch (InterruptedException | ExecutionException e) {
-			throw new IOException(e);
-		}
+		// TODO(ms): in 5.0 change signature and return the Future
+		executor().submit(gcTask);
+		return Collections.emptyList();
 	}
 
 	private ExecutorService executor() {
@@ -922,14 +907,29 @@ public class GC {
 	}
 
 	private void deleteEmptyRefsFolders() throws IOException {
-		Path refs = repo.getDirectory().toPath().resolve("refs"); //$NON-NLS-1$
+		Path refs = repo.getDirectory().toPath().resolve(Constants.R_REFS);
+		// Avoid deleting a folder that was created after the threshold so that concurrent
+		// operations trying to create a reference are not impacted
+		Instant threshold = Instant.now().minus(30, ChronoUnit.SECONDS);
 		try (Stream<Path> entries = Files.list(refs)) {
 			Iterator<Path> iterator = entries.iterator();
 			while (iterator.hasNext()) {
 				try (Stream<Path> s = Files.list(iterator.next())) {
-					s.forEach(this::deleteDir);
+					s.filter(path -> canBeSafelyDeleted(path, threshold)).forEach(this::deleteDir);
 				}
 			}
+		}
+	}
+
+	private boolean canBeSafelyDeleted(Path path, Instant threshold) {
+		try {
+			return Files.getLastModifiedTime(path).toInstant().isBefore(threshold);
+		}
+		catch (IOException e) {
+			LOG.warn(MessageFormat.format(
+					JGitText.get().cannotAccessLastModifiedForSafeDeletion,
+					path), e);
+			return false;
 		}
 	}
 
@@ -946,22 +946,15 @@ public class GC {
 		return p.toFile().isDirectory();
 	}
 
-	private boolean delete(Path d) {
+	private void delete(Path d) {
 		try {
-			// Avoid deleting a folder that was just created so that concurrent
-			// operations trying to create a reference are not impacted
-			Instant threshold = Instant.now().minus(30, ChronoUnit.SECONDS);
-			Instant lastModified = Files.getLastModifiedTime(d).toInstant();
-			if (lastModified.isBefore(threshold)) {
-				// If the folder is not empty, the delete operation will fail
-				// silently. This is a cheaper alternative to filtering the
-				// stream in the calling method.
-				return d.toFile().delete();
-			}
+			Files.delete(d);
+		} catch (DirectoryNotEmptyException e) {
+			// Don't log
 		} catch (IOException e) {
-			LOG.error(e.getMessage(), e);
+			LOG.error(MessageFormat.format(JGitText.get().cannotDeleteFile, d),
+					e);
 		}
-		return false;
 	}
 
 	/**
@@ -1007,6 +1000,9 @@ public class GC {
 	private void deleteTempPacksIdx() {
 		Path packDir = repo.getObjectDatabase().getPackDirectory().toPath();
 		Instant threshold = Instant.now().minus(1, ChronoUnit.DAYS);
+		if (!Files.exists(packDir)) {
+			return;
+		}
 		try (DirectoryStream<Path> stream =
 				Files.newDirectoryStream(packDir, "gc_*_tmp")) { //$NON-NLS-1$
 			stream.forEach(t -> {

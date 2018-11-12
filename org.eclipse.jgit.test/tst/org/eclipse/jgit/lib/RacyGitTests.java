@@ -43,8 +43,10 @@
 package org.eclipse.jgit.lib;
 
 import static java.lang.Long.valueOf;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -157,10 +159,13 @@ public class RacyGitTests extends RepositoryTestCase {
 		// Remember the last modTime of index file. All modifications times of
 		// further modification are translated to this value so it looks that
 		// files have been modified in the same time slot as the index file
-		modTimes.add(Long.valueOf(db.getIndexFile().lastModified()));
+		long indexMod = db.getIndexFile().lastModified();
+		modTimes.add(Long.valueOf(indexMod));
 
 		// modify one file
-		addToWorkDir("a", "a2");
+		long aMod = addToWorkDir("a", "a2").lastModified();
+		assumeTrue(aMod == indexMod);
+
 		// now update the index the index. 'a' has to be racily clean -- because
 		// it's modification time is exactly the same as the previous index file
 		// mod time.
@@ -177,7 +182,7 @@ public class RacyGitTests extends RepositoryTestCase {
 	private File addToWorkDir(String path, String content) throws IOException {
 		File f = new File(db.getWorkTree(), path);
 		try (FileOutputStream fos = new FileOutputStream(f)) {
-			fos.write(content.getBytes(Constants.CHARACTER_ENCODING));
+			fos.write(content.getBytes(UTF_8));
 			return f;
 		}
 	}

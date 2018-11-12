@@ -51,6 +51,7 @@ import org.eclipse.jgit.api.errors.JGitInternalException;
 import org.eclipse.jgit.api.errors.NoFilepatternException;
 import org.eclipse.jgit.errors.ConfigInvalidException;
 import org.eclipse.jgit.internal.JGitText;
+import org.eclipse.jgit.internal.submodule.SubmoduleValidator;
 import org.eclipse.jgit.lib.ConfigConstants;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.NullProgressMonitor;
@@ -76,6 +77,8 @@ import org.eclipse.jgit.treewalk.filter.TreeFilter;
 public class SubmoduleAddCommand extends
 		TransportCommand<SubmoduleAddCommand, Repository> {
 
+	private String name;
+
 	private String path;
 
 	private String uri;
@@ -90,6 +93,18 @@ public class SubmoduleAddCommand extends
 	 */
 	public SubmoduleAddCommand(Repository repo) {
 		super(repo);
+	}
+
+	/**
+	 * Set the submodule name
+	 *
+	 * @param name
+	 * @return this command
+	 * @since 5.1
+	 */
+	public SubmoduleAddCommand setName(String name) {
+		this.name = name;
+		return this;
 	}
 
 	/**
@@ -160,6 +175,18 @@ public class SubmoduleAddCommand extends
 			throw new IllegalArgumentException(JGitText.get().pathNotConfigured);
 		if (uri == null || uri.length() == 0)
 			throw new IllegalArgumentException(JGitText.get().uriNotConfigured);
+		if (name == null || name.length() == 0) {
+			// Use the path as the default.
+			name = path;
+		}
+
+		try {
+			SubmoduleValidator.assertValidSubmoduleName(name);
+			SubmoduleValidator.assertValidSubmodulePath(path);
+			SubmoduleValidator.assertValidSubmoduleUri(uri);
+		} catch (SubmoduleValidator.SubmoduleValidationException e) {
+			throw new IllegalArgumentException(e.getMessage());
+		}
 
 		try {
 			if (submoduleExists())
@@ -193,7 +220,7 @@ public class SubmoduleAddCommand extends
 
 		// Save submodule URL to parent repository's config
 		StoredConfig config = repo.getConfig();
-		config.setString(ConfigConstants.CONFIG_SUBMODULE_SECTION, path,
+		config.setString(ConfigConstants.CONFIG_SUBMODULE_SECTION, name,
 				ConfigConstants.CONFIG_KEY_URL, resolvedUri);
 		try {
 			config.save();
@@ -207,9 +234,9 @@ public class SubmoduleAddCommand extends
 		try {
 			modulesConfig.load();
 			modulesConfig.setString(ConfigConstants.CONFIG_SUBMODULE_SECTION,
-					path, ConfigConstants.CONFIG_KEY_PATH, path);
+					name, ConfigConstants.CONFIG_KEY_PATH, path);
 			modulesConfig.setString(ConfigConstants.CONFIG_SUBMODULE_SECTION,
-					path, ConfigConstants.CONFIG_KEY_URL, uri);
+					name, ConfigConstants.CONFIG_KEY_URL, uri);
 			modulesConfig.save();
 		} catch (IOException e) {
 			throw new JGitInternalException(e.getMessage(), e);
