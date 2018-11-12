@@ -3,7 +3,6 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/org.eclipse.jgit/org.eclipse.jgit.iml" filepath="$PROJECT_DIR$/org.eclipse.jgit/org.eclipse.jgit.iml" />
-      <module fileurl="file://$PROJECT_DIR$/org.eclipse.jgit-parent.iml" filepath="$PROJECT_DIR$/org.eclipse.jgit-parent.iml" />
       <module fileurl="file://$PROJECT_DIR$/org.eclipse.jgit.ant/org.eclipse.jgit.ant.iml" filepath="$PROJECT_DIR$/org.eclipse.jgit.ant/org.eclipse.jgit.ant.iml" />
       <module fileurl="file://$PROJECT_DIR$/org.eclipse.jgit.ant.test/org.eclipse.jgit.ant.test.iml" filepath="$PROJECT_DIR$/org.eclipse.jgit.ant.test/org.eclipse.jgit.ant.test.iml" />
       <module fileurl="file://$PROJECT_DIR$/org.eclipse.jgit.archive/org.eclipse.jgit.archive.iml" filepath="$PROJECT_DIR$/org.eclipse.jgit.archive/org.eclipse.jgit.archive.iml" />

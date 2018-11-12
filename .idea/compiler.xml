@@ -26,6 +26,7 @@
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>
+      <module name="jgit" target="1.8" />
       <module name="org.eclipse.jgit" target="1.8" />
       <module name="org.eclipse.jgit-parent" target="1.8" />
       <module name="org.eclipse.jgit.ant" target="1.8" />
@@ -45,5 +46,26 @@
       <module name="org.eclipse.jgit.test" target="1.8" />
       <module name="org.eclipse.jgit.ui" target="1.8" />
     </bytecodeTargetLevel>
+  </component>
+  <component name="EclipseCompilerSettings">
+    <option name="ADDITIONAL_OPTIONS_OVERRIDE">
+      <module name="org.eclipse.jgit" options="-properties /Users/develar/Documents/jgit/org.eclipse.jgit/.settings/org.eclipse.jdt.core.prefs" />
+      <module name="org.eclipse.jgit.ant" options="-properties /Users/develar/Documents/jgit/org.eclipse.jgit.ant/.settings/org.eclipse.jdt.core.prefs" />
+      <module name="org.eclipse.jgit.ant.test" options="-properties /Users/develar/Documents/jgit/org.eclipse.jgit.ant.test/.settings/org.eclipse.jdt.core.prefs" />
+      <module name="org.eclipse.jgit.archive" options="-properties /Users/develar/Documents/jgit/org.eclipse.jgit.archive/.settings/org.eclipse.jdt.core.prefs" />
+      <module name="org.eclipse.jgit.http.apache" options="-properties /Users/develar/Documents/jgit/org.eclipse.jgit.http.apache/.settings/org.eclipse.jdt.core.prefs" />
+      <module name="org.eclipse.jgit.http.server" options="-properties /Users/develar/Documents/jgit/org.eclipse.jgit.http.server/.settings/org.eclipse.jdt.core.prefs" />
+      <module name="org.eclipse.jgit.http.test" options="-properties /Users/develar/Documents/jgit/org.eclipse.jgit.http.test/.settings/org.eclipse.jdt.core.prefs" />
+      <module name="org.eclipse.jgit.junit" options="-properties /Users/develar/Documents/jgit/org.eclipse.jgit.junit/.settings/org.eclipse.jdt.core.prefs" />
+      <module name="org.eclipse.jgit.junit.http" options="-properties /Users/develar/Documents/jgit/org.eclipse.jgit.junit.http/.settings/org.eclipse.jdt.core.prefs" />
+      <module name="org.eclipse.jgit.lfs" options="-properties /Users/develar/Documents/jgit/org.eclipse.jgit.lfs/.settings/org.eclipse.jdt.core.prefs" />
+      <module name="org.eclipse.jgit.lfs.server" options="-properties /Users/develar/Documents/jgit/org.eclipse.jgit.lfs.server/.settings/org.eclipse.jdt.core.prefs" />
+      <module name="org.eclipse.jgit.lfs.server.test" options="-properties /Users/develar/Documents/jgit/org.eclipse.jgit.lfs.server.test/.settings/org.eclipse.jdt.core.prefs" />
+      <module name="org.eclipse.jgit.lfs.test" options="-properties /Users/develar/Documents/jgit/org.eclipse.jgit.lfs.test/.settings/org.eclipse.jdt.core.prefs" />
+      <module name="org.eclipse.jgit.pgm" options="-properties /Users/develar/Documents/jgit/org.eclipse.jgit.pgm/.settings/org.eclipse.jdt.core.prefs" />
+      <module name="org.eclipse.jgit.pgm.test" options="-properties /Users/develar/Documents/jgit/org.eclipse.jgit.pgm.test/.settings/org.eclipse.jdt.core.prefs" />
+      <module name="org.eclipse.jgit.test" options="-properties /Users/develar/Documents/jgit/org.eclipse.jgit.test/.settings/org.eclipse.jdt.core.prefs" />
+      <module name="org.eclipse.jgit.ui" options="-properties /Users/develar/Documents/jgit/org.eclipse.jgit.ui/.settings/org.eclipse.jdt.core.prefs" />
+    </option>
   </component>
 </project>

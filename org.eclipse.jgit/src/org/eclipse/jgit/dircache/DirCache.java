@@ -60,6 +60,7 @@ import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.TreeWalk.OperationType;
 import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
 import org.eclipse.jgit.util.*;
+import org.eclipse.jgit.util.io.SilentFileInputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -71,7 +72,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import org.eclipse.jgit.util.io.SilentFileInputStream;
+
+import static java.nio.charset.StandardCharsets.ISO_8859_1;
 
 /**
  * Support for the Git dircache (aka index file).
